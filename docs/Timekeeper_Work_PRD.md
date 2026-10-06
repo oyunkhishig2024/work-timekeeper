@@ -1125,6 +1125,7 @@ Added in v1.2 **[v1.2]**:
 | 1.1     | Added: Primary Location (12), Temporary Location Assignment (12.1), late rule (6.2), no-show cut-off (6.3), employee lifecycle (12.2), device replacement/loss workflow (21), minimum geofence stay (6.4), location-off state (6.5), Excel/PDF export (20), Reason Report (11.1), Departments (13.1), location-level percentages (8), notification engine hook (19), audit log expansion (15.1) |
 | 1.2     | Added (CTO review): attendance integrity / anti-spoofing / Anomaly Review Queue (6.7); offline queue, server time authority, background-restriction handling, heartbeat, force-upgrade (6.8); basic attendance correction pulled into MVP (6.9, 19); role scope for Manager/HR (4); import safety and invite-based onboarding (12.3); identity and access hardening (15.2); privacy and compliance (15.3); effective-dated rules, time zones, event model (22); shifts and non-working days decision (23); scale and performance (24); operations: SLOs, DR, environments, release, period close, security ops (25); precise success-metric definitions (18); extended open questions (26); fixed section cross-references (device lifecycle 21, changelog 27). |
 | 1.3     | Business decisions: 24 h shift scheduling added to MVP and section 23 rewritten (templates, rotation patterns, assignments, overrides, work-date rule, handover, roster view); expected-attendance function extended (6.1); Suspicious events now accept-and-flag (6.7); direct HR correction without second approval, with compensating controls (6.9); supported-device requirements and readiness process (21.3); voluntary signed consent form printed by HR and attached to the employment contract, with registration gate, scan upload, withdrawal and manual-attendance alternative (15.3, 15.4, Appendix A); open questions updated. |
+| 1.4     | Decisions: TOTP (Google Authenticator) two-step login for Super Admin / Org Admin / HR, no SMS (15.2); attendance records retained 2 years (15.3); open questions 11 and 13 closed. |
 
 ---
 
@@ -1153,4 +1154,3 @@ Added in v1.2 **[v1.2]**:
 Хүлээн авсан Хүний нөөцийн ажилтан: ____________  Гарын үсэг: ________  Огноо: ________
 
 *Энэ хуудсыг ажилтны хөдөлмөрийн гэрээний хамт хавсаргаж хадгална.*
-| 1.4     | Decisions: TOTP (Google Authenticator) two-step login for Super Admin / Org Admin / HR, no SMS (15.2); attendance records retained 2 years (15.3); open questions 11 and 13 closed. |
