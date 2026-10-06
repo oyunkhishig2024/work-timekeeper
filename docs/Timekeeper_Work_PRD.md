@@ -1,7 +1,7 @@
 # Timekeeper Work
 ## Product Requirements Document (PRD)
 
-Version: 1.9
+Version: 1.9.1
 Product: Timekeeper Work
 Owner: Onki
 Status: Requirements Specification (pre-development review + CTO review + stakeholder decisions applied)
@@ -244,7 +244,7 @@ To avoid false triggers from GPS drift at the geofence border:
 - Parameter: **Minimum Stay = 3 minutes** (tenant default; configurable per location, range 1–15 min).
 - A geofence entry is confirmed as **Arrival** only after the device remains inside the geofence continuously for the Minimum Stay.
 - **Arrival time = timestamp of the first entry of the confirmed stay** (not the confirmation time).
-- Exits shorter than the Minimum Stay (e.g. 1–2 min) are ignored and do not reset the stay; the same applies to re-entry.
+- **[CHANGED v1.9.1, clarified]** Before arrival is confirmed, a stay shorter than the Minimum Stay is discarded (the timer is cancelled) and a later entry starts a new stay — exactly as in the example table above. **Once an arrival is confirmed, later exits and re-entries (of any length) do not change the day's status or arrival time**; they are stored as raw events only. (v1.1–v1.9 wrongly said short exits "do not reset the stay", contradicting the example; the example and the implementation in `packages/domain` follow the rule stated here.)
 
 Example:
 
@@ -1195,6 +1195,7 @@ Added in v1.2 **[v1.2]**:
 | 1.7     | Decision: foreign cloud hosting (Option B) confirmed over Mongolian hosting; foreign processors register added to 15.3 (hosting, Play Integrity / App Attest, Android location services, FCM, monitoring, email/SMS) and listed in the consent text (Appendix A, item 7); legal confirmation still pending (26 Q12). |
 | 1.8     | Applied architecture review deviations: (1) device-event partitioning deferred to production tier (24.3); (2) raw coordinates erased after 30 days while the 2-year geofence-level event stays (15.3); (3) heartbeat is best effort, tolerance 60 min (6.8); (4) attestation: registration strict, event batches accept-and-flag when the verdict service is unavailable (6.7); (5) PostgreSQL-backed queue confirmed (16, 24, no change). Hosting region fixed: Singapore (15.3, Appendix A). |
 | 1.9     | Release plan decided (17.1): Release 1 "Pilot-Lite" for standard-schedule employees (≈ 5.5 months), Release 2 with shifts, full analytics, PDF and tenant admin (≈ 8 months); interim manual-attendance handling for guards; "4 months" = period with only 1–2 tenants. |
+| 1.9.1   | Clarified 6.4 minimum-stay rule (short stays before confirmation are discarded; after confirmation later exits/entries do not change the status), removing a contradiction with the example table. |
 
 ---
 

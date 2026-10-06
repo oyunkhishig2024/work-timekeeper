@@ -1,0 +1,15 @@
+node_modules/
+dist/
+.next/
+coverage/
+.turbo/
+*.log
+.env
+.env.*
+!.env.example
+.DS_Store
+# mobile (added when scaffolded)
+apps/mobile/ios/Pods/
+apps/mobile/android/.gradle/
+apps/mobile/android/build/
+next-env.d.ts
