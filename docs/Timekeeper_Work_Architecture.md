@@ -1,7 +1,7 @@
 # Timekeeper Work
 ## Technical Architecture Document
 
-Version: 0.4 (draft for review)
+Version: 0.5 (draft for review)
 Status: Draft — based on PRD v1.9 (`docs/Timekeeper_Work_PRD.md`)
 Audience: engineering lead, backend / mobile / web developers, QA
 Scope: the **pilot tier** (1–2 tenants, ~4 months, ~640 employees), built by **one full-stack developer** (decision v0.2, see Section 14). The production tier is covered only where a decision now would be expensive to undo later.
@@ -711,3 +711,14 @@ Migrations `0001`–`0006` are implemented in `apps/api/db/migrations` (foundati
 - `tenant` has a `code` and a `SECURITY DEFINER` lookup so login can find the tenant before any tenant context exists (flow: resolve code → set `app.tenant_id` → read `user_account`).
 - A helper `apply_tenant_rls(table)` standardizes RLS enable/force/policy/grants; a schema test fails if any `tenant_id` table lacks RLS.
 - Not yet migrated: devices/QR/consent, rules/working week/holidays/shifts, reasons, device events and heartbeats, attendance tables, export jobs.
+
+# 19. Implementation Status (authentication)
+
+Implemented in `apps/api/src/auth` and `apps/api/src/users` (details and endpoint list in `apps/api/src/auth/README.md`), verified by unit tests (TOTP against RFC 6238 vectors, password policy, token and encryption helpers) and end-to-end tests against PostgreSQL (login, lockout, forced password change, TOTP enrolment with replay protection, recovery codes, refresh rotation with reuse detection, immediate revocation, role and tenant isolation, audit entries). Where the implementation refines or limits this document:
+
+- **Session check on every request:** besides the JWT signature, the guard confirms the session is unrevoked and the user active in the database (one small query per request), so disabling a user takes effect immediately (PRD 12.2).
+- **Two-step login:** TOTP via Google Authenticator for Org Admin and HR, no SMS (PRD 15.2, v1.4). Enrolment happens after the first login under a restricted token (`requires: ["TOTP_SETUP"]`).
+- **Refresh tokens** are opaque `<tenantId>.<random>`; staff sessions are idle-limited to 30 minutes (sliding), employee sessions last 30 days.
+- **Mutation-tested:** removing TOTP replay protection, refresh-family revocation or the live-session check each makes tests fail.
+- **Deferred (see the auth README):** Super Admin login, device-bound mobile tokens and employee invites (with the devices module), breached-password check against an external list (needs a PRD 15.3 processor entry), escalating lockout, absolute staff session age.
+- ESLint rule `consistent-type-imports` is off for `apps/api` because NestJS dependency injection needs runtime class imports.

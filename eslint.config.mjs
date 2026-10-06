@@ -23,5 +23,11 @@ export default tseslint.config(
       "@typescript-eslint/consistent-type-imports": "error",
     },
   },
+  {
+    // NestJS injects dependencies by the runtime class recorded in decorator metadata, so constructor
+    // parameter types must stay value imports; "import type" there would break dependency injection.
+    files: ["apps/api/**/*.ts"],
+    rules: { "@typescript-eslint/consistent-type-imports": "off" },
+  },
   prettier,
 );

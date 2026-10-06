@@ -8,5 +8,6 @@
   rule logic into the API, worker, web or mobile code.
 - Do not edit the PRD silently: requirement changes are recorded in its change log (Section 27).
 - Database: SQL migrations in `apps/api/db/migrations` (see its README). Every tenant table is created with `apply_tenant_rls()`; never edit an applied migration. Database tests need `TEST_DATABASE_URL` (name must end in `_test`; the schema is rebuilt on each run) and are skipped without it.
+- Auth: see `apps/api/src/auth/README.md`. Required secrets `JWT_SECRET` and `DATA_ENCRYPTION_KEY` have no defaults. Do not auto-fix `import type` in `apps/api` (NestJS DI needs value imports).
 - Mobile app is intentionally not scaffolded yet (see `apps/mobile/README.md`).
 - Before finishing a change run: `pnpm format:check && pnpm lint && pnpm typecheck && pnpm test && pnpm build`.
