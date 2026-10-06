@@ -1,13 +1,14 @@
 # Timekeeper Work
 ## Product Requirements Document (PRD)
 
-Version: 1.1
+Version: 1.2
 Product: Timekeeper Work
 Owner: Onki
-Status: Requirements Specification (pre-development review applied)
+Status: Requirements Specification (pre-development review + CTO review applied)
 
 > v1.1 нь v1.0 MVP PRD-д дутуу байсан бизнес дүрэм, edge case, operational requirement-үүдийг нэмсэн хувилбар.
-> Шинэ/өөрчлөгдсөн хэсгийг **[NEW]** / **[CHANGED]** гэж тэмдэглэв. Өөрчлөлтийн бүртгэлийг 20-р бүлгээс үзнэ үү.
+> v1.2 нь CTO review-ийн дагуу attendance integrity, offline/mobile найдвартай байдал, attendance correction (MVP), privacy/compliance, scale/operations, identity, data-model gap-уудыг нэмсэн хувилбар.
+> v1.1-д нэмсэн хэсгийг **[NEW]** / **[CHANGED]**, v1.2-д нэмсэн хэсгийг **[v1.2]** гэж тэмдэглэв. Өөрчлөлтийн бүртгэлийг 27-р бүлгээс үзнэ үү.
 
 ---
 
@@ -98,6 +99,7 @@ Permissions:
 - Configure attendance rules (grace, no-show cut-off, minimum geofence stay) **[NEW]**
 - View all reports
 - View audit log **[NEW]**
+- Approve attendance corrections (see 6.9) **[v1.2]**
 
 ## HR
 
@@ -111,6 +113,7 @@ Permissions:
 - View attendance
 - Export reports (Excel / PDF) **[NEW]**
 - Manage devices (disable device, generate replacement QR) **[NEW]**
+- Create manual attendance corrections (see 6.9) **[v1.2]**
 
 ## Manager
 
@@ -121,6 +124,8 @@ Permissions:
 - Search employees
 
 View-only access.
+
+**Scope [v1.2]:** a Manager (and HR, if the Org Admin configures it) is limited to the **locations and/or departments assigned to them**. Dashboard counts, attendance lists, analytics, exports and search return only in-scope employees. Org Admin sees the whole tenant. A user with no scope assignment sees nothing (deny by default). Scope is enforced server-side on every query, not only in the UI. Gantsooj (Manager) is assigned the scope at user creation.
 
 ## Employee
 
@@ -156,7 +161,7 @@ Device Rules:
 - New device registration disables previous device
 - Attendance accepted only from active device
 
-(See Section 22 for the full Device Lifecycle.)
+(See Section 21 for the full Device Lifecycle.)
 
 ---
 
@@ -266,6 +271,59 @@ When multiple conditions apply on one day:
 2. Else a confirmed arrival → **Цагтаа** / **Хоцорсон**.
 3. Else cut-off passed → **Ирээгүй**.
 4. Else → **Хүлээгдэж байна**.
+
+## 6.7 Attendance Integrity (Anti-spoofing) **[v1.2]**
+
+Geofence attendance is easy to cheat with fake-GPS apps, so integrity checks are part of the MVP, not a later add-on.
+
+**Device and app attestation**
+- Android: Google **Play Integrity API** verdict required at device registration and on every attendance event batch; iOS: **App Attest / DeviceCheck**.
+- Rooted / jailbroken devices, emulators, tampered or sideloaded app builds are rejected at registration and flagged on events.
+
+**Location authenticity**
+- App reports the **mock-location flag** (Android `isMock` / developer "mock location app" setting) and provider type (GPS / network / fused).
+- Fixes with **horizontal accuracy worse than 50 m** (configurable per tenant, 20–100 m) do not confirm an arrival; they are stored as low-accuracy events.
+- Server-side plausibility checks: impossible speed between consecutive fixes (e.g. > 150 km/h), a "teleport" into a geofence with no preceding movement, and identical coordinates repeated with zero jitter.
+
+**Anomaly handling**
+- Any failed check marks the event **Suspicious** with a reason code (MOCK_LOCATION, LOW_ACCURACY, IMPOSSIBLE_SPEED, ATTESTATION_FAILED, CLOCK_SKEW, DEVICE_CONFLICT).
+- A Suspicious event **does not set Цагтаа/Хоцорсон automatically** (default policy; tenant may choose "accept and flag"). It appears in an **Anomaly Review Queue** for HR with actions: Accept, Reject, or Request re-check. Decisions are audited.
+- Repeated anomalies for one employee (e.g. 3 within 7 days) raise a flag on the employee profile and in the audit log.
+
+**Buddy punching**
+- One active device per employee remains the baseline. Additionally detect **one physical device claiming attendance for two employees** (same device ID / attestation key under two accounts) and **two employees' devices at identical coordinates with identical movement traces** — both raise DEVICE_CONFLICT.
+- Device registration requires the Replacement/Onboarding QR **and** an HR-visible registration record (see 21). A liveness/biometric check at registration is deferred to V3.
+
+## 6.8 Offline and Mobile Reliability **[v1.2]**
+
+- **Offline event queue:** the app stores geofence enter/exit events locally (encrypted, tamper-evident) with the on-device capture time and a monotonic clock reading, and syncs when connectivity returns. Sync is **idempotent** (client-generated event ID; server dedupes).
+- **Server time is the authority:** every upload carries device wall-clock and monotonic offsets; the server computes arrival time from the server receive time minus the monotonic delta. If device-clock vs server skew exceeds **2 minutes**, the event is flagged CLOCK_SKEW and the server-derived time is used. Manually changed clocks cannot make an employee on time.
+- **Late-sync window:** offline events are accepted up to **24 hours** after capture (configurable). Status for past dates is recomputed when delayed events arrive, with the original evaluation kept in the audit trail (consistent with 6.3).
+- **OS-level region monitoring:** geofencing must rely on OS facilities (iOS region monitoring / Significant-Change; Android Geofencing API via Google Play services), not a long-running foreground service. A foreground service is allowed only as a fallback.
+- **Background-restriction handling:** many Android OEMs (Xiaomi, Samsung, Huawei, Oppo) kill background apps. The app includes an onboarding checklist: "Always allow location", precise location, battery-optimization exemption, auto-start permission (with OEM-specific instructions), and notification permission. A **Health Check** screen shows green/red for each; the result is reported to the backend.
+- **Heartbeat:** app sends a lightweight heartbeat (default every 15 min during work hours, OS-permitting) with permission state, battery-saver state, app version. Missing heartbeats feed the "Байршил идэвхгүй" state (6.5). Heartbeat is not location tracking (see 15.3).
+- **Battery budget:** background activity must not use more than ~3% battery per working day on reference devices.
+- **Minimum supported OS:** Android 10+, iOS 15+ (tenant-visible; confirm in 26).
+- **Force-upgrade:** the backend publishes a minimum app version; older versions are blocked with an upgrade prompt (see 25.4).
+
+## 6.9 Attendance Correction (basic, in MVP) **[v1.2]**
+
+Without correction, HR cannot recover from a dead phone, GPS failure or a genuine error on day one. A basic workflow is therefore pulled into the MVP (the full workflow remains in V2, see 19).
+
+**Manual override (HR)**
+- HR selects Employee + Date, chooses the new status (Цагтаа / Хоцорсон / Ирээгүй) and optionally an arrival time.
+- **Mandatory correction reason** (pick-list: Phone dead/lost, GPS fault, App issue, Anomaly review, Data entry error, Other + free text).
+- Corrections are stored as separate records layered over the system-computed result: original system value, corrected value, reason, actor, timestamp. The original is never overwritten.
+- A corrected day is shown with a "Corrected" badge in Daily Attendance and exports (column "Source: Auto / Corrected").
+
+**Approval**
+- Default rule: corrections require **approval by a second person** (Org Admin or another HR user); the requester cannot approve their own correction. Tenant may relax this to "no approval needed for ≤ 2 corrections per employee per month" or turn approval off (Org Admin setting, audited).
+- Pending corrections show as "Correction pending" and do not change counts until approved.
+
+**Limits and audit**
+- Corrections only for the **last 31 days** by default (configurable); older periods are locked once the month is closed (see 25.5).
+- Every request, approval, rejection and revocation is written to the audit log (15.1).
+- A "Corrections" report lists corrections by period, actor, reason; high correction rates per location are shown as a data-quality indicator (see 18).
 
 ---
 
@@ -492,7 +550,7 @@ Excel Import Fields:
 - Department
 - **Primary Location** (must match an existing location, rows with unknown location are rejected with a row-level error report)
 - Username
-- Password
+- ~~Password~~ **[CHANGED v1.2]** Plaintext passwords are no longer accepted in the Excel file. See 12.3 (Import Safety) and 15.2 (Identity).
 
 ## 12.1 Temporary Location Assignment **[NEW]**
 
@@ -543,6 +601,15 @@ When HR disables an employee:
 - A Disabled employee can be **Archived** after a configurable retention period (default: 12 months) to hide them from search and imports.
 - Archived employees are read-only and retain history; they can be restored by HR / Org Admin (see Re-activate).
 - Employee Number remains reserved to the employee (not reused by another person).
+
+## 12.3 Import Safety **[v1.2]**
+
+- **Dry-run first:** every import runs a validation pass that returns a per-row report (valid / warning / error) and writes nothing. HR confirms to commit.
+- **All-or-nothing option:** HR chooses "import valid rows only" or "abort if any error".
+- **Validation:** unique Employee Number and Username, existing Department and Location, required fields, file size (max 2,000 rows) and type (.xlsx only), formula/macro injection stripped (cells starting with `=`, `+`, `-`, `@` are treated as text).
+- **No plaintext credentials:** passwords are not imported. Each imported employee gets an **invite** (one-time activation link/code, expires in 72 hours by default) and sets their own password on first login. A downloadable "invite sheet" (employee, username, activation code) is generated once for HR and is not stored after download.
+- **Idempotent:** re-uploading the same file updates existing employees by Employee Number (with a diff preview) rather than creating duplicates.
+- Imports are audited (file name, row counts, actor).
 
 ---
 
@@ -630,6 +697,28 @@ Rules:
 - Filterable by date, actor, action, employee; exportable.
 - Retention: minimum 12 months (configurable).
 
+## 15.2 Identity and Access **[v1.2]**
+
+- **First-login password change:** accounts created by HR/Admin (or via invite) must set a new password on first login; temporary passwords/codes expire (72 hours).
+- **Password policy:** minimum 10 characters, no known-breached passwords (check against a breached-password list), hashed with Argon2id (or bcrypt cost ≥ 12).
+- **Password reset:** self-service reset by one-time code to a verified channel (email/phone) or HR-assisted reset (audited). Reset revokes all sessions and, for employees, does **not** change the registered device.
+- **MFA:** mandatory for Super Admin, Organization Admin and HR; optional for Manager; not required for Employee. TOTP authenticator at minimum; SMS only as fallback.
+- **Rate limiting and lockout:** login and reset endpoints are rate-limited per IP and per account; progressive lockout after repeated failures (e.g. 5 attempts → 15-minute lock), with alerts to admins on suspected brute-force.
+- **Sessions/tokens:** short-lived access tokens (≤ 15 min) with rotating refresh tokens bound to the device for mobile; revocable on disable, reset or device replacement. Web admin sessions expire after 30 minutes idle.
+- **Least privilege:** roles and scope (4) enforced server-side; Super Admin access to tenant data is audited and, for tenant business data, requires an explicit support-access grant by the tenant.
+- **Secrets and keys:** no secrets in the repo or mobile binary; keys managed in a cloud KMS; database and backups encrypted at rest.
+
+## 15.3 Privacy and Compliance **[v1.2]**
+
+- **Purpose limitation:** location is processed **only to determine attendance at the employee's expected geofence**. The system does **not** record continuous trails or location outside configured geofences/work hours. Outside work hours the app does not collect location.
+- **What is stored:** geofence enter/exit events (timestamp, location ID, accuracy flags) and heartbeat metadata. Raw coordinates are retained only for the Suspicious/anomaly window (default 30 days), then reduced to the geofence-level event.
+- **Employee transparency:** the app shows a plain-language notice (what is collected, when, who sees it) and an "Attendance history" view of exactly what was recorded about them (see 4). Consent/acknowledgement is captured at first login and stored with version and timestamp.
+- **Legal basis:** employer's attendance obligation under the employment relationship, plus recorded acknowledgement. Compliance with **Mongolia's Law on Personal Data Protection** must be confirmed by legal counsel before launch (see 26); the design assumes: lawful and limited collection, notice, access, correction, deletion/anonymization after retention, cross-border transfer controls (tenant data region configurable; default in-region or contractually covered cloud region).
+- **Data-subject requests:** HR/Org Admin can export an employee's personal data and, where legally allowed, anonymize it; requests and outcomes are audited.
+- **Retention (defaults, configurable per tenant):** attendance records 5 years; raw anomaly coordinates 30 days; heartbeats 90 days; audit log 12 months minimum (see 15.1); archived employee data per 12.2. Deletion jobs run automatically and are logged.
+- **Access scoping:** see Manager/HR scope in 4. Exports containing personal data are audited (see 20) and watermarked with exporter and time.
+- **Breach readiness:** documented incident-response process and notification procedure (see 25.6).
+
 ---
 
 # 16. Technical Stack
@@ -660,6 +749,14 @@ Storage:
 - Azure Blob Storage
 - AWS S3
 
+Additions **[v1.2]**:
+- Queue / event ingest: a managed message queue (e.g. SQS / Azure Service Bus / Redis Streams) in front of the attendance-processing workers
+- Cache: Redis for rate limiting, sessions and dashboard cache
+- Mobile attestation: Google Play Integrity API, Apple App Attest
+- Observability: structured logging, metrics and tracing (e.g. OpenTelemetry) with a hosted dashboard and alerting
+- Secrets / keys: cloud KMS
+- Infrastructure as Code and CI/CD pipeline (see 25.4)
+
 ---
 
 # 17. MVP Scope
@@ -685,7 +782,13 @@ Included:
 - Working hours
 - Employee lifecycle (disable, re-activate, archive) **[NEW]**
 - Audit log **[NEW]**
-- Role-based access control
+- Role-based access control (with location/department scope) **[CHANGED v1.2]**
+- Attendance integrity checks and Anomaly Review Queue **[v1.2]**
+- Offline event queue, server time authority, background-restriction onboarding **[v1.2]**
+- Basic attendance correction with approval **[v1.2]**
+- Identity hardening (first-login change, MFA for admins, rate limiting, invite-based onboarding) **[v1.2]**
+- Privacy notice, consent capture and retention jobs **[v1.2]**
+- Non-functional foundations: tenant isolation (RLS), daily aggregates, observability, backups, versioned rules, force-upgrade **[v1.2]**
 
 Excluded from MVP (see Future Versions):
 - Push / notification engine (design hooks only, see 19)
@@ -694,11 +797,18 @@ Excluded from MVP (see Future Versions):
 
 # 18. Success Metrics
 
-- Attendance Accuracy > 95%
-- Attendance Capture Rate > 99%
-- Employee Onboarding < 5 minutes
-- Dashboard Load Time < 2 seconds
+- Attendance Accuracy > 95% **[CHANGED v1.2]** – measured as: of a monthly random sample of at least 200 employee-days per tenant, the % where the system status matches the verified ground truth (HR/manager check or physical roster), **excluding** days with a user-confirmed device/phone fault.
+- Attendance Capture Rate > 99% **[CHANGED v1.2]** – % of employee-days with a present-and-expected employee (ground truth) that have a valid auto-recorded arrival, without manual correction.
+- Employee Onboarding < 5 minutes (from first login to completed device registration, median)
+- Dashboard Load Time < 2 seconds (p95 for the Org Admin view with 320 employees)
 - Report export (monthly, 320 employees) < 10 seconds **[NEW]**
+
+Data-quality and reliability metrics **[v1.2]**:
+- **False no-show rate** < 1% of expected employee-days (no-show later corrected by HR or by a late-synced event)
+- **Correction rate** < 2% of employee-days per tenant per month (alert if exceeded at a location)
+- **Suspicious-event rate** and **anomaly resolution time** (median < 1 working day)
+- **Mobile crash-free sessions** > 99.5%; **heartbeat coverage** > 95% of expected devices during work hours
+- **Ingest lag** (device event to visible in dashboard) p95 < 60 seconds online; **sync success** of offline queues > 99.9%
 
 ---
 
@@ -710,7 +820,8 @@ Version 1 (architecture hook only) **[NEW]**:
 Version 2:
 - Push notifications (using the notification engine above)
 - Overtime analytics
-- Attendance correction workflow
+- Full attendance correction workflow (employee-initiated requests, manager approval chains, bulk corrections) – the basic HR correction flow is already in the MVP (6.9) **[CHANGED v1.2]**
+- Shift scheduling and rotating/24h rosters (if not required in V1, see 23 and 26)
 
 Version 3:
 - Payroll integration
@@ -781,7 +892,89 @@ Rules:
 
 ---
 
-# 22. Open Questions for Confirmation
+# 22. Data Model and Time Rules **[v1.2]**
+
+## 22.1 Effective-dated Rules (versioning)
+
+- Attendance rules (Work Start Time, Grace, No-show Cut-off, Minimum Stay, accuracy threshold) are stored as **effective-dated versions** per location (`valid_from`, `valid_to`).
+- Status for a given date is always computed with the rule version in force on **that date**; changing a rule never rewrites history.
+- Likewise for Primary Location, Department and Temporary Location assignments: store history with effective dates; reports show the value as of the report date.
+- Holidays and non-working days are versioned by date and can be added retroactively only with an audit entry and an explicit "recompute" action.
+
+## 22.2 Time Zones
+
+- All timestamps are stored in **UTC**; each tenant has an IANA time zone (default **Asia/Ulaanbaatar**) used for day boundaries, Work Start Time, cut-offs, holidays and reports.
+- A "work day" is evaluated in the **location's** time zone (defaults to the tenant's), supporting tenants with locations in different zones in future.
+- Daylight-saving changes are handled by the time zone database, not by fixed offsets.
+
+## 22.3 Event Model
+
+- Raw events are **immutable and append-only**: `device_event` (enter/exit/heartbeat/permission-change), with client event ID, device ID, server receive time, device time, monotonic delta, accuracy, provider, mock flag, attestation result.
+- Daily **attendance_result** (per employee per date) is **derived** from events, reason assignments, assignments, holidays and corrections; it can be recomputed deterministically for any date range (used for late-sync, rule changes and corrections).
+- A **daily summary** table (per tenant / location / department / date / status counts) is materialized from attendance_result and drives dashboard and analytics (see 24.2).
+- The notification engine (19) subscribes to domain events (late, no-show, location disabled, device replaced, correction approved) emitted when attendance_result changes.
+
+---
+
+# 23. Shifts and Non-working Days **[v1.2]**
+
+- **V1 baseline:** one Work Start Time per location with a tenant-level weekly working-day pattern (default Mon–Fri), plus public holidays. Non-working days and holidays are excluded from expected attendance (6.1).
+- **Decision needed before development:** whether roles such as Хамгаалалт (guards) work 24-hour or rotating shifts in V1. If yes, shift scheduling must be added to the MVP (employee ↔ shift pattern ↔ expected start/end per date) because retrofitting shifts into a "single start time per location" model changes the core schema.
+- **Architecture requirement either way:** the "expected attendance for employee on date" function (6.1) must be implemented behind one interface returning `{expected: bool, location, start_time, grace, cutoff}`, so shifts can later replace the location default without changing the attendance engine.
+
+---
+
+# 24. Scale and Performance **[v1.2]**
+
+## 24.1 Ingest and Processing
+- **Morning-peak load:** a single tenant produces ~320 events within ~15 minutes; the platform must handle all tenants peaking at 08:00 local time. Target: sustain **200 events/second** at launch, horizontally scalable, with p95 event-to-visible < 60 seconds.
+- Events enter through a **queue**; API acknowledges after durable enqueue; workers compute attendance results asynchronously and idempotently (dedupe on client event ID).
+- Back-pressure and retry with dead-letter queue and alerting.
+
+## 24.2 Dashboard Performance
+- The < 2 s dashboard target is met from the **materialized daily summary** (22.3) and cache, not by live aggregation over raw events. Summary rows are updated incrementally on each attendance_result change; a nightly job reconciles and corrects drift.
+- Date-range analytics (weekly/monthly) read from summaries; per-employee drill-down reads indexed attendance_result.
+
+## 24.3 Tenant Isolation and Data Layout
+- Every table carries `tenant_id`; Postgres **Row-Level Security** enforces tenant isolation as defence in depth, in addition to application checks. Automated tests must prove one tenant cannot read another's data through any API.
+- Tenant-scoped composite indexes (`tenant_id`, date, …).
+- Large append-only tables (`device_event`, `audit_log`) are **partitioned by month**; old partitions are archived/dropped per retention (15.3).
+- Per-tenant rate limits and quotas prevent a noisy tenant from degrading others.
+
+---
+
+# 25. Operations **[v1.2]**
+
+## 25.1 Observability and SLOs
+- **SLO:** 99.9% API availability during working hours (06:00–20:00 tenant time, Mon–Sun), 99.5% overall; ingest lag SLO per 24.1.
+- Metrics, structured logs and traces for API, workers, queue depth, ingest lag, event rejection reasons, mobile heartbeat coverage and crash-free rate.
+- Alerts (paged): ingest lag > 5 min, queue depth growing, error rate > 2%, failed deployments, attestation-failure spike, backup failure. Public/internal status page.
+
+## 25.2 Backups and Disaster Recovery
+- Automated daily full + continuous WAL backup (point-in-time recovery) of PostgreSQL; backups encrypted and stored in a separate region/account.
+- Targets: **RPO ≤ 15 minutes, RTO ≤ 4 hours**. A restore is **tested at least quarterly** and the result recorded.
+- Mobile offline queue (6.8) covers short outages without data loss for employees.
+
+## 25.3 Environments
+- **Dev, Staging and Production**, isolated. Staging mirrors production topology with **seeded synthetic tenants** (including a 320-employee, 6-location "310-like" tenant) for load, geofence-simulation and regression tests. No production personal data in non-production environments.
+
+## 25.4 Release Strategy
+- CI/CD with automated tests (unit, integration, tenant-isolation, attendance-rule golden tests from sections 6.2–6.6), infrastructure as code, and database migrations that are backward compatible (expand → migrate → contract).
+- **Feature flags** and **staged rollout per tenant** (internal tenant → pilot 310 → general).
+- **Mobile versioning:** backend publishes `min_supported_version` and `recommended_version`; below minimum the app is blocked with an upgrade prompt; below recommended it nags. Store releases use staged rollout with crash-rate rollback gates.
+- API versioning (`/v1`) with a deprecation policy so old app versions keep working until force-upgrade.
+
+## 25.5 Period Close
+- Org Admin/HR can **close a month**: attendance results for the closed period are locked against corrections unless a reopen is approved (audited). Closed-period exports are reproducible.
+
+## 25.6 Security Operations
+- Dependency and container vulnerability scanning in CI; annual third-party penetration test and an immediate one before launch.
+- Documented incident-response and breach-notification runbook (15.3); audit of privileged (Super Admin) access.
+- Support access to tenant data requires tenant approval and is time-limited and logged.
+
+---
+
+# 26. Open Questions for Confirmation
 
 1. **Status precedence (6.6):** a reason assignment overrides arrival status — confirm.
 2. **No-show cut-off default of 2 hours** — confirm, or set per location.
@@ -790,11 +983,24 @@ Rules:
 5. **Manager export permission** default.
 6. **Archive retention period** (default 12 months) and audit retention (default 12 months).
 
+Added in v1.2 **[v1.2]**:
+
+7. **Shift work (23):** do guards (Хамгаалалт) or others work 24h / rotating shifts in V1? Decide before schema design.
+8. **Anomaly policy (6.7):** should Suspicious events block automatic Цагтаа/Хоцорсон (default) or "accept and flag"?
+9. **Correction approval (6.9):** two-person approval by default — acceptable for a tenant with one HR user (Ganbat)? An Org Admin (Khongor) would be the approver.
+10. **Minimum OS support (6.8):** Android 10+ and iOS 15+ — does the 310 workforce's device fleet meet this? Please survey real handsets (Samsung, Xiaomi, etc.).
+11. **MFA for HR/Admin (15.2):** TOTP authenticator acceptable for all four initial users, or is SMS required?
+12. **Legal review:** confirm Mongolian Law on Personal Data Protection obligations, data-residency requirement (hosting region), and employee consent wording.
+13. **Retention (15.3):** attendance records 5 years — confirm against labour/archival law.
+14. **Excel import (12.3):** invite-based onboarding replaces password columns — confirm HR is comfortable distributing an invite sheet instead of passwords.
+15. **SLO and DR (25):** are 99.9% working-hours availability and RPO 15 min / RTO 4 h appropriate and affordable for the pilot?
+
 ---
 
-# 23. Change Log
+# 27. Change Log
 
 | Version | Change                                                                                                                                  |
 |---------|-----------------------------------------------------------------------------------------------------------------------------------------|
 | 1.0     | Initial MVP definition                                                                                                                  |
 | 1.1     | Added: Primary Location (12), Temporary Location Assignment (12.1), late rule (6.2), no-show cut-off (6.3), employee lifecycle (12.2), device replacement/loss workflow (21), minimum geofence stay (6.4), location-off state (6.5), Excel/PDF export (20), Reason Report (11.1), Departments (13.1), location-level percentages (8), notification engine hook (19), audit log expansion (15.1) |
+| 1.2     | Added (CTO review): attendance integrity / anti-spoofing / Anomaly Review Queue (6.7); offline queue, server time authority, background-restriction handling, heartbeat, force-upgrade (6.8); basic attendance correction pulled into MVP (6.9, 19); role scope for Manager/HR (4); import safety and invite-based onboarding (12.3); identity and access hardening (15.2); privacy and compliance (15.3); effective-dated rules, time zones, event model (22); shifts and non-working days decision (23); scale and performance (24); operations: SLOs, DR, environments, release, period close, security ops (25); precise success-metric definitions (18); extended open questions (26); fixed section cross-references (device lifecycle 21, changelog 27). |
