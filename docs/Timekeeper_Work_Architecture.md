@@ -450,7 +450,7 @@ A **Health screen** and a periodic background check evaluate: location permissio
 
 | Area | Pages | PRD |
 |---|---|---|
-| Dashboard | Hяналт самбар, branch breakdown (%), date navigation, flagged indicator | 7, 8 |
+| Dashboard | Хянах самбар (Dashboard), branch breakdown (%), date navigation, flagged indicator | 7, 8 |
 | Attendance | Daily list (status/location/department/shift filters), employee drill-down, corrections, anomaly queue, "location inactive" list | 9, 6.5, 6.7, 6.9 |
 | Analytics | Day/week/month, location comparison | 10 |
 | People | Employees (list, profile, lifecycle), import wizard (dry run), consent (print/mark/scan), device (replace/disable), temporary location | 12, 12.3, 15.4, 21 |
