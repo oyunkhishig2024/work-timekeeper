@@ -1,7 +1,7 @@
 # Timekeeper Work
 ## Product Requirements Document (PRD)
 
-Version: 1.5
+Version: 1.6
 Product: Timekeeper Work
 Owner: Onki
 Status: Requirements Specification (pre-development review + CTO review + stakeholder decisions applied)
@@ -200,7 +200,7 @@ The system determines whether an employee is expected on a given **work date**, 
 
 1. Not an active employee on that date (disabled/archived, or before start date) → **not expected**, excluded from all counts.
 2. Employee has a **Shift Assignment** (see 23): the shift schedule decides. The date is an off day in the pattern → **not expected**. A public holiday excludes the employee only if the shift template is flagged "observes public holidays" (24h guard shifts are not).
-3. No shift assignment (standard schedule): date is a public holiday or a non-working day of the tenant's weekly pattern → **not expected**, excluded from counts.
+3. No shift assignment (standard schedule): the date is a public holiday / day off (14.2) or an off day of the Working Week (14.1), unless a working-day exception (14.1) makes it a working day → **not expected**, excluded from counts. Start and end times come from the expected location's Working Week row for that weekday.
 4. Active **Temporary Location Assignment** covering the date → **expected at the temporary location** (using the shift/standard times unless the assignment specifies its own).
 5. Otherwise → **expected at the employee's Primary Location**.
 
@@ -210,7 +210,7 @@ Rules:
 - Every employee MUST have exactly one Primary Location (mandatory field; Excel import rejects rows without it).
 - Attendance is valid only when the geofence entry occurs at the **expected location** for that date. Entry to another tenant location is stored as an event but does not satisfy attendance (flagged "Wrong location" for HR review).
 - Dashboard and branch breakdown counts use the **expected location** for the selected date (so a temporarily assigned employee counts toward the temporary location for that period).
-- Work Start Time and Grace Minutes are taken from the **expected location**.
+- Start time (from the Working Week for that weekday) and Grace Minutes are taken from the **expected location**.
 
 ## 6.2 Late Calculation Rule **[NEW]**
 
@@ -635,7 +635,7 @@ Fields:
 - Latitude
 - Longitude
 - Geofence Radius
-- Work Start Time
+- **Working schedule: inherit the tenant Working Week (14.1) or override** (optional, effective-dated) **[CHANGED v1.6]**
 - Grace Minutes
 - **No-show Cut-off (hours after start, default 2)** **[NEW]**
 - **Minimum Geofence Stay (minutes, default 3)** **[NEW]**
@@ -646,7 +646,7 @@ Geofence Radius:
 
 Rules **[NEW]**:
 - A location cannot be deleted while employees have it as Primary Location; it can be deactivated after reassigning employees.
-- Changing Work Start Time / Grace applies from the effective date forward and does not recalculate past attendance.
+- Changing the schedule override / Grace applies from the effective date forward and does not recalculate past attendance.
 
 ## 13.1 Departments **[NEW]**
 
@@ -658,20 +658,44 @@ Rules **[NEW]**:
 
 ---
 
-# 14. Public Holidays and Working Hours
+# 14. Working Week, Working Hours and Holidays **[CHANGED v1.6]**
 
-Public Holidays:
-- Organization Admin can define official holidays.
-- Holidays and non-working days excluded from expected attendance and counts (see 6.1).
+The **Organization Admin** configures all of this in the web app (no developer involvement). All settings are effective-dated and audited (15.1); past attendance is never silently recalculated (22.1).
 
-Working Hours:
+## 14.1 Working Week (tenant default)
 
-Example:
-- Start Time: 08:00
-- Grace Minutes: 15
+A weekly table with one row per weekday:
 
-Arrival 08:00–08:15 = Цагтаа; 08:16 and later = Хоцорсон (see 6.2).
-No-show is evaluated after Start Time + 2 hours by default (see 6.3).
+| Weekday | Working? | Start | End |
+|---|---|---|---|
+| Mon–Fri | Yes | 08:30 | 17:30 |
+| Sat, Sun | Off | – | – |
+
+(Example for tenant 310; any day can have different hours, e.g. Friday ends earlier, or Saturday works 09:00–13:00.)
+
+- **Grace** and **No-show cut-off** stay as location attendance rules (13): e.g. start 08:30 + grace 15 → on time until 08:45:59, late from 08:46; no-show after 10:30 (start + 2 h).
+- **Work End** is stored for the standard schedule and used for departure recording and V2 presence analytics (6.2, 23.2); in V1 it does not itself change the status.
+- **Location override (optional):** a location may use its own weekly table (e.g. ЭМАА 09:00–18:00). Locations without an override inherit the tenant Working Week. Each employee resolves to their expected location's table (6.1).
+- **Employees on shifts** (23) ignore the Working Week; it applies only to the standard schedule.
+- **Working-day exceptions:** a single date can be marked *working* when it is normally off (e.g. a transferred working Saturday, optionally with its own hours) or *off* when it is normally working. They take priority over the weekly table.
+
+## 14.2 Holiday Setup
+
+Org Admin manages a **Holiday Calendar** per tenant:
+
+- Fields: **Name**, **Date** or **Date range**, **Type** (Public holiday / Company day off / Transferred day off), **Applies to** (All locations or selected locations), **Repeats yearly on the same date** (yes/no).
+- Fixed-date holidays can repeat yearly; holidays that move each year (e.g. lunar-calendar holidays) are entered per year. A **"Copy from previous year"** action and **bulk import from Excel/CSV** (name, from, to, type, locations) are provided, with the 12.3 dry-run validation.
+- The system does **not** ship holiday dates as authoritative; Org Admin confirms the list each year. A calendar view shows holidays, weekends and exceptions together for the next 12 months.
+- Effect on attendance: employees on the standard schedule are **not expected** on a holiday or day off (6.1) and are excluded from counts. Shift templates marked "observes public holidays" behave the same; other shifts (e.g. 24 h guards) still work and are counted (23.2).
+- **Worked on a day off:** if a not-expected employee still enters the geofence, the arrival is recorded and shown as **"Ажилласан (амралтын өдөр)"** for information; it does not count as Цагтаа/Хоцорсон and creates no overtime in V1.
+- **Changing holidays after the fact:** adding or removing a holiday for a past or current date requires an explicit **Recompute** confirmation showing how many employee-days change; it is audited and blocked for closed periods (25.5).
+
+## 14.3 Example for tenant 310
+
+- Working Week: Mon–Fri 08:30–17:30; Sat, Sun off.
+- Grace 15 min → on time up to 08:45:59; late from 08:46; no-show from 10:30 (default start + 2 h).
+- Holiday Calendar: entered by Org Admin (Khongor) each year.
+- Guards (Хамгаалалт) are on 24 h shift patterns (23) and are not governed by this table.
 
 ---
 
@@ -727,7 +751,7 @@ Rules:
 - **What is stored:** geofence enter/exit events (timestamp, location ID, accuracy flags) and heartbeat metadata. Raw coordinates are retained only for the Suspicious/anomaly window (default 30 days), then reduced to the geofence-level event.
 - **Employee transparency:** the app shows a plain-language notice (what is collected, when, who sees it) and an "Attendance history" view of exactly what was recorded about them (see 4).
 - **Consent [CHANGED v1.3]:** location processing is based on the employee's **voluntary, written, signed consent** on a paper consent form (see 15.4). In-app acknowledgement at first login is kept as a second record, with version and timestamp, but does not replace the signed form.
-- **Legal basis:** employer's attendance obligation under the employment relationship, plus recorded acknowledgement. Compliance with **Mongolia's Law on Personal Data Protection** must be confirmed by legal counsel before launch (see 26); the design assumes: lawful and limited collection, notice, access, correction, deletion/anonymization after retention, cross-border transfer controls (tenant data region configurable; default in-region or contractually covered cloud region).
+- **Legal basis:** employer's attendance obligation under the employment relationship, plus recorded acknowledgement. Compliance with **Mongolia's Law on Personal Data Protection** must be confirmed by legal counsel before launch (see 26); the design assumes: lawful and limited collection, notice, access, correction, deletion/anonymization after retention, cross-border transfer controls. **Decision v1.6: data is hosted outside Mongolia** (cloud region to be chosen, e.g. a nearby Asian region). Consequences: (a) the signed consent form must explicitly state that data is stored and processed abroad (Appendix A, item 7); (b) a data processing agreement with the cloud provider; (c) encryption at rest and in transit; (d) the hosting country/region is named in the privacy notice. Legal counsel confirms this meets the Law on Personal Data Protection.
 - **Data-subject requests:** HR/Org Admin can export an employee's personal data and, where legally allowed, anonymize it; requests and outcomes are audited.
 - **Retention (defaults, configurable per tenant):** attendance records **2 years [CHANGED v1.4]**; raw anomaly coordinates 30 days; heartbeats 90 days; audit log 12 months minimum (see 15.1); archived employee data per 12.2. Deletion jobs run automatically and are logged.
 - **Access scoping:** see Manager/HR scope in 4. Exports containing personal data are audited (see 20) and watermarked with exporter and time.
@@ -993,7 +1017,7 @@ The 310 organization prepares compliant phones for employees before the pilot. R
 
 # 23. Shifts and Non-working Days **[CHANGED v1.3]**
 
-**Decision:** some employees (e.g. Хамгаалалт / guards) work **24-hour shifts**. Shift scheduling is therefore **in the MVP**. Employees without a shift assignment keep the standard schedule (location Work Start Time, tenant weekly working days, public holidays).
+**Decision:** some employees (e.g. Хамгаалалт / guards) work **24-hour shifts**. Shift scheduling is therefore **in the MVP**. Employees without a shift assignment keep the standard schedule (Working Week, working-day exceptions, public holidays; see 14).
 
 ## 23.1 Concepts
 
@@ -1002,7 +1026,7 @@ The 310 organization prepares compliant phones for employees before the pilot. R
 - **Shift Pattern (rotation):** a repeating sequence of days, each day mapped to a template or OFF. Examples: `24 цаг ажил / 48 цаг амралт` (cycle of 3 days: Shift, Off, Off), `2 өдөр / 2 шөнө / 4 амралт` (cycle of 8 days).
 - **Shift Assignment:** employee ↔ pattern (or single fixed template) with `from_date`, optional `to_date`, and **cycle start date** (which day of the cycle the employee is on at `from_date`). Several guards on a team share a pattern with different cycle offsets.
 - **Shift Override (swap / extra shift):** HR can add or remove a shift on a single date for an employee (swap, replacement, extra duty, sick cover). Overrides are audited and take effect from the selected date forward in the expected-attendance calculation.
-- **Standard schedule (implicit):** no assignment = location Work Start Time on the tenant's working days.
+- **Standard schedule (implicit):** no assignment = the Working Week (14.1) of the expected location on its working days.
 
 ## 23.2 Work Date and Time Rules for Shifts
 
@@ -1114,9 +1138,9 @@ Added in v1.2 **[v1.2]**:
 7. ~~**Shift work (23)**~~ **Resolved v1.3:** yes, 24 h shifts in the MVP. Open: list of templates/patterns for 310 (23.6).
 8. ~~**Anomaly policy (6.7)**~~ **Resolved v1.3:** accept and flag.
 9. ~~**Correction approval (6.9)**~~ **Resolved v1.3:** no second approval; compensating controls apply.
-10. ~~**Minimum OS support (6.8)**~~ **Resolved v1.3:** 310 prepares compliant phones per 21.3. Open: device survey results and handling of employees without a compliant phone (company device vs. manual attendance).
+10. ~~**Minimum OS support (6.8)**~~ **Resolved v1.6:** all 310 employees will have compliant phones (21.3); no employee is expected to need a company device or manual attendance. The Device Readiness report (21.3) still verifies this before go-live; the manual-attendance flag (15.4) stays available for consent refusal.
 11. ~~**MFA for HR/Admin (15.2)**~~ **Resolved v1.4:** TOTP via Google Authenticator, no SMS.
-12. **Legal review:** confirm Mongolian Law on Personal Data Protection obligations, data-residency requirement (hosting region), and that the signed voluntary consent form (15.4, Appendix A) attached to the employment contract is a sufficient legal basis, incl. the alternative for employees who decline.
+12. **Legal review [decisions made, confirmation pending]:** the business has decided on signed voluntary consent attached to the employment contract (15.4), 2-year retention (15.3) and hosting abroad (15.3). Legal counsel to confirm before go-live that this is lawful under the Law on Personal Data Protection, including the cross-border wording in Appendix A and the alternative for employees who decline.
 13. ~~**Retention (15.3)**~~ **Decided v1.4:** attendance records kept 2 years. Legal counsel to confirm this satisfies labour/archival law (also disputes and audits).
 14. **Excel import (12.3):** invite-based onboarding replaces password columns — confirm HR is comfortable distributing an invite sheet instead of passwords.
 15. ~~**SLO and DR (25)**~~ **Resolved v1.5:** pilot tier only (99.5% working hours, RPO 15 min, RTO 8 h) for the next ~4 months with 1–2 tenants; production tier is deferred.
@@ -1133,6 +1157,7 @@ Added in v1.2 **[v1.2]**:
 | 1.3     | Business decisions: 24 h shift scheduling added to MVP and section 23 rewritten (templates, rotation patterns, assignments, overrides, work-date rule, handover, roster view); expected-attendance function extended (6.1); Suspicious events now accept-and-flag (6.7); direct HR correction without second approval, with compensating controls (6.9); supported-device requirements and readiness process (21.3); voluntary signed consent form printed by HR and attached to the employment contract, with registration gate, scan upload, withdrawal and manual-attendance alternative (15.3, 15.4, Appendix A); open questions updated. |
 | 1.4     | Decisions: TOTP (Google Authenticator) two-step login for Super Admin / Org Admin / HR, no SMS (15.2); attendance records retained 2 years (15.3); open questions 11 and 13 closed. |
 | 1.5     | Pilot-only operations decision (1–2 tenants, ~4 months): pilot tier vs deferred production tier for SLO (99.5% working hours), DR (RPO 15 min / RTO 8 h, no multi-zone standby), environments (prod + small staging), throughput target (20 events/s), PostgreSQL-backed queue and no Redis in the pilot (16, 24, 25); open question 15 closed. |
+| 1.6     | Working Week (Mon–Fri 08:30–17:30, Sat/Sun off) configurable by Org Admin with per-location override and working-day exceptions (14.1, 13); Holiday Calendar with ranges, types, per-location scope, yearly copy, import, worked-on-day-off display and recompute (14.2); 6.1 updated; decisions recorded: all employees have compliant phones (26 Q10), data hosted abroad with cross-border consent wording (15.3, Appendix A), 2-year retention in consent text. |
 
 ---
 
@@ -1152,10 +1177,11 @@ Added in v1.2 **[v1.2]**:
 3. **Хэзээ цуглуулах вэ:** зөвхөн миний ажлын цаг/ээлжийн хугацаанд ажлын байрны бүстэй холбоотой. Ажлын бус цагт болон ажлын байрны бүсээс гадна миний байршлыг хянахгүй, түүхийг нь хадгалахгүй.
 4. **Зорилго:** зөвхөн ирц (цагтаа, хоцорсон, ирээгүй) тооцох. Бусад зорилгоор ашиглахгүй, гуравдагч этгээдэд худалдахгүй.
 5. **Хэн харах вэ:** Хүний нөөцийн ажилтан, байгууллагын админ, миний харьяа салбар/хэлтсийн менежер (зөвхөн ирцийн мэдээлэл).
-6. **Хадгалах хугацаа:** ирцийн бүртгэл ____ жил; сэжигтэй үйл явдлын нарийвчилсан координат 30 хоног; бусад нь хуулийн дагуу.
-7. **Миний эрх:** би өөрийн ирцийн түүхийг аппаас харах, мэдээллээ засуулах, шаардлагатай бол устгуулах эрхтэй.
-8. **Зөвшөөрлөө эргүүлэн татах:** би хүссэн үедээ Хүний нөөцөд бичгээр хандаж зөвшөөрлөө цуцалж болно. Цуцалсан тохиолдолд миний утаснаас байршил цуглуулахаа зогсооно. Энэ нь миний ажлын харилцаанд сөрөг нөлөө үзүүлэхгүй бөгөөд ирцийг надад зориулсан **өөр аргаар** (жишээ нь Хүний нөөц гараар бүртгэх) бүртгэнэ.
-9. Би энэ хуудасны агуулгыг уншиж, ойлгосон болно.
+6. **Хадгалах хугацаа:** ирцийн бүртгэл 2 жил; сэжигтэй үйл явдлын нарийвчилсан координат 30 хоног; бусад нь хуулийн дагуу.
+7. **Мэдээлэл хадгалах газар:** миний мэдээллийг Монгол улсын гадна байрлах үүлэн серверт (улс/бүс: ____________) хадгалж, боловсруулахыг зөвшөөрч байна. Мэдээллийг шифрлэж хамгаална.
+8. **Миний эрх:** би өөрийн ирцийн түүхийг аппаас харах, мэдээллээ засуулах, шаардлагатай бол устгуулах эрхтэй.
+9. **Зөвшөөрлөө эргүүлэн татах:** би хүссэн үедээ Хүний нөөцөд бичгээр хандаж зөвшөөрлөө цуцалж болно. Цуцалсан тохиолдолд миний утаснаас байршил цуглуулахаа зогсооно. Энэ нь миний ажлын харилцаанд сөрөг нөлөө үзүүлэхгүй бөгөөд ирцийг надад зориулсан **өөр аргаар** (жишээ нь Хүний нөөц гараар бүртгэх) бүртгэнэ.
+10. Би энэ хуудасны агуулгыг уншиж, ойлгосон болно.
 
 Ажилтны гарын үсэг: ____________  Огноо: ________
 Хүлээн авсан Хүний нөөцийн ажилтан: ____________  Гарын үсэг: ________  Огноо: ________
