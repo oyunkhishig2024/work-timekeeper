@@ -1,7 +1,7 @@
 # Timekeeper Work
 ## Product Requirements Document (PRD)
 
-Version: 1.6
+Version: 1.7
 Product: Timekeeper Work
 Owner: Onki
 Status: Requirements Specification (pre-development review + CTO review + stakeholder decisions applied)
@@ -752,6 +752,14 @@ Rules:
 - **Employee transparency:** the app shows a plain-language notice (what is collected, when, who sees it) and an "Attendance history" view of exactly what was recorded about them (see 4).
 - **Consent [CHANGED v1.3]:** location processing is based on the employee's **voluntary, written, signed consent** on a paper consent form (see 15.4). In-app acknowledgement at first login is kept as a second record, with version and timestamp, but does not replace the signed form.
 - **Legal basis:** employer's attendance obligation under the employment relationship, plus recorded acknowledgement. Compliance with **Mongolia's Law on Personal Data Protection** must be confirmed by legal counsel before launch (see 26); the design assumes: lawful and limited collection, notice, access, correction, deletion/anonymization after retention, cross-border transfer controls. **Decision v1.6: data is hosted outside Mongolia** (cloud region to be chosen, e.g. a nearby Asian region). Consequences: (a) the signed consent form must explicitly state that data is stored and processed abroad (Appendix A, item 7); (b) a data processing agreement with the cloud provider; (c) encryption at rest and in transit; (d) the hosting country/region is named in the privacy notice. Legal counsel confirms this meets the Law on Personal Data Protection.
+- **Foreign processors register [v1.7]:** hosting is abroad (Option B, decided). The tenant privacy notice and the consent form list every external service that receives data, what it receives and where it is located; the register is kept current and changes require a new consent version (15.4) when personal data categories change:
+  - **Cloud hosting provider** (database, files, backups) – all attendance, employee and audit data, encrypted; region named in the notice.
+  - **Google Play Integrity / Apple App Attest** – device and app integrity signals (6.7); no attendance data.
+  - **Android location services (Google Play services)** – used on the device for geofence detection.
+  - **Firebase Cloud Messaging** (from V2) – device push token and notification text; notification text must avoid sensitive detail.
+  - **Monitoring / crash reporting** – technical logs only; personal data (names, coordinates) must be masked before leaving the platform.
+  - **Email/SMS provider** (if used) – recipient address/number and message text.
+  - Backups are stored in a second foreign region or separate account (25.2); a data processing agreement is signed with each processor.
 - **Data-subject requests:** HR/Org Admin can export an employee's personal data and, where legally allowed, anonymize it; requests and outcomes are audited.
 - **Retention (defaults, configurable per tenant):** attendance records **2 years [CHANGED v1.4]**; raw anomaly coordinates 30 days; heartbeats 90 days; audit log 12 months minimum (see 15.1); archived employee data per 12.2. Deletion jobs run automatically and are logged.
 - **Access scoping:** see Manager/HR scope in 4. Exports containing personal data are audited (see 20) and watermarked with exporter and time.
@@ -1140,7 +1148,7 @@ Added in v1.2 **[v1.2]**:
 9. ~~**Correction approval (6.9)**~~ **Resolved v1.3:** no second approval; compensating controls apply.
 10. ~~**Minimum OS support (6.8)**~~ **Resolved v1.6:** all 310 employees will have compliant phones (21.3); no employee is expected to need a company device or manual attendance. The Device Readiness report (21.3) still verifies this before go-live; the manual-attendance flag (15.4) stays available for consent refusal.
 11. ~~**MFA for HR/Admin (15.2)**~~ **Resolved v1.4:** TOTP via Google Authenticator, no SMS.
-12. **Legal review [decisions made, confirmation pending]:** the business has decided on signed voluntary consent attached to the employment contract (15.4), 2-year retention (15.3) and hosting abroad (15.3). Legal counsel to confirm before go-live that this is lawful under the Law on Personal Data Protection, including the cross-border wording in Appendix A and the alternative for employees who decline.
+12. **Legal review [decisions made incl. Option B foreign hosting, confirmation pending]:** the business has decided on signed voluntary consent attached to the employment contract (15.4), 2-year retention (15.3) and hosting abroad (15.3). Legal counsel to confirm before go-live that this is lawful under the Law on Personal Data Protection, including the cross-border wording in Appendix A and the alternative for employees who decline.
 13. ~~**Retention (15.3)**~~ **Decided v1.4:** attendance records kept 2 years. Legal counsel to confirm this satisfies labour/archival law (also disputes and audits).
 14. **Excel import (12.3):** invite-based onboarding replaces password columns — confirm HR is comfortable distributing an invite sheet instead of passwords.
 15. ~~**SLO and DR (25)**~~ **Resolved v1.5:** pilot tier only (99.5% working hours, RPO 15 min, RTO 8 h) for the next ~4 months with 1–2 tenants; production tier is deferred.
@@ -1158,6 +1166,7 @@ Added in v1.2 **[v1.2]**:
 | 1.4     | Decisions: TOTP (Google Authenticator) two-step login for Super Admin / Org Admin / HR, no SMS (15.2); attendance records retained 2 years (15.3); open questions 11 and 13 closed. |
 | 1.5     | Pilot-only operations decision (1–2 tenants, ~4 months): pilot tier vs deferred production tier for SLO (99.5% working hours), DR (RPO 15 min / RTO 8 h, no multi-zone standby), environments (prod + small staging), throughput target (20 events/s), PostgreSQL-backed queue and no Redis in the pilot (16, 24, 25); open question 15 closed. |
 | 1.6     | Working Week (Mon–Fri 08:30–17:30, Sat/Sun off) configurable by Org Admin with per-location override and working-day exceptions (14.1, 13); Holiday Calendar with ranges, types, per-location scope, yearly copy, import, worked-on-day-off display and recompute (14.2); 6.1 updated; decisions recorded: all employees have compliant phones (26 Q10), data hosted abroad with cross-border consent wording (15.3, Appendix A), 2-year retention in consent text. |
+| 1.7     | Decision: foreign cloud hosting (Option B) confirmed over Mongolian hosting; foreign processors register added to 15.3 (hosting, Play Integrity / App Attest, Android location services, FCM, monitoring, email/SMS) and listed in the consent text (Appendix A, item 7); legal confirmation still pending (26 Q12). |
 
 ---
 
@@ -1178,7 +1187,7 @@ Added in v1.2 **[v1.2]**:
 4. **Зорилго:** зөвхөн ирц (цагтаа, хоцорсон, ирээгүй) тооцох. Бусад зорилгоор ашиглахгүй, гуравдагч этгээдэд худалдахгүй.
 5. **Хэн харах вэ:** Хүний нөөцийн ажилтан, байгууллагын админ, миний харьяа салбар/хэлтсийн менежер (зөвхөн ирцийн мэдээлэл).
 6. **Хадгалах хугацаа:** ирцийн бүртгэл 2 жил; сэжигтэй үйл явдлын нарийвчилсан координат 30 хоног; бусад нь хуулийн дагуу.
-7. **Мэдээлэл хадгалах газар:** миний мэдээллийг Монгол улсын гадна байрлах үүлэн серверт (улс/бүс: ____________) хадгалж, боловсруулахыг зөвшөөрч байна. Мэдээллийг шифрлэж хамгаална.
+7. **Мэдээлэл хадгалах газар:** миний мэдээллийг Монгол улсын гадна байрлах үүлэн серверт (улс/бүс: ____________) хадгалж, боловсруулахыг зөвшөөрч байна. Мэдээллийг шифрлэж хамгаална. Утасны аюулгүй байдлыг шалгах (Google/Apple), байршил илрүүлэх (Google), мэдэгдэл илгээх үйлчилгээ зэрэг гуравдагч талын үйлчилгээнд зөвхөн техникийн шаардлагатай мэдээлэл дамжих боломжтойг ойлгосон. Эдгээр үйлчилгээний жагсаалтыг Хүний нөөцөөс авч танилцах эрхтэй.
 8. **Миний эрх:** би өөрийн ирцийн түүхийг аппаас харах, мэдээллээ засуулах, шаардлагатай бол устгуулах эрхтэй.
 9. **Зөвшөөрлөө эргүүлэн татах:** би хүссэн үедээ Хүний нөөцөд бичгээр хандаж зөвшөөрлөө цуцалж болно. Цуцалсан тохиолдолд миний утаснаас байршил цуглуулахаа зогсооно. Энэ нь миний ажлын харилцаанд сөрөг нөлөө үзүүлэхгүй бөгөөд ирцийг надад зориулсан **өөр аргаар** (жишээ нь Хүний нөөц гараар бүртгэх) бүртгэнэ.
 10. Би энэ хуудасны агуулгыг уншиж, ойлгосон болно.
