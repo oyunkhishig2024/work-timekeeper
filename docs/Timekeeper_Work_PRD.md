@@ -1,7 +1,7 @@
 # Timekeeper Work
 ## Product Requirements Document (PRD)
 
-Version: 1.7
+Version: 1.8
 Product: Timekeeper Work
 Owner: Onki
 Status: Requirements Specification (pre-development review + CTO review + stakeholder decisions applied)
@@ -283,7 +283,8 @@ When multiple conditions apply on one day:
 Geofence attendance is easy to cheat with fake-GPS apps, so integrity checks are part of the MVP, not a later add-on.
 
 **Device and app attestation**
-- Android: Google **Play Integrity API** verdict required at device registration and on every attendance event batch; iOS: **App Attest / DeviceCheck**.
+- Android: Google **Play Integrity API** verdict required at device registration and attached to every attendance event batch; iOS: **App Attest / DeviceCheck**.
+- **Fallback [CHANGED v1.8]:** at **registration** a failed or missing verdict blocks registration. For **event batches**, if the verdict service is unavailable or returns "unavailable" on a legitimate device, the batch is **accepted and flagged** (`ATTESTATION_UNAVAILABLE`) rather than rejected, so an outage at Google/Apple never blocks attendance. A definitive **failed** verdict (tampered app, emulator, rooted) is flagged `ATTESTATION_FAILED` and goes to the Anomaly Review Queue; repeated unavailable verdicts for one device (e.g. 5 batches in a row) are escalated to HR.
 - Rooted / jailbroken devices, emulators, tampered or sideloaded app builds are rejected at registration and flagged on events.
 
 **Location authenticity**
@@ -309,7 +310,7 @@ Geofence attendance is easy to cheat with fake-GPS apps, so integrity checks are
 - **Late-sync window:** offline events are accepted up to **24 hours** after capture (configurable). Status for past dates is recomputed when delayed events arrive, with the original evaluation kept in the audit trail (consistent with 6.3).
 - **OS-level region monitoring:** geofencing must rely on OS facilities (iOS region monitoring / Significant-Change; Android Geofencing API via Google Play services), not a long-running foreground service. A foreground service is allowed only as a fallback.
 - **Background-restriction handling:** many Android OEMs (Xiaomi, Samsung, Huawei, Oppo) kill background apps. The app includes an onboarding checklist: "Always allow location", precise location, battery-optimization exemption, auto-start permission (with OEM-specific instructions), and notification permission. A **Health Check** screen shows green/red for each; the result is reported to the backend.
-- **Heartbeat:** app sends a lightweight heartbeat (default every 15 min during work hours, OS-permitting) with permission state, battery-saver state, app version. Missing heartbeats feed the "Байршил идэвхгүй" state (6.5). Heartbeat is not location tracking (see 15.3).
+- **Heartbeat (best effort) [CHANGED v1.8]:** the app tries to send a lightweight heartbeat (target every 15 min during work hours); iOS and aggressive Android OEMs may delay or skip it, so the interval is **not guaranteed** and a missing heartbeat alone is only an indicator (it feeds "Байршил идэвхгүй" after a configurable tolerance, default 60 min), never proof of absence. It carries permission state, battery-saver state and app version (see 6.5). Heartbeat is not location tracking (see 15.3).
 - **Battery budget:** background activity must not use more than ~3% battery per working day on reference devices.
 - **Supported devices:** see 21.3 (Android 10+ with Google Play services, iOS 15+). The 310 workforce prepares compliant phones before the pilot.
 - **Force-upgrade:** the backend publishes a minimum app version; older versions are blocked with an upgrade prompt (see 25.4).
@@ -751,7 +752,7 @@ Rules:
 - **What is stored:** geofence enter/exit events (timestamp, location ID, accuracy flags) and heartbeat metadata. Raw coordinates are retained only for the Suspicious/anomaly window (default 30 days), then reduced to the geofence-level event.
 - **Employee transparency:** the app shows a plain-language notice (what is collected, when, who sees it) and an "Attendance history" view of exactly what was recorded about them (see 4).
 - **Consent [CHANGED v1.3]:** location processing is based on the employee's **voluntary, written, signed consent** on a paper consent form (see 15.4). In-app acknowledgement at first login is kept as a second record, with version and timestamp, but does not replace the signed form.
-- **Legal basis:** employer's attendance obligation under the employment relationship, plus recorded acknowledgement. Compliance with **Mongolia's Law on Personal Data Protection** must be confirmed by legal counsel before launch (see 26); the design assumes: lawful and limited collection, notice, access, correction, deletion/anonymization after retention, cross-border transfer controls. **Decision v1.6: data is hosted outside Mongolia** (cloud region to be chosen, e.g. a nearby Asian region). Consequences: (a) the signed consent form must explicitly state that data is stored and processed abroad (Appendix A, item 7); (b) a data processing agreement with the cloud provider; (c) encryption at rest and in transit; (d) the hosting country/region is named in the privacy notice. Legal counsel confirms this meets the Law on Personal Data Protection.
+- **Legal basis:** employer's attendance obligation under the employment relationship, plus recorded acknowledgement. Compliance with **Mongolia's Law on Personal Data Protection** must be confirmed by legal counsel before launch (see 26); the design assumes: lawful and limited collection, notice, access, correction, deletion/anonymization after retention, cross-border transfer controls. **Decision v1.6: data is hosted outside Mongolia. Decision v1.8: cloud region = Singapore.** Consequences: (a) the signed consent form must explicitly state that data is stored and processed abroad (Appendix A, item 7); (b) a data processing agreement with the cloud provider; (c) encryption at rest and in transit; (d) the hosting country/region is named in the privacy notice. Legal counsel confirms that hosting in Singapore meets the Law on Personal Data Protection.
 - **Foreign processors register [v1.7]:** hosting is abroad (Option B, decided). The tenant privacy notice and the consent form list every external service that receives data, what it receives and where it is located; the register is kept current and changes require a new consent version (15.4) when personal data categories change:
   - **Cloud hosting provider** (database, files, backups) – all attendance, employee and audit data, encrypted; region named in the notice.
   - **Google Play Integrity / Apple App Attest** – device and app integrity signals (6.7); no attendance data.
@@ -761,7 +762,7 @@ Rules:
   - **Email/SMS provider** (if used) – recipient address/number and message text.
   - Backups are stored in a second foreign region or separate account (25.2); a data processing agreement is signed with each processor.
 - **Data-subject requests:** HR/Org Admin can export an employee's personal data and, where legally allowed, anonymize it; requests and outcomes are audited.
-- **Retention (defaults, configurable per tenant):** attendance records **2 years [CHANGED v1.4]**; raw anomaly coordinates 30 days; heartbeats 90 days; audit log 12 months minimum (see 15.1); archived employee data per 12.2. Deletion jobs run automatically and are logged.
+- **Retention (defaults, configurable per tenant):** attendance records **2 years [CHANGED v1.4]**; raw coordinates **30 days: after 30 days the latitude/longitude of every event is erased while the geofence-level event (time, location, flags) stays for the 2-year attendance retention [CHANGED v1.8]**; heartbeats 90 days; audit log 12 months minimum (see 15.1); archived employee data per 12.2. Deletion jobs run automatically and are logged.
 - **Access scoping:** see Manager/HR scope in 4. Exports containing personal data are audited (see 20) and watermarked with exporter and time.
 - **Breach readiness:** documented incident-response process and notification procedure (see 25.6).
 
@@ -1092,7 +1093,7 @@ The 310 organization prepares compliant phones for employees before the pilot. R
 ## 24.3 Tenant Isolation and Data Layout
 - Every table carries `tenant_id`; Postgres **Row-Level Security** enforces tenant isolation as defence in depth, in addition to application checks. Automated tests must prove one tenant cannot read another's data through any API.
 - Tenant-scoped composite indexes (`tenant_id`, date, …).
-- Large append-only tables (`device_event`, `audit_log`) are **partitioned by month**; old partitions are archived/dropped per retention (15.3).
+- **[CHANGED v1.8]** Monthly partitioning of the large append-only tables (`device_event`, `audit_log`) is **deferred to the production tier**: at pilot volume (~2 million event rows per year) it adds complexity (partitioned unique constraints complicate idempotent event ingest) with no benefit. Pilot retention is done by batched nightly deletes/updates (15.3). Table design must keep the partitioning option open (time column in indexes; dedupe key separable).
 - Per-tenant rate limits and quotas prevent a noisy tenant from degrading others.
 
 ---
@@ -1148,7 +1149,7 @@ Added in v1.2 **[v1.2]**:
 9. ~~**Correction approval (6.9)**~~ **Resolved v1.3:** no second approval; compensating controls apply.
 10. ~~**Minimum OS support (6.8)**~~ **Resolved v1.6:** all 310 employees will have compliant phones (21.3); no employee is expected to need a company device or manual attendance. The Device Readiness report (21.3) still verifies this before go-live; the manual-attendance flag (15.4) stays available for consent refusal.
 11. ~~**MFA for HR/Admin (15.2)**~~ **Resolved v1.4:** TOTP via Google Authenticator, no SMS.
-12. **Legal review [decisions made incl. Option B foreign hosting, confirmation pending]:** the business has decided on signed voluntary consent attached to the employment contract (15.4), 2-year retention (15.3) and hosting abroad (15.3). Legal counsel to confirm before go-live that this is lawful under the Law on Personal Data Protection, including the cross-border wording in Appendix A and the alternative for employees who decline.
+12. **Legal review [decisions made incl. Option B foreign hosting in Singapore, confirmation pending]:** the business has decided on signed voluntary consent attached to the employment contract (15.4), 2-year retention (15.3) and hosting abroad (15.3). Legal counsel to confirm before go-live that this is lawful under the Law on Personal Data Protection, including the cross-border wording in Appendix A and the alternative for employees who decline.
 13. ~~**Retention (15.3)**~~ **Decided v1.4:** attendance records kept 2 years. Legal counsel to confirm this satisfies labour/archival law (also disputes and audits).
 14. **Excel import (12.3):** invite-based onboarding replaces password columns — confirm HR is comfortable distributing an invite sheet instead of passwords.
 15. ~~**SLO and DR (25)**~~ **Resolved v1.5:** pilot tier only (99.5% working hours, RPO 15 min, RTO 8 h) for the next ~4 months with 1–2 tenants; production tier is deferred.
@@ -1167,6 +1168,7 @@ Added in v1.2 **[v1.2]**:
 | 1.5     | Pilot-only operations decision (1–2 tenants, ~4 months): pilot tier vs deferred production tier for SLO (99.5% working hours), DR (RPO 15 min / RTO 8 h, no multi-zone standby), environments (prod + small staging), throughput target (20 events/s), PostgreSQL-backed queue and no Redis in the pilot (16, 24, 25); open question 15 closed. |
 | 1.6     | Working Week (Mon–Fri 08:30–17:30, Sat/Sun off) configurable by Org Admin with per-location override and working-day exceptions (14.1, 13); Holiday Calendar with ranges, types, per-location scope, yearly copy, import, worked-on-day-off display and recompute (14.2); 6.1 updated; decisions recorded: all employees have compliant phones (26 Q10), data hosted abroad with cross-border consent wording (15.3, Appendix A), 2-year retention in consent text. |
 | 1.7     | Decision: foreign cloud hosting (Option B) confirmed over Mongolian hosting; foreign processors register added to 15.3 (hosting, Play Integrity / App Attest, Android location services, FCM, monitoring, email/SMS) and listed in the consent text (Appendix A, item 7); legal confirmation still pending (26 Q12). |
+| 1.8     | Applied architecture review deviations: (1) device-event partitioning deferred to production tier (24.3); (2) raw coordinates erased after 30 days while the 2-year geofence-level event stays (15.3); (3) heartbeat is best effort, tolerance 60 min (6.8); (4) attestation: registration strict, event batches accept-and-flag when the verdict service is unavailable (6.7); (5) PostgreSQL-backed queue confirmed (16, 24, no change). Hosting region fixed: Singapore (15.3, Appendix A). |
 
 ---
 
@@ -1187,7 +1189,7 @@ Added in v1.2 **[v1.2]**:
 4. **Зорилго:** зөвхөн ирц (цагтаа, хоцорсон, ирээгүй) тооцох. Бусад зорилгоор ашиглахгүй, гуравдагч этгээдэд худалдахгүй.
 5. **Хэн харах вэ:** Хүний нөөцийн ажилтан, байгууллагын админ, миний харьяа салбар/хэлтсийн менежер (зөвхөн ирцийн мэдээлэл).
 6. **Хадгалах хугацаа:** ирцийн бүртгэл 2 жил; сэжигтэй үйл явдлын нарийвчилсан координат 30 хоног; бусад нь хуулийн дагуу.
-7. **Мэдээлэл хадгалах газар:** миний мэдээллийг Монгол улсын гадна байрлах үүлэн серверт (улс/бүс: ____________) хадгалж, боловсруулахыг зөвшөөрч байна. Мэдээллийг шифрлэж хамгаална. Утасны аюулгүй байдлыг шалгах (Google/Apple), байршил илрүүлэх (Google), мэдэгдэл илгээх үйлчилгээ зэрэг гуравдагч талын үйлчилгээнд зөвхөн техникийн шаардлагатай мэдээлэл дамжих боломжтойг ойлгосон. Эдгээр үйлчилгээний жагсаалтыг Хүний нөөцөөс авч танилцах эрхтэй.
+7. **Мэдээлэл хадгалах газар:** миний мэдээллийг Монгол улсын гадна байрлах үүлэн серверт (улс/бүс: Сингапур) хадгалж, боловсруулахыг зөвшөөрч байна. Мэдээллийг шифрлэж хамгаална. Утасны аюулгүй байдлыг шалгах (Google/Apple), байршил илрүүлэх (Google), мэдэгдэл илгээх үйлчилгээ зэрэг гуравдагч талын үйлчилгээнд зөвхөн техникийн шаардлагатай мэдээлэл дамжих боломжтойг ойлгосон. Эдгээр үйлчилгээний жагсаалтыг Хүний нөөцөөс авч танилцах эрхтэй.
 8. **Миний эрх:** би өөрийн ирцийн түүхийг аппаас харах, мэдээллээ засуулах, шаардлагатай бол устгуулах эрхтэй.
 9. **Зөвшөөрлөө эргүүлэн татах:** би хүссэн үедээ Хүний нөөцөд бичгээр хандаж зөвшөөрлөө цуцалж болно. Цуцалсан тохиолдолд миний утаснаас байршил цуглуулахаа зогсооно. Энэ нь миний ажлын харилцаанд сөрөг нөлөө үзүүлэхгүй бөгөөд ирцийг надад зориулсан **өөр аргаар** (жишээ нь Хүний нөөц гараар бүртгэх) бүртгэнэ.
 10. Би энэ хуудасны агуулгыг уншиж, ойлгосон болно.
