@@ -1,14 +1,15 @@
 # Timekeeper Work
 ## Product Requirements Document (PRD)
 
-Version: 1.2
+Version: 1.3
 Product: Timekeeper Work
 Owner: Onki
-Status: Requirements Specification (pre-development review + CTO review applied)
+Status: Requirements Specification (pre-development review + CTO review + stakeholder decisions applied)
 
 > v1.1 нь v1.0 MVP PRD-д дутуу байсан бизнес дүрэм, edge case, operational requirement-үүдийг нэмсэн хувилбар.
 > v1.2 нь CTO review-ийн дагуу attendance integrity, offline/mobile найдвартай байдал, attendance correction (MVP), privacy/compliance, scale/operations, identity, data-model gap-уудыг нэмсэн хувилбар.
-> v1.1-д нэмсэн хэсгийг **[NEW]** / **[CHANGED]**, v1.2-д нэмсэн хэсгийг **[v1.2]** гэж тэмдэглэв. Өөрчлөлтийн бүртгэлийг 27-р бүлгээс үзнэ үү.
+> v1.3 нь бизнесийн шийдвэрүүдийг тусгасан: (1) 24 цагийн ээлж MVP-д орно, (2) сэжигтэй event-ийг хүлээн аваад тэмдэглэнэ, (3) correction-д хоёр дахь хүний зөвшөөрөл шаардахгүй, (4) 310-ийн ажилтнуудад зориулсан утасны тохирох шаардлага, (5) ажилтны сайн дурын, гарын үсэгтэй зөвшөөрлийн хуудас.
+> v1.1-д нэмсэн хэсгийг **[NEW]** / **[CHANGED]**, v1.2-д нэмсэн хэсгийг **[v1.2]**, v1.3-д нэмсэн/өөрчилсөн хэсгийг **[v1.3]** гэж тэмдэглэв. Өөрчлөлтийн бүртгэлийг 27-р бүлгээс үзнэ үү.
 
 ---
 
@@ -99,7 +100,8 @@ Permissions:
 - Configure attendance rules (grace, no-show cut-off, minimum geofence stay) **[NEW]**
 - View all reports
 - View audit log **[NEW]**
-- Approve attendance corrections (see 6.9) **[v1.2]**
+- Manage shift templates and patterns (see 23) **[v1.3]**
+- Review monthly Corrections report (see 6.9) **[v1.3]**
 
 ## HR
 
@@ -114,6 +116,7 @@ Permissions:
 - Export reports (Excel / PDF) **[NEW]**
 - Manage devices (disable device, generate replacement QR) **[NEW]**
 - Create manual attendance corrections (see 6.9) **[v1.2]**
+- Manage shift assignments, overrides and roster (see 23); print consent forms and record signed consent (see 15.4) **[v1.3]**
 
 ## Manager
 
@@ -193,12 +196,15 @@ This is an informational/diagnostic state shown to HR; it does not by itself cou
 
 ## 6.1 Expected Attendance (Who must attend, and where) **[NEW]**
 
-The system determines the expected location of an employee for a given date as follows (first match wins):
+The system determines whether an employee is expected on a given **work date**, where, and when, as follows (first match wins) **[CHANGED v1.3]**:
 
 1. Not an active employee on that date (disabled/archived, or before start date) → **not expected**, excluded from all counts.
-2. Date is a public holiday or non-working day for the tenant → **not expected**, excluded from counts.
-3. Active **Temporary Location Assignment** covering the date → **expected at the temporary location**.
-4. Otherwise → **expected at the employee's Primary Location**.
+2. Employee has a **Shift Assignment** (see 23): the shift schedule decides. The date is an off day in the pattern → **not expected**. A public holiday excludes the employee only if the shift template is flagged "observes public holidays" (24h guard shifts are not).
+3. No shift assignment (standard schedule): date is a public holiday or a non-working day of the tenant's weekly pattern → **not expected**, excluded from counts.
+4. Active **Temporary Location Assignment** covering the date → **expected at the temporary location** (using the shift/standard times unless the assignment specifies its own).
+5. Otherwise → **expected at the employee's Primary Location**.
+
+The result is always `{expected, location, shift_start, shift_end, grace, cutoff, early_window}` computed by one function (see 23.5), so Sections 6.2–6.4 apply identically to standard days and shifts. For shifts, "Work Start Time" below means the **shift start** and the work date is the **shift start date**.
 
 Rules:
 - Every employee MUST have exactly one Primary Location (mandatory field; Excel import rejects rows without it).
@@ -259,7 +265,7 @@ If the employee disables GPS, revokes location permission, or the app stops repo
 - The app reports a **location-disabled event** (when possible) and the backend tracks last heartbeat.
 - Status shown to HR: **Байршил идэвхгүй**, with last known time.
 - Tracked in a "Location inactive" list on the Daily Attendance screen (filterable) so HR can follow up.
-- The status does **not** mark the employee as present. If no valid arrival is recorded by the no-show cut-off, the employee becomes **Ирээгүй** (HR can then assign a reason or request a manual correction in V2).
+- The status does **not** mark the employee as present. If no valid arrival is recorded by the no-show cut-off, the employee becomes **Ирээгүй** (HR can then assign a reason or apply a manual correction, see 6.9).
 - Repeated disabling is logged in the audit log.
 - The employee app shows a persistent warning prompting the employee to re-enable location.
 
@@ -287,7 +293,9 @@ Geofence attendance is easy to cheat with fake-GPS apps, so integrity checks are
 
 **Anomaly handling**
 - Any failed check marks the event **Suspicious** with a reason code (MOCK_LOCATION, LOW_ACCURACY, IMPOSSIBLE_SPEED, ATTESTATION_FAILED, CLOCK_SKEW, DEVICE_CONFLICT).
-- A Suspicious event **does not set Цагтаа/Хоцорсон automatically** (default policy; tenant may choose "accept and flag"). It appears in an **Anomaly Review Queue** for HR with actions: Accept, Reject, or Request re-check. Decisions are audited.
+- **Policy [CHANGED v1.3]: accept and flag.** A Suspicious event **is accepted** and sets Цагтаа/Хоцорсон as normal, but carries a visible **Suspicious flag** (icon + reason code) in Daily Attendance, exports and the employee profile. It also appears in the **Anomaly Review Queue** for HR with actions: Confirm (clear the flag), Reject (the event no longer counts; the day is recomputed, normally to Ирээгүй unless another valid arrival exists), or Request re-check. Decisions are audited.
+- Because flagged events count immediately, dashboard counts may change after review; the dashboard shows a small "N flagged" indicator next to affected counts.
+- The policy is a tenant setting (Org Admin, audited) in case a stricter "hold until reviewed" mode is needed later; the default is accept and flag.
 - Repeated anomalies for one employee (e.g. 3 within 7 days) raise a flag on the employee profile and in the audit log.
 
 **Buddy punching**
@@ -303,7 +311,7 @@ Geofence attendance is easy to cheat with fake-GPS apps, so integrity checks are
 - **Background-restriction handling:** many Android OEMs (Xiaomi, Samsung, Huawei, Oppo) kill background apps. The app includes an onboarding checklist: "Always allow location", precise location, battery-optimization exemption, auto-start permission (with OEM-specific instructions), and notification permission. A **Health Check** screen shows green/red for each; the result is reported to the backend.
 - **Heartbeat:** app sends a lightweight heartbeat (default every 15 min during work hours, OS-permitting) with permission state, battery-saver state, app version. Missing heartbeats feed the "Байршил идэвхгүй" state (6.5). Heartbeat is not location tracking (see 15.3).
 - **Battery budget:** background activity must not use more than ~3% battery per working day on reference devices.
-- **Minimum supported OS:** Android 10+, iOS 15+ (tenant-visible; confirm in 26).
+- **Supported devices:** see 21.3 (Android 10+ with Google Play services, iOS 15+). The 310 workforce prepares compliant phones before the pilot.
 - **Force-upgrade:** the backend publishes a minimum app version; older versions are blocked with an upgrade prompt (see 25.4).
 
 ## 6.9 Attendance Correction (basic, in MVP) **[v1.2]**
@@ -316,13 +324,14 @@ Without correction, HR cannot recover from a dead phone, GPS failure or a genuin
 - Corrections are stored as separate records layered over the system-computed result: original system value, corrected value, reason, actor, timestamp. The original is never overwritten.
 - A corrected day is shown with a "Corrected" badge in Daily Attendance and exports (column "Source: Auto / Corrected").
 
-**Approval**
-- Default rule: corrections require **approval by a second person** (Org Admin or another HR user); the requester cannot approve their own correction. Tenant may relax this to "no approval needed for ≤ 2 corrections per employee per month" or turn approval off (Org Admin setting, audited).
-- Pending corrections show as "Correction pending" and do not change counts until approved.
+**No second approval [CHANGED v1.3]**
+- HR (and Org Admin) can apply a correction **directly**; it takes effect immediately. No second-person approval is required.
+- Compensating controls instead of approval: the **mandatory reason**, immutable audit trail (who, when, before/after), the "Corrected" badge, a monthly **Corrections report** for the Org Admin, and an automatic alert to the Org Admin when one user makes more than **10 corrections in a day** or any correction for their own record (an HR user cannot correct their own attendance; an Org Admin must).
+- The tenant may enable an optional approval step later (Org Admin setting, audited); it is off by default.
 
 **Limits and audit**
 - Corrections only for the **last 31 days** by default (configurable); older periods are locked once the month is closed (see 25.5).
-- Every request, approval, rejection and revocation is written to the audit log (15.1).
+- Every correction, edit and revocation is written to the audit log (15.1).
 - A "Corrections" report lists corrections by period, actor, reason; high correction rates per location are shown as a data-quality indicator (see 18).
 
 ---
@@ -540,6 +549,9 @@ Employee Fields **[CHANGED]**:
 - **Department** (required)
 - **Primary Location** (required)
 - Username
+- **Schedule** (Standard / Shift Assignment, see 23) **[v1.3]**
+- **Consent status** (Not requested / Printed / Signed / Withdrawn, see 15.4) **[v1.3]**
+- **Device model, OS version, Compatible Y/N**, or **Manual attendance (no device)** flag (see 21.3, 15.4) **[v1.3]**
 - Status (Active / Disabled / Archived)
 - Start Date, End Date (optional)
 
@@ -550,6 +562,7 @@ Excel Import Fields:
 - Department
 - **Primary Location** (must match an existing location, rows with unknown location are rejected with a row-level error report)
 - Username
+- Shift Pattern / Template, Cycle Start Date (optional, see 23.4) **[v1.3]**
 - ~~Password~~ **[CHANGED v1.2]** Plaintext passwords are no longer accepted in the Excel file. See 12.3 (Import Safety) and 15.2 (Identity).
 
 ## 12.1 Temporary Location Assignment **[NEW]**
@@ -712,12 +725,35 @@ Rules:
 
 - **Purpose limitation:** location is processed **only to determine attendance at the employee's expected geofence**. The system does **not** record continuous trails or location outside configured geofences/work hours. Outside work hours the app does not collect location.
 - **What is stored:** geofence enter/exit events (timestamp, location ID, accuracy flags) and heartbeat metadata. Raw coordinates are retained only for the Suspicious/anomaly window (default 30 days), then reduced to the geofence-level event.
-- **Employee transparency:** the app shows a plain-language notice (what is collected, when, who sees it) and an "Attendance history" view of exactly what was recorded about them (see 4). Consent/acknowledgement is captured at first login and stored with version and timestamp.
+- **Employee transparency:** the app shows a plain-language notice (what is collected, when, who sees it) and an "Attendance history" view of exactly what was recorded about them (see 4).
+- **Consent [CHANGED v1.3]:** location processing is based on the employee's **voluntary, written, signed consent** on a paper consent form (see 15.4). In-app acknowledgement at first login is kept as a second record, with version and timestamp, but does not replace the signed form.
 - **Legal basis:** employer's attendance obligation under the employment relationship, plus recorded acknowledgement. Compliance with **Mongolia's Law on Personal Data Protection** must be confirmed by legal counsel before launch (see 26); the design assumes: lawful and limited collection, notice, access, correction, deletion/anonymization after retention, cross-border transfer controls (tenant data region configurable; default in-region or contractually covered cloud region).
 - **Data-subject requests:** HR/Org Admin can export an employee's personal data and, where legally allowed, anonymize it; requests and outcomes are audited.
 - **Retention (defaults, configurable per tenant):** attendance records 5 years; raw anomaly coordinates 30 days; heartbeats 90 days; audit log 12 months minimum (see 15.1); archived employee data per 12.2. Deletion jobs run automatically and are logged.
 - **Access scoping:** see Manager/HR scope in 4. Exports containing personal data are audited (see 20) and watermarked with exporter and time.
 - **Breach readiness:** documented incident-response process and notification procedure (see 25.6).
+
+## 15.4 Employee Consent Form (printed, signed) **[v1.3]**
+
+Business decision: the employee gives consent **voluntarily and in writing**; HR prints the signed form and files it with the **employment contract**.
+
+**Form generation**
+- HR can generate a **printable consent form (PDF, A4)** from Employee → Consent. It is pre-filled with organization name, employee full name, employee number, department, primary location, date, and the current **consent text version** (see Appendix A for the draft text).
+- The form states in plain Mongolian: what is collected (geofence enter/exit times at work locations, device and app status), when (work hours/shifts only), who can see it, how long it is kept, that location is not tracked outside work hours or outside work locations, that consent is voluntary, and how to withdraw it.
+- The form carries a unique **form ID and QR/barcode** and a version number, so the signed paper can be matched to the record.
+- Bulk generation: HR can print forms for many employees at once (e.g. the 320 current employees at rollout), one PDF with a page per employee.
+
+**Recording**
+- After the employee signs, HR marks **Consent received** on the employee record with the signing date and form version, and may upload a **scan** (PDF/JPG, stored encrypted, accessible to HR/Org Admin only). Marking is audited (actor, time).
+- Employee status shows one of: **Not requested / Printed / Signed**.
+- **Gate:** device registration (QR onboarding, 5) cannot complete until HR has marked Consent received (system blocks the registration step with a clear message). Org Admin can override with an audited reason (e.g. paper signed, record pending).
+- Consent is stored per form version; if the consent text changes materially, a **new signature** is requested and the employee shows "Re-consent required" before the next registration or after a grace period set by the Org Admin.
+
+**Withdrawal and refusal**
+- An employee may withdraw consent at any time by written request to HR. HR marks **Consent withdrawn**: the device is deactivated (21.2) and no further location data is collected. Past attendance records are retained per 15.3.
+- **Alternative attendance for employees who do not consent:** because consent must be genuinely voluntary, an employee who declines or withdraws must have a non-location alternative (e.g. manual attendance entered by HR/manager via correction 6.9, or sign-in sheet). The system supports an employee flag **Manual attendance (no device)**: such employees are listed as expected, never auto-marked by geofence, and HR records their attendance by day (bulk entry). They are shown separately in reports so the data-quality metrics (18) are not distorted.
+
+**Legal note:** the business position is that a signed voluntary consent form attached to the employment contract provides the legal basis. This must be **confirmed by Mongolian legal counsel** before launch (see 26), including the wording in Appendix A and whether consent given within an employment relationship is sufficient or an additional contract clause is required.
 
 ---
 
@@ -783,9 +819,12 @@ Included:
 - Employee lifecycle (disable, re-activate, archive) **[NEW]**
 - Audit log **[NEW]**
 - Role-based access control (with location/department scope) **[CHANGED v1.2]**
-- Attendance integrity checks and Anomaly Review Queue **[v1.2]**
+- Attendance integrity checks (accept-and-flag) and Anomaly Review Queue **[CHANGED v1.3]**
+- Shift scheduling: templates, rotation patterns, assignments, overrides, roster view **[v1.3]**
+- Supported-device requirements and Device Readiness report **[v1.3]**
+- Printable employee consent form with signed-consent tracking and registration gate **[v1.3]**
 - Offline event queue, server time authority, background-restriction onboarding **[v1.2]**
-- Basic attendance correction with approval **[v1.2]**
+- Basic attendance correction (direct HR correction, no second approval, audited) **[CHANGED v1.3]**
 - Identity hardening (first-login change, MFA for admins, rate limiting, invite-based onboarding) **[v1.2]**
 - Privacy notice, consent capture and retention jobs **[v1.2]**
 - Non-functional foundations: tenant isolation (RLS), daily aggregates, observability, backups, versioned rules, force-upgrade **[v1.2]**
@@ -821,7 +860,7 @@ Version 2:
 - Push notifications (using the notification engine above)
 - Overtime analytics
 - Full attendance correction workflow (employee-initiated requests, manager approval chains, bulk corrections) – the basic HR correction flow is already in the MVP (6.9) **[CHANGED v1.2]**
-- Shift scheduling and rotating/24h rosters (if not required in V1, see 23 and 26)
+- Presence analytics for shifts (left-early detection, overtime, on-site duration) building on the raw events kept in V1
 
 Version 3:
 - Payroll integration
@@ -890,13 +929,49 @@ Rules:
 - An employee with no active device is shown as "No device" on the employee profile and treated per 6.5 for attendance.
 - HR may re-enable a disabled device only if it was disabled in error (audited); otherwise a new registration is required.
 
+## 21.3 Supported Device Requirements **[v1.3]**
+
+The 310 organization prepares compliant phones for employees before the pilot. Requirements are driven by the geofencing, attestation and background-location features (6.7, 6.8).
+
+**Android (most of the fleet)**
+
+| Requirement | Minimum | Recommended for purchase |
+|---|---|---|
+| OS version | **Android 10** | **Android 12 or newer** |
+| Google services | **Google Play services + Google Play Store, Play Protect-certified device** (needed for Play Integrity and the Geofencing API) | same |
+| Location hardware | GPS/GNSS | GPS + GLONASS/Galileo/BeiDou |
+| RAM / storage | 3 GB / 32 GB with 1 GB free | 4 GB or more |
+| Security state | Not rooted, bootloader locked, no custom ROM | same |
+| Developer options | "Mock location app" must be unset | same |
+| Battery | Battery optimization allowed to be switched off for the app; "Always allow" location | same |
+
+- **Not supported:** phones without Google Mobile Services (e.g. Huawei devices released after 2019 with HarmonyOS/HMS only), rooted devices, emulators, custom ROMs, very old budget phones with Android 9 or below.
+- **Brand notes:** Samsung, Google Pixel, Xiaomi/Redmi/POCO, Oppo/Realme, Vivo, Honor (with GMS) are supported provided the OEM battery/auto-start settings are configured (see 6.8 onboarding checklist). Xiaomi, Oppo, Vivo and Huawei-derived UIs are the most aggressive about killing background apps and need the OEM-specific steps.
+
+**iOS**
+
+| Requirement | Minimum | Recommended |
+|---|---|---|
+| OS version | **iOS 15** (iPhone 6s and newer) | iOS 16 or newer |
+| Location | "Always" location permission with Precise Location on; Background App Refresh on | same |
+| Security state | Not jailbroken | same |
+
+**Simple rule for HR/the organization:** "Any Android phone with **Android 10 or newer** and Google Play Store that is not rooted, or any iPhone with **iOS 15 or newer**, will work. Buy **Android 12+ / 4 GB RAM** if purchasing for employees."
+
+**Readiness process before pilot**
+1. HR collects each employee's phone make, model and OS version (a short form or a field on the employee record: **Device model, OS version, Compatible Yes/No**).
+2. Employees on non-compliant phones are listed in a **Device Readiness report** (count by reason: OS too old, no Google services, rooted, no phone).
+3. The organization either upgrades/replaces the phone, issues a company device, or classifies the employee as **Manual attendance (no device)** (15.4).
+4. Before go-live, a **pilot test per phone model** group is run at a real location: install, register, enter/leave geofence, verify arrival time, background behaviour after 2 hours idle, battery use.
+5. The app collects device model and OS version at registration (non-sensitive technical data) so the readiness report stays accurate.
+
 ---
 
 # 22. Data Model and Time Rules **[v1.2]**
 
 ## 22.1 Effective-dated Rules (versioning)
 
-- Attendance rules (Work Start Time, Grace, No-show Cut-off, Minimum Stay, accuracy threshold) are stored as **effective-dated versions** per location (`valid_from`, `valid_to`).
+- Attendance rules (Work Start Time, Grace, No-show Cut-off, Minimum Stay, accuracy threshold) and **shift templates, patterns and assignments** (23) are stored as **effective-dated versions** (`valid_from`, `valid_to`).
 - Status for a given date is always computed with the rule version in force on **that date**; changing a rule never rewrites history.
 - Likewise for Primary Location, Department and Temporary Location assignments: store history with effective dates; reports show the value as of the report date.
 - Holidays and non-working days are versioned by date and can be added retroactively only with an audit entry and an explicit "recompute" action.
@@ -916,11 +991,56 @@ Rules:
 
 ---
 
-# 23. Shifts and Non-working Days **[v1.2]**
+# 23. Shifts and Non-working Days **[CHANGED v1.3]**
 
-- **V1 baseline:** one Work Start Time per location with a tenant-level weekly working-day pattern (default Mon–Fri), plus public holidays. Non-working days and holidays are excluded from expected attendance (6.1).
-- **Decision needed before development:** whether roles such as Хамгаалалт (guards) work 24-hour or rotating shifts in V1. If yes, shift scheduling must be added to the MVP (employee ↔ shift pattern ↔ expected start/end per date) because retrofitting shifts into a "single start time per location" model changes the core schema.
-- **Architecture requirement either way:** the "expected attendance for employee on date" function (6.1) must be implemented behind one interface returning `{expected: bool, location, start_time, grace, cutoff}`, so shifts can later replace the location default without changing the attendance engine.
+**Decision:** some employees (e.g. Хамгаалалт / guards) work **24-hour shifts**. Shift scheduling is therefore **in the MVP**. Employees without a shift assignment keep the standard schedule (location Work Start Time, tenant weekly working days, public holidays).
+
+## 23.1 Concepts
+
+- **Shift Template:** name, start time, end time or duration (up to 24 h; may cross midnight), grace minutes, no-show cut-off (hours after start), early-arrival window, location default (optional), flag "observes public holidays".
+  Examples: `Өдрийн 08:00–17:00`, `Шөнийн 20:00–08:00`, `24 цаг 08:00–08:00`.
+- **Shift Pattern (rotation):** a repeating sequence of days, each day mapped to a template or OFF. Examples: `24 цаг ажил / 48 цаг амралт` (cycle of 3 days: Shift, Off, Off), `2 өдөр / 2 шөнө / 4 амралт` (cycle of 8 days).
+- **Shift Assignment:** employee ↔ pattern (or single fixed template) with `from_date`, optional `to_date`, and **cycle start date** (which day of the cycle the employee is on at `from_date`). Several guards on a team share a pattern with different cycle offsets.
+- **Shift Override (swap / extra shift):** HR can add or remove a shift on a single date for an employee (swap, replacement, extra duty, sick cover). Overrides are audited and take effect from the selected date forward in the expected-attendance calculation.
+- **Standard schedule (implicit):** no assignment = location Work Start Time on the tenant's working days.
+
+## 23.2 Work Date and Time Rules for Shifts
+
+- The **work date** of a shift is the **date its shift starts** in the location time zone. A `20:00–08:00` shift starting 2026-10-06 belongs to 2026-10-06 and is shown under that date on the dashboard and reports, even though it ends on 2026-10-07.
+- **Late (6.2):** Arrival ≤ shift start + grace → Цагтаа; later → Хоцорсон.
+- **No-show (6.3):** after shift start + cut-off (default 2 h; per template) with no valid arrival and no reason → Ирээгүй. For 24 h shifts the same 2 h default applies unless the template sets another value.
+- **Early-arrival window:** an entry counts for the shift only from `shift start − early window` (default 2 h; per template). Earlier entries are stored but are attributed to the previous shift or ignored.
+- **Handover / already on site:** if the device is **already inside the geofence** at the start of the early window (e.g. the guard stayed after the previous duty), the arrival time is the window start and the status is Цагтаа, provided the heartbeat/presence check (6.8) confirms the device was inside at shift start. If presence cannot be confirmed (no heartbeat), the system falls back to the first confirmed entry.
+- **Back-to-back shifts and 24 h shifts:** a day's arrival is matched to the **nearest shift start** within its window; one arrival can never satisfy two shifts. For a 24 h shift (08:00 → 08:00 next day) the arrival is judged only at the start; the shift end (08:00 next day) is recorded as the departure when the device leaves the geofence after the shift end (or after the min-stay rule, 6.4).
+- **Departure and leaving early:** in V1 departure time is recorded and shown. Automatic "left early / absent mid-shift" detection and overtime calculation are **V2** (presence analytics), but the raw enter/exit events are kept (6.4) so it can be added without change.
+- **Minimum geofence stay (6.4)** applies unchanged to shift arrivals.
+- **Reasons and shifts (11):** a reason applies per calendar date range; a reason covering the shift's work date makes the shift **Шалтгаантай** (6.6). A reason ending the day before the shift start does not affect it.
+- **Public holidays:** a template with "observes public holidays" off (default for 24 h guard templates) means the employee works and is counted on holidays; with it on, the employee is not expected on holidays.
+
+## 23.3 Dashboard, Reports and Counts
+
+- "Total Employees" and the per-location breakdown count **employees expected on the selected work date** (standard schedule + shifts that start that date), so a guard on an off day is not counted.
+- Daily Attendance adds the columns **Shift** (template name) and **Shift Start–End**, and a **Shift** filter (Бүгд / Standard / each template).
+- Weekly/Monthly reports show shifts worked, late/no-show counts per employee, and expected-vs-attended days according to the assigned pattern.
+- Reports on overnight shifts attribute the whole shift to its start date (23.2) to avoid double-counting at midnight.
+
+## 23.4 Management UI and Import
+
+- **Shift Templates:** Org Admin and HR create/edit templates and patterns (HR can assign; Org Admin can also manage templates; changes are effective-dated and audited).
+- **Assign shifts:** per employee, per team (bulk), or via Excel import (columns: Employee Number, Pattern or Template, Cycle Start Date, From Date, optional To Date). Import follows the dry-run rules in 12.3.
+- **Roster view:** a calendar grid (employees × dates) shows each employee's expected shift/off day for the next 31 days; HR can add an override by clicking a cell. Conflicts (overlapping shifts for one employee, a shift overlapping a reason or temporary assignment) are flagged on save.
+- **Validation:** an employee cannot have overlapping assignments; a 24 h shift followed immediately by another shift is allowed but flagged; each assignment's template must be valid for the employee's expected location.
+
+## 23.5 Architecture Requirement
+
+- The "expected attendance for employee on date" function (6.1) is the **single interface** returning `{expected, location, shift_start, shift_end, grace, cutoff, early_window}` for the standard schedule and all shift types. The attendance engine, dashboard summaries and reports consume only this result and never read the shift tables directly.
+- Shift data is effective-dated (22.1); recomputation for a date range after a roster change must be idempotent and audited.
+- Time handling uses UTC storage and tenant/location time zones (22.2); shifts crossing midnight are stored with explicit start and end instants per work date.
+
+## 23.6 Remaining Questions (non-blocking)
+
+- Required list of shift templates and patterns for 310 (to seed during the pilot): to be supplied by HR (Ganbat).
+- Whether guards are required to be physically present continuously (leads to V2 presence analytics) or only at shift start/end.
 
 ---
 
@@ -979,18 +1099,18 @@ Rules:
 1. **Status precedence (6.6):** a reason assignment overrides arrival status — confirm.
 2. **No-show cut-off default of 2 hours** — confirm, or set per location.
 3. **Time zone:** single tenant time zone (Asia/Ulaanbaatar) assumed.
-4. **Weekends / shifts:** non-working days and shift schedules are not yet defined (single Work Start Time per location). Confirm whether shift work (e.g. Хамгаалалт, 24h guard duty) is needed in V1.
+4. ~~**Weekends / shifts**~~ **Resolved v1.3:** 24 h shifts exist and are in the MVP (23).
 5. **Manager export permission** default.
 6. **Archive retention period** (default 12 months) and audit retention (default 12 months).
 
 Added in v1.2 **[v1.2]**:
 
-7. **Shift work (23):** do guards (Хамгаалалт) or others work 24h / rotating shifts in V1? Decide before schema design.
-8. **Anomaly policy (6.7):** should Suspicious events block automatic Цагтаа/Хоцорсон (default) or "accept and flag"?
-9. **Correction approval (6.9):** two-person approval by default — acceptable for a tenant with one HR user (Ganbat)? An Org Admin (Khongor) would be the approver.
-10. **Minimum OS support (6.8):** Android 10+ and iOS 15+ — does the 310 workforce's device fleet meet this? Please survey real handsets (Samsung, Xiaomi, etc.).
+7. ~~**Shift work (23)**~~ **Resolved v1.3:** yes, 24 h shifts in the MVP. Open: list of templates/patterns for 310 (23.6).
+8. ~~**Anomaly policy (6.7)**~~ **Resolved v1.3:** accept and flag.
+9. ~~**Correction approval (6.9)**~~ **Resolved v1.3:** no second approval; compensating controls apply.
+10. ~~**Minimum OS support (6.8)**~~ **Resolved v1.3:** 310 prepares compliant phones per 21.3. Open: device survey results and handling of employees without a compliant phone (company device vs. manual attendance).
 11. **MFA for HR/Admin (15.2):** TOTP authenticator acceptable for all four initial users, or is SMS required?
-12. **Legal review:** confirm Mongolian Law on Personal Data Protection obligations, data-residency requirement (hosting region), and employee consent wording.
+12. **Legal review:** confirm Mongolian Law on Personal Data Protection obligations, data-residency requirement (hosting region), and that the signed voluntary consent form (15.4, Appendix A) attached to the employment contract is a sufficient legal basis, incl. the alternative for employees who decline.
 13. **Retention (15.3):** attendance records 5 years — confirm against labour/archival law.
 14. **Excel import (12.3):** invite-based onboarding replaces password columns — confirm HR is comfortable distributing an invite sheet instead of passwords.
 15. **SLO and DR (25):** are 99.9% working-hours availability and RPO 15 min / RTO 4 h appropriate and affordable for the pilot?
@@ -1004,3 +1124,32 @@ Added in v1.2 **[v1.2]**:
 | 1.0     | Initial MVP definition                                                                                                                  |
 | 1.1     | Added: Primary Location (12), Temporary Location Assignment (12.1), late rule (6.2), no-show cut-off (6.3), employee lifecycle (12.2), device replacement/loss workflow (21), minimum geofence stay (6.4), location-off state (6.5), Excel/PDF export (20), Reason Report (11.1), Departments (13.1), location-level percentages (8), notification engine hook (19), audit log expansion (15.1) |
 | 1.2     | Added (CTO review): attendance integrity / anti-spoofing / Anomaly Review Queue (6.7); offline queue, server time authority, background-restriction handling, heartbeat, force-upgrade (6.8); basic attendance correction pulled into MVP (6.9, 19); role scope for Manager/HR (4); import safety and invite-based onboarding (12.3); identity and access hardening (15.2); privacy and compliance (15.3); effective-dated rules, time zones, event model (22); shifts and non-working days decision (23); scale and performance (24); operations: SLOs, DR, environments, release, period close, security ops (25); precise success-metric definitions (18); extended open questions (26); fixed section cross-references (device lifecycle 21, changelog 27). |
+| 1.3     | Business decisions: 24 h shift scheduling added to MVP and section 23 rewritten (templates, rotation patterns, assignments, overrides, work-date rule, handover, roster view); expected-attendance function extended (6.1); Suspicious events now accept-and-flag (6.7); direct HR correction without second approval, with compensating controls (6.9); supported-device requirements and readiness process (21.3); voluntary signed consent form printed by HR and attached to the employment contract, with registration gate, scan upload, withdrawal and manual-attendance alternative (15.3, 15.4, Appendix A); open questions updated. |
+
+---
+
+# Appendix A. Draft Employee Consent Text **[v1.3]**
+
+> **DRAFT for legal review.** This text is a starting point only and must be reviewed and approved by Mongolian legal counsel before use. Version: `consent-v1-draft`.
+
+**Байршлын мэдээлэл боловсруулах, ирц бүртгэхийн тулд өгөх сайн дурын зөвшөөрлийн хуудас**
+
+Байгууллага: ____________________ (регистр: ____________)
+Ажилтны овог, нэр: ____________________  Ажилтны код: ________
+Хэлтэс: ____________  Үндсэн салбар: ____________
+Маягтын дугаар: ________ Хувилбар: consent-v1-draft Огноо: ________
+
+1. Би **Timekeeper Work** ирцийн системд өөрийн гар утсаар ирцээ автоматаар бүртгүүлэхийг **сайн дураараа** зөвшөөрч байна.
+2. **Ямар мэдээлэл цуглуулах вэ:** миний утас ажлын байрны тодорхойлсон бүс (геофенс) руу орсон/гарсан цаг, утасны төрөл ба үйлдлийн системийн хувилбар, аппын төлөв (байршлын зөвшөөрөл асаалттай эсэх).
+3. **Хэзээ цуглуулах вэ:** зөвхөн миний ажлын цаг/ээлжийн хугацаанд ажлын байрны бүстэй холбоотой. Ажлын бус цагт болон ажлын байрны бүсээс гадна миний байршлыг хянахгүй, түүхийг нь хадгалахгүй.
+4. **Зорилго:** зөвхөн ирц (цагтаа, хоцорсон, ирээгүй) тооцох. Бусад зорилгоор ашиглахгүй, гуравдагч этгээдэд худалдахгүй.
+5. **Хэн харах вэ:** Хүний нөөцийн ажилтан, байгууллагын админ, миний харьяа салбар/хэлтсийн менежер (зөвхөн ирцийн мэдээлэл).
+6. **Хадгалах хугацаа:** ирцийн бүртгэл ____ жил; сэжигтэй үйл явдлын нарийвчилсан координат 30 хоног; бусад нь хуулийн дагуу.
+7. **Миний эрх:** би өөрийн ирцийн түүхийг аппаас харах, мэдээллээ засуулах, шаардлагатай бол устгуулах эрхтэй.
+8. **Зөвшөөрлөө эргүүлэн татах:** би хүссэн үедээ Хүний нөөцөд бичгээр хандаж зөвшөөрлөө цуцалж болно. Цуцалсан тохиолдолд миний утаснаас байршил цуглуулахаа зогсооно. Энэ нь миний ажлын харилцаанд сөрөг нөлөө үзүүлэхгүй бөгөөд ирцийг надад зориулсан **өөр аргаар** (жишээ нь Хүний нөөц гараар бүртгэх) бүртгэнэ.
+9. Би энэ хуудасны агуулгыг уншиж, ойлгосон болно.
+
+Ажилтны гарын үсэг: ____________  Огноо: ________
+Хүлээн авсан Хүний нөөцийн ажилтан: ____________  Гарын үсэг: ________  Огноо: ________
+
+*Энэ хуудсыг ажилтны хөдөлмөрийн гэрээний хамт хавсаргаж хадгална.*
