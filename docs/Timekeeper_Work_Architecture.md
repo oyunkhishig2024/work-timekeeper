@@ -1,8 +1,8 @@
 # Timekeeper Work
 ## Technical Architecture Document
 
-Version: 0.2 (draft for review)
-Status: Draft — based on PRD v1.8 (`docs/Timekeeper_Work_PRD.md`)
+Version: 0.3 (draft for review)
+Status: Draft — based on PRD v1.9 (`docs/Timekeeper_Work_PRD.md`)
 Audience: engineering lead, backend / mobile / web developers, QA
 Scope: the **pilot tier** (1–2 tenants, ~4 months, ~640 employees), built by **one full-stack developer** (decision v0.2, see Section 14). The production tier is covered only where a decision now would be expensive to undo later.
 
@@ -655,16 +655,9 @@ Deferred (not in Release 1): shift scheduling (guards recorded manually via corr
 
 This ordering keeps the riskiest items (mobile reliability, legal gate, data integrity) first and puts the shift model second only after the single-expectation interface (Section 6.3) already exists, so shifts plug in without engine changes.
 
-## 14.3 Decisions needed from the business
+## 14.3 Decision (v0.3)
 
-The "~4 months, 1–2 tenants" statement is read as *the period in which only 1–2 tenants will exist*. If it instead means *the date by which everything must be live*, one developer cannot meet it with the current scope. Options:
-
-| Option | Effect |
-|---|---|
-| **A. Accept Release 1 at ~5.5 months, Release 2 at ~8 months** (recommended) | Realistic; pilot starts with standard-schedule staff at one or two locations |
-| **B. Hold the 4-month date; cut further** | Release 1 limited to **one location**, no Excel import (manual entry), no consent-print bulk generation, manual exports; still ≈ 4.5–5 months and no buffer |
-| **C. Add a second developer (mobile)** | Mobile (≈ 5–6 weeks) runs in parallel with backend/web; Release 1 ≈ 3.5–4 months |
-| **D. Buy time with fewer surfaces** | e.g. start with the admin web + a simpler capture method; **not recommended**, it removes the product's core (automatic geofence attendance) |
+**Option A is chosen:** Release 1 at ≈ 5.5 months, Release 2 at ≈ 8 months. The "~4 months, 1–2 tenants" statement means the period in which only 1–2 tenants will exist, not a deadline for all features. Options B (cut to one location), C (second developer) and D are not pursued but remain available if the schedule slips: the first fallback is **C (second developer for mobile)**; the second is trimming Release 1 as in the former option B. The release plan is recorded in PRD 17.1.
 
 ## 14.4 Working agreements for a one-person team
 
@@ -699,7 +692,7 @@ The "~4 months, 1–2 tenants" statement is read as *the period in which only 1�
 4. **PDF generation approach** (server library vs. headless browser) after Spike 4.
 5. **Cloud provider:** region is **Singapore** (decided v0.2); choose the provider (managed PostgreSQL + container service in Singapore) after Spike 3; legal confirmation of Singapore hosting is pending.
 6. ~~**Mobile attestation fallback**~~ **Decided (PRD 6.7, v1.8):** accept-and-flag; escalate after 5 consecutive unavailable verdicts.
-7. **Team size and deadline:** confirm the interpretation of the "4 months" (Section 14.3) and choose option A/B/C.
+7. ~~**Team size and deadline**~~ **Decided v0.3:** one developer, option A (Section 14.3, PRD 17.1).
 
 ---
 

@@ -1,7 +1,7 @@
 # Timekeeper Work
 ## Product Requirements Document (PRD)
 
-Version: 1.8
+Version: 1.9
 Product: Timekeeper Work
 Owner: Onki
 Status: Requirements Specification (pre-development review + CTO review + stakeholder decisions applied)
@@ -865,6 +865,31 @@ Included:
 Excluded from MVP (see Future Versions):
 - Push / notification engine (design hooks only, see 19)
 
+## 17.1 Release Plan **[v1.9]**
+
+Decision: the MVP is delivered in **two releases** by one full-stack developer (see Architecture doc, Section 14). The pilot window (~4 months) refers to the period in which only 1–2 tenants exist; it is **not** the date by which every feature is live. Estimates: Release 1 ≈ 5.5 months, Release 2 ≈ 8 months from start (±40%).
+
+**Release 1 — "Pilot-Lite" (standard-schedule employees):**
+- Auth (password + TOTP for admin roles), tenant isolation, users and scopes, audit log (stored + simple viewer)
+- Locations, departments, employees, Excel import (dry-run)
+- Working Week, working-day exceptions, holidays (14)
+- QR device registration with consent gate, consent form printing/tracking (15.4), supported-device readiness list (21.3)
+- Mobile geofence attendance with offline outbox, integrity flags (accept-and-flag), health screen (6.2–6.8)
+- Attendance engine for the standard schedule, temporary location assignment, reasons, direct corrections (6.9)
+- Dashboard, daily attendance, basic anomaly list (flags visible, confirm/reject), basic analytics charts
+- Excel export of daily/weekly/monthly reports
+- Backups, monitoring, runbooks
+
+**Release 2 — completes the MVP (during the pilot):**
+- **24 h shift scheduling** (23): templates, patterns, assignments, overrides, roster
+- Full analytics (week/month views, location/department percentages), reason report, full anomaly queue actions
+- PDF exports, roster grid, audit-log export, period close
+- Super Admin tenant management UI and second-tenant readiness
+
+**Interim handling of guards (Хамгаалалт) until Release 2:** shift employees are flagged **Manual attendance (no device)** (15.4) and HR records their attendance through corrections (6.9). They appear in reports separately so the accuracy metrics (18) are not distorted. The expected-attendance interface (6.1, 23.5) is built in Release 1 so shifts plug in without changing the engine.
+
+**Change control:** new requirements go to Release 2 or V2 unless they block Release 1; each added item must name what it displaces.
+
 ---
 
 # 18. Success Metrics
@@ -1169,6 +1194,7 @@ Added in v1.2 **[v1.2]**:
 | 1.6     | Working Week (Mon–Fri 08:30–17:30, Sat/Sun off) configurable by Org Admin with per-location override and working-day exceptions (14.1, 13); Holiday Calendar with ranges, types, per-location scope, yearly copy, import, worked-on-day-off display and recompute (14.2); 6.1 updated; decisions recorded: all employees have compliant phones (26 Q10), data hosted abroad with cross-border consent wording (15.3, Appendix A), 2-year retention in consent text. |
 | 1.7     | Decision: foreign cloud hosting (Option B) confirmed over Mongolian hosting; foreign processors register added to 15.3 (hosting, Play Integrity / App Attest, Android location services, FCM, monitoring, email/SMS) and listed in the consent text (Appendix A, item 7); legal confirmation still pending (26 Q12). |
 | 1.8     | Applied architecture review deviations: (1) device-event partitioning deferred to production tier (24.3); (2) raw coordinates erased after 30 days while the 2-year geofence-level event stays (15.3); (3) heartbeat is best effort, tolerance 60 min (6.8); (4) attestation: registration strict, event batches accept-and-flag when the verdict service is unavailable (6.7); (5) PostgreSQL-backed queue confirmed (16, 24, no change). Hosting region fixed: Singapore (15.3, Appendix A). |
+| 1.9     | Release plan decided (17.1): Release 1 "Pilot-Lite" for standard-schedule employees (≈ 5.5 months), Release 2 with shifts, full analytics, PDF and tenant admin (≈ 8 months); interim manual-attendance handling for guards; "4 months" = period with only 1–2 tenants. |
 
 ---
 
