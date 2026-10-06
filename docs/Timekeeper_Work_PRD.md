@@ -1,7 +1,7 @@
 # Timekeeper Work
 ## Product Requirements Document (PRD)
 
-Version: 1.4
+Version: 1.5
 Product: Timekeeper Work
 Owner: Onki
 Status: Requirements Specification (pre-development review + CTO review + stakeholder decisions applied)
@@ -786,8 +786,8 @@ Storage:
 - AWS S3
 
 Additions **[v1.2]**:
-- Queue / event ingest: a managed message queue (e.g. SQS / Azure Service Bus / Redis Streams) in front of the attendance-processing workers
-- Cache: Redis for rate limiting, sessions and dashboard cache
+- Queue / event ingest **[CHANGED v1.5]**: for the pilot, a **PostgreSQL-backed job queue** (e.g. pg-boss / Graphile Worker) in front of the attendance-processing workers, so no extra managed service is needed. The queue is accessed through an interface so it can be replaced by SQS / Azure Service Bus / Redis Streams when scale requires it.
+- Cache **[CHANGED v1.5]**: in-process / PostgreSQL for the pilot; Redis is added only when multiple tenants or instances require it
 - Mobile attestation: Google Play Integrity API, Apple App Attest
 - Observability: structured logging, metrics and tracing (e.g. OpenTelemetry) with a hosted dashboard and alerting
 - Secrets / keys: cloud KMS
@@ -1046,9 +1046,11 @@ The 310 organization prepares compliant phones for employees before the pilot. R
 
 # 24. Scale and Performance **[v1.2]**
 
+> **Pilot scope [v1.5]:** for roughly the next **4 months** the platform runs as a **pilot with 1–2 tenants** (310 and at most one more). Sections 24 and 25 therefore define a **Pilot tier** (what is built and committed to now) and keep the **Production tier** as the target for later. The architecture must not preclude the production tier, but it is **not** built or paid for during the pilot.
+
 ## 24.1 Ingest and Processing
-- **Morning-peak load:** a single tenant produces ~320 events within ~15 minutes; the platform must handle all tenants peaking at 08:00 local time. Target: sustain **200 events/second** at launch, horizontally scalable, with p95 event-to-visible < 60 seconds.
-- Events enter through a **queue**; API acknowledges after durable enqueue; workers compute attendance results asynchronously and idempotently (dedupe on client event ID).
+- **Morning-peak load:** a single tenant produces ~320 events within ~15 minutes; the platform must handle all tenants peaking at 08:00 local time. **Pilot target [CHANGED v1.5]:** sustain **20 events/second** (one or two tenants, ~640 employees, all arriving within minutes), with p95 event-to-visible < 60 seconds. **Production target (later):** 200 events/second, horizontally scalable.
+- Events enter through a **queue** (PostgreSQL-backed in the pilot, see 16); API acknowledges after durable enqueue; workers compute attendance results asynchronously and idempotently (dedupe on client event ID).
 - Back-pressure and retry with dead-letter queue and alerting.
 
 ## 24.2 Dashboard Performance
@@ -1066,21 +1068,25 @@ The 310 organization prepares compliant phones for employees before the pilot. R
 # 25. Operations **[v1.2]**
 
 ## 25.1 Observability and SLOs
-- **SLO:** 99.9% API availability during working hours (06:00–20:00 tenant time, Mon–Sun), 99.5% overall; ingest lag SLO per 24.1.
+- **SLO [CHANGED v1.5]:**
+  - **Pilot tier:** **99.5%** API availability during working hours (06:00–20:00 tenant time, Mon–Sun), no overall target; ingest lag per 24.1. Roughly up to ~2 hours of unplanned downtime per month is tolerated. Planned maintenance is announced and done outside 06:00–20:00 (24 h shift staff are covered by the offline queue, 6.8).
+  - **Production tier (later):** 99.9% during working hours, 99.5% overall.
 - Metrics, structured logs and traces for API, workers, queue depth, ingest lag, event rejection reasons, mobile heartbeat coverage and crash-free rate.
 - Alerts (paged): ingest lag > 5 min, queue depth growing, error rate > 2%, failed deployments, attestation-failure spike, backup failure. Public/internal status page.
 
 ## 25.2 Backups and Disaster Recovery
 - Automated daily full + continuous WAL backup (point-in-time recovery) of PostgreSQL; backups encrypted and stored in a separate region/account.
-- Targets: **RPO ≤ 15 minutes, RTO ≤ 4 hours**. A restore is **tested at least quarterly** and the result recorded.
+- **Pilot tier [CHANGED v1.5]:** **RPO ≤ 15 minutes** (managed point-in-time recovery), **RTO ≤ 8 hours**; single region, **no multi-zone standby database**; backup copies kept in a second region or separate account. A restore is **tested before go-live and then once per quarter** and the result recorded.
+- **Production tier (later):** RPO ≤ 15 minutes, RTO ≤ 4 hours, multi-zone database standby, cross-region recovery plan.
 - Mobile offline queue (6.8) covers short outages without data loss for employees.
 
 ## 25.3 Environments
-- **Dev, Staging and Production**, isolated. Staging mirrors production topology with **seeded synthetic tenants** (including a 320-employee, 6-location "310-like" tenant) for load, geofence-simulation and regression tests. No production personal data in non-production environments.
+- **Pilot tier [CHANGED v1.5]:** **Production** plus one small **Staging** environment (can be stopped outside testing hours to save cost); developers use local environments for dev. Staging is isolated from production.
+- **Production tier (later):** Dev, Staging and Production, isolated. Staging mirrors production topology with **seeded synthetic tenants** (including a 320-employee, 6-location "310-like" tenant) for load, geofence-simulation and regression tests. No production personal data in non-production environments.
 
 ## 25.4 Release Strategy
 - CI/CD with automated tests (unit, integration, tenant-isolation, attendance-rule golden tests from sections 6.2–6.6), infrastructure as code, and database migrations that are backward compatible (expand → migrate → contract).
-- **Feature flags** and **staged rollout per tenant** (internal tenant → pilot 310 → general).
+- **Feature flags** and **staged rollout per tenant** (internal test tenant → pilot 310 → second pilot tenant → general availability after the pilot).
 - **Mobile versioning:** backend publishes `min_supported_version` and `recommended_version`; below minimum the app is blocked with an upgrade prompt; below recommended it nags. Store releases use staged rollout with crash-rate rollback gates.
 - API versioning (`/v1`) with a deprecation policy so old app versions keep working until force-upgrade.
 
@@ -1113,7 +1119,7 @@ Added in v1.2 **[v1.2]**:
 12. **Legal review:** confirm Mongolian Law on Personal Data Protection obligations, data-residency requirement (hosting region), and that the signed voluntary consent form (15.4, Appendix A) attached to the employment contract is a sufficient legal basis, incl. the alternative for employees who decline.
 13. ~~**Retention (15.3)**~~ **Decided v1.4:** attendance records kept 2 years. Legal counsel to confirm this satisfies labour/archival law (also disputes and audits).
 14. **Excel import (12.3):** invite-based onboarding replaces password columns — confirm HR is comfortable distributing an invite sheet instead of passwords.
-15. **SLO and DR (25):** are 99.9% working-hours availability and RPO 15 min / RTO 4 h appropriate and affordable for the pilot?
+15. ~~**SLO and DR (25)**~~ **Resolved v1.5:** pilot tier only (99.5% working hours, RPO 15 min, RTO 8 h) for the next ~4 months with 1–2 tenants; production tier is deferred.
 
 ---
 
@@ -1126,6 +1132,7 @@ Added in v1.2 **[v1.2]**:
 | 1.2     | Added (CTO review): attendance integrity / anti-spoofing / Anomaly Review Queue (6.7); offline queue, server time authority, background-restriction handling, heartbeat, force-upgrade (6.8); basic attendance correction pulled into MVP (6.9, 19); role scope for Manager/HR (4); import safety and invite-based onboarding (12.3); identity and access hardening (15.2); privacy and compliance (15.3); effective-dated rules, time zones, event model (22); shifts and non-working days decision (23); scale and performance (24); operations: SLOs, DR, environments, release, period close, security ops (25); precise success-metric definitions (18); extended open questions (26); fixed section cross-references (device lifecycle 21, changelog 27). |
 | 1.3     | Business decisions: 24 h shift scheduling added to MVP and section 23 rewritten (templates, rotation patterns, assignments, overrides, work-date rule, handover, roster view); expected-attendance function extended (6.1); Suspicious events now accept-and-flag (6.7); direct HR correction without second approval, with compensating controls (6.9); supported-device requirements and readiness process (21.3); voluntary signed consent form printed by HR and attached to the employment contract, with registration gate, scan upload, withdrawal and manual-attendance alternative (15.3, 15.4, Appendix A); open questions updated. |
 | 1.4     | Decisions: TOTP (Google Authenticator) two-step login for Super Admin / Org Admin / HR, no SMS (15.2); attendance records retained 2 years (15.3); open questions 11 and 13 closed. |
+| 1.5     | Pilot-only operations decision (1–2 tenants, ~4 months): pilot tier vs deferred production tier for SLO (99.5% working hours), DR (RPO 15 min / RTO 8 h, no multi-zone standby), environments (prod + small staging), throughput target (20 events/s), PostgreSQL-backed queue and no Redis in the pilot (16, 24, 25); open question 15 closed. |
 
 ---
 
