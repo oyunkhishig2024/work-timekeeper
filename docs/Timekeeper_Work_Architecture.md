@@ -1,10 +1,10 @@
 # Timekeeper Work
 ## Technical Architecture Document
 
-Version: 0.1 (draft for review)
-Status: Draft — based on PRD v1.7 (`docs/Timekeeper_Work_PRD.md`)
+Version: 0.2 (draft for review)
+Status: Draft — based on PRD v1.8 (`docs/Timekeeper_Work_PRD.md`)
 Audience: engineering lead, backend / mobile / web developers, QA
-Scope: the **pilot tier** (1–2 tenants, ~4 months, ~640 employees). The production tier is covered only where a decision now would be expensive to undo later.
+Scope: the **pilot tier** (1–2 tenants, ~4 months, ~640 employees), built by **one full-stack developer** (decision v0.2, see Section 14). The production tier is covered only where a decision now would be expensive to undo later.
 
 > Section references like "PRD 6.4" point to the PRD. Where this document recommends something that **differs from the PRD**, it is marked **[Deviation]** and listed in Section 17 so the PRD can be updated deliberately.
 
@@ -255,7 +255,7 @@ CREATE INDEX ON device_event (tenant_id, employee_id, event_time);
 At pilot scale volumes are small: ~640 employees × ~10 events/day ≈ 6–7 k events/day (~2.3 M/year); heartbeats ~36 k/day (retained 90 days); `attendance_day` ~640 rows/day.
 
 - Indexes: `(tenant_id, employee_id, event_time)` on events; `(tenant_id, work_date, status)` and `(tenant_id, work_date, expected_location_id)` on `attendance_day`; `daily_summary` PK covers dashboard reads.
-- **[Deviation]** PRD 24.3 asks for monthly partitioning of `device_event` and `audit_log`. At ~2 M rows/year this is premature and complicates the unique idempotency constraint (unique constraints on partitioned tables must include the partition key). Recommendation: **do not partition during the pilot**; add partitioning with the production tier, using a separate `event_dedupe` table if needed. Retention is handled by batched deletes/updates.
+- **Partitioning deferred (PRD 24.3, changed in v1.8):** `device_event` and `audit_log` are **not** partitioned during the pilot (~2 M rows/year; partitioned unique constraints complicate the idempotency key). Plan partitioning with the production tier, using a separate dedupe table if needed. Retention is handled by batched deletes/updates.
 
 ## 5.5 Retention jobs (PRD 15.3)
 
@@ -395,6 +395,16 @@ UI (React Native screens)
 ```
 
 ## 7.3 Geofence registration (platform limits matter)
+
+**Decision v0.2: use an existing, maintained library** instead of writing native geofencing modules. Candidates to compare in Spike 1 (verify current licence terms, React Native version support and maintenance status before committing):
+
+| Candidate | Notes |
+|---|---|
+| **react-native-background-geolocation** (Transistorsoft) | Commercial; the library most focused on background geofencing and OEM quirks; Android release builds need a paid licence key. First choice to evaluate because background reliability is the biggest product risk (Section 15) and a single developer cannot afford to chase OEM issues alone |
+| **expo-location** (geofencing + background location tasks) | Free; uses the platform geofencing APIs; fewer features around reliability and diagnostics |
+| Community geofencing wrappers | Check last release, open issues and New Architecture support; avoid unmaintained packages |
+
+Selection criteria: ENTER/EXIT delivery after 2 h idle and after reboot on the target phone models, headless/background operation, battery use, dwell/stay support, diagnostics/logging, licence cost vs. developer time saved, New Architecture compatibility. The geofencing code stays behind our own `GeofenceService` interface (Section 7.2) so the library can be replaced without touching the rest of the app.
 
 | Platform | Mechanism | Limits / behaviours to design around |
 |---|---|---|
@@ -538,7 +548,7 @@ A **Health screen** and a periodic background check evaluate: location permissio
 
 # 11. Infrastructure and Deployment (Pilot Tier)
 
-Provider-agnostic design; any major cloud with a managed PostgreSQL works. Selection criteria for the **region** (hosting abroad, PRD 15.3): round-trip latency from Ulaanbaatar (measure, don't assume), availability of managed PostgreSQL with point-in-time recovery, data-processing agreement terms, and legal approval of the country.
+**Decision v0.2: cloud region = Singapore** (PRD 15.3, v1.8). Provider-agnostic design; any major cloud with a Singapore region and managed PostgreSQL with point-in-time recovery works. The **provider** is still to be chosen (criteria: managed PostgreSQL with PITR in Singapore, managed container service, price, one-developer operability, data-processing agreement terms). Spike 3 measures round-trip latency from Ulaanbaatar to the chosen provider's Singapore region (measure, don't assume). The second-region backup copy (PRD 25.2) must be in another **foreign** region/account; legal counsel approves Singapore hosting together with the consent wording.
 
 ```mermaid
 flowchart LR
@@ -611,21 +621,58 @@ timekeeper/
 
 ---
 
-# 14. Delivery Plan (Proposed)
+# 14. Delivery Plan for One Full-Stack Developer
 
-> Durations assume a small team (about 1 mobile developer, 2 full-stack developers, part-time QA and design). **They are estimates for planning, not commitments**; they must be re-done with the real team size. The pilot window is ~4 months, so the order matters more than the dates: de-risk the phone first.
+**Inputs (v0.2):** one full-stack developer builds mobile (React Native), web admin (Next.js) and backend (NestJS) plus infrastructure; ready-made geofencing library; Singapore hosting. Part-time help for design/QA/legal review is assumed from the business side (Ganbat for UAT, legal counsel for consent and hosting).
 
-| Phase | Content | Exit criteria | Est. |
-|---|---|---|---|
-| **0. Spikes** | (1) Geofence reliability on target phones (Samsung A, Xiaomi, Oppo, iPhone) incl. idle 2 h, reboot, battery saver; (2) Play Integrity / App Attest end-to-end; (3) Cloud region latency and Postgres PITR restore drill; (4) Cyrillic PDF + Excel export proof | Written results; go/no-go on native geofence approach; chosen region | 2 weeks |
-| **1. Foundations** | Monorepo, CI/CD, IaC, auth + TOTP, tenancy + RLS, users/scopes, audit, locations, departments, employees + import | Tenant isolation tests green; staging deployed | 3–4 weeks |
-| **2. Attendance core** | Device registration + consent gate + QR, event ingest, `domain` engine, working week + holidays, `attendance_day`, summaries, scheduler jobs | Golden tests pass; a real phone produces correct statuses end to end | 4–5 weeks |
-| **3. Admin experience** | Dashboard, daily attendance, analytics, reasons, temporary location, employee lifecycle, corrections, anomaly queue | HR can run a day without developers | 3–4 weeks |
-| **4. Shifts, consent, reports** | Shift templates/patterns/assignments/overrides/roster, consent form printing + tracking, exports, readiness report | Guards' 24 h shifts correct in staging; consent forms printed for pilot users | 3–4 weeks |
-| **5. Hardening and pilot readiness** | Load test, security review/pen-test, backup restore test, mobile store releases, runbooks, training | Exit checklist signed (PRD 18 metrics measurable); legal confirmations received | 2–3 weeks |
-| **Pilot** | Roll out to a small group at one location → whole tenant 310 | Weekly review of accuracy, false no-show, corrections, crash-free rate | remaining time |
+> **Honest assessment.** The scope of PRD v1.8 is roughly **55–65 person-weeks** of work (three client/server surfaces, shifts, consent, exports, hardening). A single developer has about **17 productive weeks in 4 months**. **The full scope does not fit in 4 months.** The estimates below are rough (±40%), contain almost no buffer for sickness, store review delays or OEM surprises, and assume focused work. They must be re-checked after Spike 1 and the first month of real velocity.
 
-Phases 3 and 4 can overlap with 2 once the engine API stabilizes. If the schedule is tight, the first thing to cut is **PDF export polish** and **analytics views** (not integrity or consent).
+## 14.1 Time estimates (one developer)
+
+| Work package | Est. (weeks) | Notes |
+|---|---|---|
+| 0. Spikes (geofence library on real phones, attestation, region latency + restore drill, PDF/Excel) | 2 | Do first; can change everything else |
+| 1. Foundations: monorepo, CI/CD, IaC, auth + TOTP, tenancy + RLS, users/scopes, audit, locations/departments, employees + import | 4 | |
+| 2. Mobile core: login, QR registration + consent gate, geofence plan, event capture + verification, outbox/sync, health screen, history | 5 | Largest single risk |
+| 3. Backend attendance: ingest, expectation (standard schedule, working week, holidays, temp location), engine, jobs, summaries | 4 | `packages/domain` engine + golden tests |
+| 4. Web core: dashboard, daily attendance, reasons, corrections, simple anomaly list | 3 | |
+| 5. Consent printing/tracking + Excel exports + device readiness list | 2 | |
+| 6. Hardening: load test, security pass, backup restore test, store releases, runbooks | 3 | Cannot be skipped |
+| **Subtotal: Release 1 (standard schedule, one organization)** | **≈ 23** | ≈ 5.5 months |
+| 7. Shifts: templates/patterns/assignments/overrides, form-based assignment, work-date rules, tests | 3 | Needed for guards (Хамгаалалт) |
+| 8. Full admin: analytics views, department/location percentages, anomaly queue actions, reason report | 2 | |
+| 9. PDF exports, roster grid, audit-log UI/export, period close | 2–3 | |
+| 10. Second tenant readiness: platform admin, tenant onboarding, per-tenant limits | 1–2 | |
+| **Total (PRD v1.8 scope)** | **≈ 31–33** | ≈ 8 months |
+
+## 14.2 Recommended release plan
+
+**Release 1 — "Pilot-Lite" (target ≈ month 5–6): everything the 310 standard-schedule staff need to be tracked correctly.**
+Included: auth + TOTP, locations/departments, employees + Excel import, QR registration with consent gate, mobile geofence attendance with offline outbox, attendance engine (working week, holidays, temporary location, reasons, direct corrections), dashboard, daily attendance, basic anomaly list (flags visible), consent printing/tracking, Excel export, audit log (stored, simple viewer), backups and monitoring.
+Deferred (not in Release 1): shift scheduling (guards recorded manually via correction/**manual attendance** flag until Release 2), analytics beyond basic dashboard charts, PDF export, roster grid, anomaly queue actions beyond confirm/reject, Super Admin UI (create the second tenant by script), hash-chained audit log.
+
+**Release 2 (≈ month 7–8, during the pilot): shifts for guards, analytics, PDF, roster grid, second tenant readiness.**
+
+This ordering keeps the riskiest items (mobile reliability, legal gate, data integrity) first and puts the shift model second only after the single-expectation interface (Section 6.3) already exists, so shifts plug in without engine changes.
+
+## 14.3 Decisions needed from the business
+
+The "~4 months, 1–2 tenants" statement is read as *the period in which only 1–2 tenants will exist*. If it instead means *the date by which everything must be live*, one developer cannot meet it with the current scope. Options:
+
+| Option | Effect |
+|---|---|
+| **A. Accept Release 1 at ~5.5 months, Release 2 at ~8 months** (recommended) | Realistic; pilot starts with standard-schedule staff at one or two locations |
+| **B. Hold the 4-month date; cut further** | Release 1 limited to **one location**, no Excel import (manual entry), no consent-print bulk generation, manual exports; still ≈ 4.5–5 months and no buffer |
+| **C. Add a second developer (mobile)** | Mobile (≈ 5–6 weeks) runs in parallel with backend/web; Release 1 ≈ 3.5–4 months |
+| **D. Buy time with fewer surfaces** | e.g. start with the admin web + a simpler capture method; **not recommended**, it removes the product's core (automatic geofence attendance) |
+
+## 14.4 Working agreements for a one-person team
+
+- **Scope freeze:** PRD changes go to Release 2/V2 unless they block Release 1; every new PRD item states what it displaces.
+- **Bus factor:** one developer is a single point of failure. Mitigate with IaC, runbooks, README per module, automated deploys, and an agreed fallback contact for emergencies. Keep the stack mainstream (TypeScript everywhere).
+- **Quality guardrails that save time:** shared `packages/domain` with golden tests, generated API client, CI that runs RLS tests, a single deploy pipeline. These are not optional on a one-person project.
+- **Weekly demo to HR (Ganbat)** on staging to catch requirement gaps early.
+- **On-call:** 99.5% working-hours SLO means one person cannot be on call 24/7. Alerts are routed to a chat/phone; planned maintenance outside 06:00–20:00; offline queue absorbs short outages (PRD 6.8, 25.1).
 
 ---
 
@@ -640,29 +687,22 @@ Phases 3 and 4 can overlap with 2 once the engine API stabilizes. If the schedul
 | Rule/holiday changes rewriting history | Disputes | Effective dating + recompute with preview + period close |
 | Single-zone pilot database failure | Up to 8 h downtime (accepted, PRD 25.2) | PITR, restore drill, offline queue; upgrade path to multi-zone documented |
 | Scope creep during 4-month pilot | Late pilot | PRD change control: new items go to V2 unless they block the pilot |
-| Small team, many surfaces (mobile, web, API) | Delays | Shared domain package, generated clients, strict module boundaries, CI automation |
+| **One developer for three surfaces (mobile, web, API)** | Full scope does not fit in 4 months; single point of failure; slow incident response | Two-release plan (Section 14.2), scope freeze, ready-made geofencing library, generated clients, shared domain package, IaC + runbooks; reconsider a second (mobile) developer |
 
 ---
 
 # 16. Open Technical Questions
 
-1. **Geofencing library:** native modules we own vs. a commercial/maintained RN library — decide after Spike 1 (platform behavior, license cost, maintenance).
+1. ~~**Geofencing library**~~ **Decided v0.2:** use a ready-made library. Open: which one (Transistorsoft vs. expo-location vs. others) — decided by Spike 1; budget a licence if Transistorsoft wins.
 2. **Ingest hot path under load** is expected to be fine; confirm with the load test before deciding anything about a separate ingest service.
 3. **Hash-chained audit log:** worth the complexity for the pilot, or defer? Recommendation: include the columns, enable verification later.
 4. **PDF generation approach** (server library vs. headless browser) after Spike 4.
-5. **Cloud provider and region:** pending legal answer and latency tests.
-6. **Mobile attestation fallback** if Play Integrity returns "unavailable" on legitimate devices: policy is accept-and-flag; define the threshold for escalation.
+5. **Cloud provider:** region is **Singapore** (decided v0.2); choose the provider (managed PostgreSQL + container service in Singapore) after Spike 3; legal confirmation of Singapore hosting is pending.
+6. ~~**Mobile attestation fallback**~~ **Decided (PRD 6.7, v1.8):** accept-and-flag; escalate after 5 consecutive unavailable verdicts.
+7. **Team size and deadline:** confirm the interpretation of the "4 months" (Section 14.3) and choose option A/B/C.
 
 ---
 
-# 17. Deviations and Proposed PRD Updates
+# 17. Deviations from the Original PRD (now applied)
 
-| # | PRD item | Proposal | Reason |
-|---|---|---|---|
-| 1 | 24.3: monthly partitioning of `device_event` and `audit_log` | Defer to production tier | ~2 M rows/year; partitioned unique constraints complicate idempotency |
-| 2 | 24.1 / 16: queue | Confirmed PostgreSQL-backed (already in PRD v1.5) | — |
-| 3 | 15.3: raw coordinates retained 30 days | Implemented as nulling `lat/lng` in `device_event` after 30 days | Keeps the event for attendance history (2 years) without trail data |
-| 4 | 6.8: heartbeat "every 15 minutes" | Treat as best effort (iOS cannot guarantee it) | OS background scheduling is advisory |
-| 5 | 6.7: attestation required "on every attendance event batch" | Require on every batch **with fallback** to accept-and-flag when the verdict service is unavailable | Availability of Google/Apple services must not block attendance |
-
-These are proposals only; the PRD has not been changed.
+All five deviations proposed in v0.1 were **applied to the PRD in v1.8** (partitioning deferred, coordinates erased after 30 days, heartbeat best effort, attestation fallback, PostgreSQL queue confirmed). This section is kept for traceability.
