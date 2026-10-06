@@ -31,7 +31,9 @@ docs/         PRD and architecture
 ```bash
 pnpm install
 cp .env.example .env
-pnpm db:up            # local PostgreSQL on :5432
+pnpm db:up            # local PostgreSQL on :5432 (also creates timekeeper_test)
+export DATABASE_URL=postgres://timekeeper:timekeeper@localhost:5432/timekeeper
+pnpm --filter @timekeeper/api db:migrate && pnpm --filter @timekeeper/api db:seed
 pnpm build            # builds packages/domain first, then apps
 pnpm dev              # api :3001, web :3000, domain in watch mode
 curl localhost:3001/v1/health

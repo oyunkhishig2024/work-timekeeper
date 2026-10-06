@@ -1,7 +1,7 @@
 # Timekeeper Work
 ## Technical Architecture Document
 
-Version: 0.3 (draft for review)
+Version: 0.4 (draft for review)
 Status: Draft — based on PRD v1.9 (`docs/Timekeeper_Work_PRD.md`)
 Audience: engineering lead, backend / mobile / web developers, QA
 Scope: the **pilot tier** (1–2 tenants, ~4 months, ~640 employees), built by **one full-stack developer** (decision v0.2, see Section 14). The production tier is covered only where a decision now would be expensive to undo later.
@@ -167,9 +167,9 @@ CREATE POLICY tenant_isolation ON employee
 
 | Table | Key columns |
 |---|---|
-| `tenant` | id, name, time_zone (default `Asia/Ulaanbaatar`), status |
+| `tenant` | id, code (login organization code), name, time_zone (default `Asia/Ulaanbaatar`), status; `platform_user` (Super Admin accounts, reachable only by the `platform_admin` role); `resolve_tenant_by_code()` for login |
 | `tenant_setting` | tenant_id, key, value (jsonb): anomaly_mode (`accept_and_flag`), correction_approval (`off`), retention_*, accuracy_threshold_m |
-| `user_account` | id, tenant_id, username, password_hash (Argon2id), role (`SUPER_ADMIN`/`ORG_ADMIN`/`HR`/`MANAGER`/`EMPLOYEE`), employee_id (for EMPLOYEE), totp_secret_enc, totp_enabled, must_change_password, locked_until, status |
+| `user_account` | id, tenant_id, username, password_hash (Argon2id), role (`ORG_ADMIN`/`HR`/`MANAGER`/`EMPLOYEE`; Super Admin accounts are in `platform_user`), employee_id (for EMPLOYEE), totp_secret_enc, totp_enabled, must_change_password, locked_until, status |
 | `user_scope` | tenant_id, user_id, location_id NULL, department_id NULL (deny-by-default if no rows for MANAGER) |
 | `auth_session` | id, user_id, device_id NULL, refresh_hash, expires_at, revoked_at |
 | `invite` | tenant_id, user_id, code_hash, expires_at, used_at |
@@ -699,3 +699,15 @@ This ordering keeps the riskiest items (mobile reliability, legal gate, data int
 # 17. Deviations from the Original PRD (now applied)
 
 All five deviations proposed in v0.1 were **applied to the PRD in v1.8** (partitioning deferred, coordinates erased after 30 days, heartbeat best effort, attestation fallback, PostgreSQL queue confirmed). This section is kept for traceability.
+
+---
+
+# 18. Implementation Status (database)
+
+Migrations `0001`–`0006` are implemented in `apps/api/db/migrations` (foundation, tenancy, org, employees, identity, audit log) and verified against PostgreSQL 16 by integration tests (RLS isolation, composite foreign keys, constraints, append-only audit log). Notes where the implementation refines this document:
+
+- Two runtime roles without `BYPASSRLS`: `app_user` (all tenant traffic) and `platform_admin` (Super Admin tooling, tenant management); tenants are created by `platform_admin`, then the first Org Admin is created in a tenant-scoped transaction.
+- Super Admin accounts are a separate `platform_user` table, not a role inside `user_account`.
+- `tenant` has a `code` and a `SECURITY DEFINER` lookup so login can find the tenant before any tenant context exists (flow: resolve code → set `app.tenant_id` → read `user_account`).
+- A helper `apply_tenant_rls(table)` standardizes RLS enable/force/policy/grants; a schema test fails if any `tenant_id` table lacks RLS.
+- Not yet migrated: devices/QR/consent, rules/working week/holidays/shifts, reasons, device events and heartbeats, attendance tables, export jobs.

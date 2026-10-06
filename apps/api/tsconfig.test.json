@@ -1,16 +1,13 @@
 {
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
-    "module": "CommonJS",
-    "moduleResolution": "Node10",
-    "target": "ES2022",
-    "outDir": "dist",
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
     "noEmit": true,
+    "declaration": false,
     "experimentalDecorators": true,
     "emitDecoratorMetadata": true,
-    "isolatedModules": false,
-    "declaration": false,
     "types": ["node"]
   },
-  "include": ["src"]
+  "include": ["src", "test", "vitest.config.ts"]
 }

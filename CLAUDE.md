@@ -7,5 +7,6 @@
 - Attendance business rules go in `packages/domain` (pure, framework-free) with tests. Do not copy
   rule logic into the API, worker, web or mobile code.
 - Do not edit the PRD silently: requirement changes are recorded in its change log (Section 27).
+- Database: SQL migrations in `apps/api/db/migrations` (see its README). Every tenant table is created with `apply_tenant_rls()`; never edit an applied migration. Database tests need `TEST_DATABASE_URL` (name must end in `_test`; the schema is rebuilt on each run) and are skipped without it.
 - Mobile app is intentionally not scaffolded yet (see `apps/mobile/README.md`).
 - Before finishing a change run: `pnpm format:check && pnpm lint && pnpm typecheck && pnpm test && pnpm build`.

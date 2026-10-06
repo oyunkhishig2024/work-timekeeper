@@ -9,15 +9,20 @@
     "dev:worker": "nest start --watch --entryFile worker",
     "start": "node dist/main.js",
     "start:worker": "node dist/worker.js",
-    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "typecheck": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p tsconfig.test.json",
     "lint": "eslint .",
-    "test": "vitest run"
+    "test": "vitest run",
+    "db:migrate": "node-pg-migrate -m db/migrations --ignore-pattern \"(README\\\\.md|\\\\..*)\" --no-verbose up",
+    "db:rollback": "node-pg-migrate -m db/migrations --ignore-pattern \"(README\\\\.md|\\\\..*)\" --no-verbose down",
+    "db:seed": "psql \"$DATABASE_URL\" -v ON_ERROR_STOP=1 -f db/seed/dev-seed.sql"
   },
   "dependencies": {
     "@nestjs/common": "^11.0.0",
     "@nestjs/core": "^11.0.0",
     "@nestjs/platform-express": "^11.0.0",
     "@timekeeper/domain": "workspace:*",
+    "node-pg-migrate": "^9.0.0",
+    "pg": "^8.23.1",
     "reflect-metadata": "^0.2.2",
     "rxjs": "^7.8.1",
     "zod": "^3.24.1"
@@ -27,6 +32,7 @@
     "@nestjs/schematics": "^11.0.0",
     "@types/express": "^5.0.0",
     "@types/node": "^22.10.2",
+    "@types/pg": "^8.23.1",
     "typescript": "^5.7.2",
     "vitest": "^2.1.8"
   }

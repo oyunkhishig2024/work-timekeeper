@@ -19,5 +19,6 @@
       "persistent": true
     }
   },
-  "agentGuidance": false
+  "agentGuidance": false,
+  "globalPassThroughEnv": ["TEST_DATABASE_URL", "DATABASE_URL"]
 }
