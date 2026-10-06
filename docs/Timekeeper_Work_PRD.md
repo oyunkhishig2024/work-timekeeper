@@ -1,7 +1,7 @@
 # Timekeeper Work
 ## Product Requirements Document (PRD)
 
-Version: 1.3
+Version: 1.4
 Product: Timekeeper Work
 Owner: Onki
 Status: Requirements Specification (pre-development review + CTO review + stakeholder decisions applied)
@@ -715,7 +715,7 @@ Rules:
 - **First-login password change:** accounts created by HR/Admin (or via invite) must set a new password on first login; temporary passwords/codes expire (72 hours).
 - **Password policy:** minimum 10 characters, no known-breached passwords (check against a breached-password list), hashed with Argon2id (or bcrypt cost ≥ 12).
 - **Password reset:** self-service reset by one-time code to a verified channel (email/phone) or HR-assisted reset (audited). Reset revokes all sessions and, for employees, does **not** change the registered device.
-- **MFA:** mandatory for Super Admin, Organization Admin and HR; optional for Manager; not required for Employee. TOTP authenticator at minimum; SMS only as fallback.
+- **Two-step login (TOTP) [CHANGED v1.4]:** required for Super Admin, Organization Admin and HR; optional for Manager; not required for Employee. Method: **TOTP authenticator app (Google Authenticator or any compatible app)**. **No SMS** codes. Setup at first login by scanning a QR; the admin can reset a user's authenticator (audited, requires identity check); 8 one-time recovery codes are issued at setup.
 - **Rate limiting and lockout:** login and reset endpoints are rate-limited per IP and per account; progressive lockout after repeated failures (e.g. 5 attempts → 15-minute lock), with alerts to admins on suspected brute-force.
 - **Sessions/tokens:** short-lived access tokens (≤ 15 min) with rotating refresh tokens bound to the device for mobile; revocable on disable, reset or device replacement. Web admin sessions expire after 30 minutes idle.
 - **Least privilege:** roles and scope (4) enforced server-side; Super Admin access to tenant data is audited and, for tenant business data, requires an explicit support-access grant by the tenant.
@@ -729,7 +729,7 @@ Rules:
 - **Consent [CHANGED v1.3]:** location processing is based on the employee's **voluntary, written, signed consent** on a paper consent form (see 15.4). In-app acknowledgement at first login is kept as a second record, with version and timestamp, but does not replace the signed form.
 - **Legal basis:** employer's attendance obligation under the employment relationship, plus recorded acknowledgement. Compliance with **Mongolia's Law on Personal Data Protection** must be confirmed by legal counsel before launch (see 26); the design assumes: lawful and limited collection, notice, access, correction, deletion/anonymization after retention, cross-border transfer controls (tenant data region configurable; default in-region or contractually covered cloud region).
 - **Data-subject requests:** HR/Org Admin can export an employee's personal data and, where legally allowed, anonymize it; requests and outcomes are audited.
-- **Retention (defaults, configurable per tenant):** attendance records 5 years; raw anomaly coordinates 30 days; heartbeats 90 days; audit log 12 months minimum (see 15.1); archived employee data per 12.2. Deletion jobs run automatically and are logged.
+- **Retention (defaults, configurable per tenant):** attendance records **2 years [CHANGED v1.4]**; raw anomaly coordinates 30 days; heartbeats 90 days; audit log 12 months minimum (see 15.1); archived employee data per 12.2. Deletion jobs run automatically and are logged.
 - **Access scoping:** see Manager/HR scope in 4. Exports containing personal data are audited (see 20) and watermarked with exporter and time.
 - **Breach readiness:** documented incident-response process and notification procedure (see 25.6).
 
@@ -1109,9 +1109,9 @@ Added in v1.2 **[v1.2]**:
 8. ~~**Anomaly policy (6.7)**~~ **Resolved v1.3:** accept and flag.
 9. ~~**Correction approval (6.9)**~~ **Resolved v1.3:** no second approval; compensating controls apply.
 10. ~~**Minimum OS support (6.8)**~~ **Resolved v1.3:** 310 prepares compliant phones per 21.3. Open: device survey results and handling of employees without a compliant phone (company device vs. manual attendance).
-11. **MFA for HR/Admin (15.2):** TOTP authenticator acceptable for all four initial users, or is SMS required?
+11. ~~**MFA for HR/Admin (15.2)**~~ **Resolved v1.4:** TOTP via Google Authenticator, no SMS.
 12. **Legal review:** confirm Mongolian Law on Personal Data Protection obligations, data-residency requirement (hosting region), and that the signed voluntary consent form (15.4, Appendix A) attached to the employment contract is a sufficient legal basis, incl. the alternative for employees who decline.
-13. **Retention (15.3):** attendance records 5 years — confirm against labour/archival law.
+13. ~~**Retention (15.3)**~~ **Decided v1.4:** attendance records kept 2 years. Legal counsel to confirm this satisfies labour/archival law (also disputes and audits).
 14. **Excel import (12.3):** invite-based onboarding replaces password columns — confirm HR is comfortable distributing an invite sheet instead of passwords.
 15. **SLO and DR (25):** are 99.9% working-hours availability and RPO 15 min / RTO 4 h appropriate and affordable for the pilot?
 
@@ -1153,3 +1153,4 @@ Added in v1.2 **[v1.2]**:
 Хүлээн авсан Хүний нөөцийн ажилтан: ____________  Гарын үсэг: ________  Огноо: ________
 
 *Энэ хуудсыг ажилтны хөдөлмөрийн гэрээний хамт хавсаргаж хадгална.*
+| 1.4     | Decisions: TOTP (Google Authenticator) two-step login for Super Admin / Org Admin / HR, no SMS (15.2); attendance records retained 2 years (15.3); open questions 11 and 13 closed. |
