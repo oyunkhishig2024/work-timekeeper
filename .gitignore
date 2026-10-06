@@ -13,3 +13,4 @@ apps/mobile/ios/Pods/
 apps/mobile/android/.gradle/
 apps/mobile/android/build/
 next-env.d.ts
+*.tsbuildinfo
