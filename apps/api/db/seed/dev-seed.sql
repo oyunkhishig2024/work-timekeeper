@@ -37,5 +37,41 @@ BEGIN
     (t, 'consent-v1-draft',
      'DRAFT - replace with the legally reviewed text (docs/Timekeeper_Work_PRD.md, Appendix A).', true, true)
   ON CONFLICT (tenant_id, version) DO NOTHING;
+  -- Attendance rules: tenant default (PRD 6.2–6.4, 23.2): grace 15 min, no-show after 2 h, minimum stay 3 min.
+  INSERT INTO attendance_rule_version (tenant_id, valid_from)
+  SELECT t, DATE '2026-01-01'
+   WHERE NOT EXISTS (SELECT 1 FROM attendance_rule_version WHERE tenant_id = t AND location_id IS NULL);
+
+  -- Working week for tenant 310 (PRD 14.1): Mon–Fri 08:30–17:30, Saturday and Sunday off.
+  -- No holiday dates are seeded on purpose: the Org Admin enters them each year (PRD 14.2).
+  IF NOT EXISTS (SELECT 1 FROM working_week_version WHERE tenant_id = t AND location_id IS NULL) THEN
+    WITH v AS (
+      INSERT INTO working_week_version (tenant_id, valid_from) VALUES (t, DATE '2026-01-01') RETURNING id
+    )
+    INSERT INTO working_week_day (tenant_id, working_week_id, weekday, working, start_time, end_time)
+    SELECT t, v.id, d, d <= 5,
+           CASE WHEN d <= 5 THEN TIME '08:30' END,
+           CASE WHEN d <= 5 THEN TIME '17:30' END
+      FROM v, generate_series(1, 7) AS d;
+  END IF;
+
+  -- Example shift templates and a rotation for the guards (Хамгаалалт). PLACEHOLDERS: HR (Ganbat) supplies the
+  -- real shift list; these only make the development environment usable (PRD 23.6).
+  INSERT INTO shift_template (tenant_id, name, start_time, duration_minutes) VALUES
+    (t, '24 цаг 08:00',     TIME '08:00', 1440),
+    (t, 'Өдрийн 08:00–20:00', TIME '08:00', 720),
+    (t, 'Шөнийн 20:00–08:00', TIME '20:00', 720)
+  ON CONFLICT (tenant_id, name) WHERE active DO NOTHING;
+
+  IF NOT EXISTS (SELECT 1 FROM shift_pattern WHERE tenant_id = t AND name = '24 цаг ажил / 48 цаг амралт') THEN
+    WITH p AS (
+      INSERT INTO shift_pattern (tenant_id, name, cycle_length_days)
+      VALUES (t, '24 цаг ажил / 48 цаг амралт', 3) RETURNING id
+    )
+    INSERT INTO shift_pattern_day (tenant_id, pattern_id, day_index, template_id)
+    SELECT t, p.id, d.i,
+           CASE WHEN d.i = 0 THEN (SELECT id FROM shift_template WHERE tenant_id = t AND name = '24 цаг 08:00' AND active) END
+      FROM p, generate_series(0, 2) AS d(i);
+  END IF;
 END
 $$;

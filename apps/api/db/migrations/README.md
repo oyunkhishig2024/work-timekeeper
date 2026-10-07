@@ -3,17 +3,21 @@
 SQL-first migrations run by [`node-pg-migrate`](https://github.com/salsita/node-pg-migrate)
 (Architecture ADR-9). Files are `NNNN_name.sql` with `-- Up Migration` and `-- Down Migration` sections.
 
-| Migration         | Contents                                                                                                                                      |
-| ----------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
-| `0001_foundation` | `btree_gist`, roles `app_user` / `platform_admin` (no login, no `BYPASSRLS`), `current_tenant_id()`, `set_updated_at()`, `apply_tenant_rls()` |
-| `0002_tenancy`    | `tenant` (with `code` for login), `resolve_tenant_by_code()`, `tenant_setting`, `platform_user` (Super Admin)                                 |
-| `0003_org`        | `department`, `location` (radius 100–500 m)                                                                                                   |
-| `0004_employees`  | `employee`, `temp_location_assignment` (no overlapping periods)                                                                               |
-| `0005_identity`   | `user_account`, `user_scope`, `auth_session`, `invite`                                                                                        |
-| `0006_audit_log`  | append-only `audit_log`                                                                                                                       |
+| Migration                             | Contents                                                                                                                                        |
+| ------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
+| `0001_foundation`                     | `btree_gist`, roles `app_user` / `platform_admin` (no login, no `BYPASSRLS`), `current_tenant_id()`, `set_updated_at()`, `apply_tenant_rls()`   |
+| `0002_tenancy`                        | `tenant` (with `code` for login), `resolve_tenant_by_code()`, `tenant_setting`, `platform_user` (Super Admin)                                   |
+| `0003_org`                            | `department`, `location` (radius 100–500 m)                                                                                                     |
+| `0004_employees`                      | `employee`, `temp_location_assignment` (no overlapping periods)                                                                                 |
+| `0005_identity`                       | `user_account`, `user_scope`, `auth_session`, `invite`                                                                                          |
+| `0006_audit_log`                      | append-only `audit_log`                                                                                                                         |
+| `0007_auth_hardening`                 | TOTP replay step, session families, recovery codes, display name                                                                                |
+| `0008_devices_consent`                | `device`, `onboarding_qr` (+ `_use`), `consent_text_version`, `consent_record`, view `employee_consent_status`, consent / deactivation triggers |
+| `0009_device_attestation_qr_override` | device attestation state; Org Admin consent override carried by an employee-specific QR                                                         |
+| `0010_time_rules`                     | `attendance_rule_version`, `working_week_version` / `working_week_day`, `working_day_exception`, `holiday` / `holiday_location`                 |
+| `0011_shifts`                         | `shift_template`, `shift_pattern` / `shift_pattern_day`, `shift_assignment`, `shift_override`                                                   |
 
-Still to come (in this order of need): rules / working week / holidays / shifts,
-reasons, device events + heartbeats, `attendance_day` + corrections + anomalies + `daily_summary`, export jobs.
+Still to come (in this order of need): reasons, device events + heartbeats, `attendance_day` + corrections + anomalies + `daily_summary`, export jobs.
 
 ## Rules enforced by the database for devices and consent (0008)
 
@@ -31,6 +35,25 @@ reasons, device events + heartbeats, `attendance_day` + corrections + anomalies 
 
 The API replaces a device in this order inside one transaction: mark the old device `REPLACED`
 (with `disabled_at`), insert the new `ACTIVE` one, then set `replaced_by_device_id` on the old one.
+
+## Rules enforced by the database for time rules and shifts (0010, 0011)
+
+These tables only **store** configuration and protect its integrity. What the rules _mean_ (who is expected when,
+holiday recurrence, late and no-show) lives in `packages/domain`, never in SQL (see CLAUDE.md).
+
+| Rule                                                                                                                                                                                                              | Mechanism                                                                                                                     |
+| ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
+| Versions are half-open `[valid_from, valid_to)`; `valid_to` NULL = until further notice. At most one version of a scope is in force on any date; NULL `location_id` = tenant default, a location row overrides it | `EXCLUDE USING gist` on `attendance_rule_version` and `working_week_version`                                                  |
+| Rule ranges: grace 0–240, no-show cut-off 0–1440 min, minimum stay 1–15 (PRD 6.4), early window 0–720                                                                                                             | CHECK constraints                                                                                                             |
+| A working week has all 7 ISO weekdays (1 = Monday) when the transaction commits; working days have start < end, off days have no times                                                                            | deferred constraint triggers (SQLSTATE **`TK003`**) + CHECK. Insert a version and its 7 days in **one transaction**           |
+| One working-day exception per scope and date                                                                                                                                                                      | unique index with `COALESCE(location_id, zero-uuid)`                                                                          |
+| A holiday is at most 31 days long and applies to all locations **or** a non-empty list, never both or neither                                                                                                     | CHECK + deferred constraint triggers (**`TK004`**); `repeats_yearly` is stored, the recurrence logic is in the domain package |
+| A shift lasts 1–1440 minutes (may cross midnight)                                                                                                                                                                 | CHECK                                                                                                                         |
+| **A shift template or pattern that is in use is immutable** (the past cannot be changed — create a new one and retire the old; only name/active change in place)                                                  | triggers **`TK005`** (template), **`TK006`** (pattern; also blocks deleting an assigned pattern)                              |
+| A pattern defines every day `0 … cycle_length_days-1` exactly once at commit                                                                                                                                      | deferred constraint triggers (**`TK007`**)                                                                                    |
+| A shift assignment has exactly one of pattern/template, a pattern needs `cycle_start_date`, an employee has at most one assignment at any date (inclusive range, `to_date` NULL = open-ended)                     | CHECK + `EXCLUDE USING gist`                                                                                                  |
+| Only employees with `schedule_mode = 'SHIFT'` can be assigned                                                                                                                                                     | trigger **`TK002`**                                                                                                           |
+| A shift override is `ADD`/`SWAP` with a template or `REMOVE` without; one per employee and date                                                                                                                   | CHECK + unique                                                                                                                |
 
 ## Commands (from the repo root)
 

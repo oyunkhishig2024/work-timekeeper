@@ -1,7 +1,7 @@
 # Timekeeper Work
 ## Technical Architecture Document
 
-Version: 0.8 (draft for review)
+Version: 0.9 (draft for review)
 Status: Draft — based on PRD v1.9 (`docs/Timekeeper_Work_PRD.md`)
 Audience: engineering lead, backend / mobile / web developers, QA
 Scope: the **pilot tier** (1–2 tenants, ~4 months, ~640 employees), built by **one full-stack developer** (decision v0.2, see Section 14). The production tier is covered only where a decision now would be expensive to undo later.
@@ -753,3 +753,15 @@ Implemented in `apps/api/src/org`, `apps/api/src/employees`, `apps/api/src/acces
 - **Lifecycle** (disable / reactivate / archive) is implemented as a single transaction each, and relies on the database triggers from migration 0008 for device deactivation and session revocation.
 - **No effective-dated history** for department / primary location yet (PRD 22.1) — to be added before attendance reports use past dates. No Excel import yet (PRD 12.3).
 - Reads that follow a write run inside the same transaction (a response can never show stale data).
+
+# 23. Implementation Status (time rules and shifts schema)
+
+Migrations `0010_time_rules` and `0011_shifts` add the storage for attendance rule versions, the working week and its exceptions, holidays, and shift templates / patterns / assignments / overrides (rules enforced by the database are listed in `apps/api/db/migrations/README.md`), verified by 59 schema tests and by mutation checks. Decisions that refine Section 5.3:
+
+- **Rules are versioned with half-open ranges** and exclusion constraints, so "the rule in force on a date" is unambiguous. The no-show cut-off is stored in **minutes** (`cutoff_minutes`) rather than hours.
+- **History cannot be rewritten:** a shift template or pattern that is in use is immutable; a change means a new row and retiring the old one (`active = false`, `supersedes_id`). This implements PRD 22.1 for shifts without a separate history table.
+- **The database stores and protects, the domain decides:** no schedule logic (holiday recurrence, expected attendance, cycle position) is in SQL. It goes into `packages/domain` with the single expectation function (Section 6.3 / PRD 23.5), which is the next piece of work.
+- Completeness rules (7 weekdays, all pattern days, holiday scope) are deferred constraint triggers, so related rows must be written in one transaction.
+- Employee `schedule_mode` must be `SHIFT` for an employee to have shift assignments (also enforced in the database).
+- Seed data for tenant 310 includes the working week (Mon–Fri 08:30–17:30), default rules, example guard shift templates and a 24/48 pattern. **No holiday dates are seeded**; the Org Admin enters them (PRD 14.2). The guard shift list is a placeholder until HR supplies the real one.
+- Still missing: the effective-dated history of an employee's department / primary location (PRD 22.1), reasons, device events and heartbeats, attendance results, and the API for all of the above.
