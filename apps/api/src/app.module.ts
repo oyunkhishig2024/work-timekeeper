@@ -1,12 +1,15 @@
 import { Module } from "@nestjs/common";
 import { APP_FILTER } from "@nestjs/core";
+import { AccessModule } from "./access/access.module";
 import { AuditModule } from "./audit/audit.module";
 import { AuthModule } from "./auth/auth.module";
 import { ProblemFilter } from "./common/problem.filter";
 import { ConsentModule } from "./consent/consent.module";
 import { DatabaseModule } from "./database/database.module";
 import { DevicesModule } from "./devices/devices.module";
+import { EmployeesModule } from "./employees/employees.module";
 import { HealthModule } from "./modules/health/health.module";
+import { OrgModule } from "./org/org.module";
 import { StorageModule } from "./storage/storage.module";
 import { UsersModule } from "./users/users.module";
 
@@ -19,9 +22,12 @@ import { UsersModule } from "./users/users.module";
   imports: [
     DatabaseModule,
     AuditModule,
+    AccessModule,
     StorageModule,
     AuthModule,
     UsersModule,
+    OrgModule,
+    EmployeesModule,
     DevicesModule,
     ConsentModule,
     HealthModule,

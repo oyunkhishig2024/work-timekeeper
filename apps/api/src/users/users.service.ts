@@ -74,6 +74,108 @@ export class UsersService {
     });
   }
 
+  /** Staff accounts of the tenant (employee logins are managed through the employees API). */
+  async list(auth: AuthContext) {
+    return this.db.withTenant(auth.tenantId, async (tx) => {
+      const { rows } = await tx.query(
+        `SELECT u.id, u.username, u.display_name AS "displayName", u.role, u.status,
+                u.totp_enabled AS "totpEnabled", u.must_change_password AS "mustChangePassword",
+                u.last_login_at AS "lastLoginAt",
+                (SELECT count(*)::int FROM user_scope s WHERE s.user_id = u.id) AS "scopeRules"
+           FROM user_account u WHERE u.role <> 'EMPLOYEE' ORDER BY u.username`,
+      );
+      return rows;
+    });
+  }
+
+  async getScope(auth: AuthContext, userId: string) {
+    return this.db.withTenant(auth.tenantId, async (tx) => {
+      await this.loadScopable(tx, userId);
+      return this.readScope(tx, userId);
+    });
+  }
+
+  /**
+   * Replaces the locations and departments a Manager (or scoped HR) may see (PRD 4). A Manager with no scope
+   * sees nothing; an HR user with no scope sees everything.
+   */
+  async setScope(
+    auth: AuthContext,
+    userId: string,
+    input: { locationIds: string[]; departmentIds: string[] },
+    meta: RequestMeta,
+  ) {
+    const locationIds = [...new Set(input.locationIds)];
+    const departmentIds = [...new Set(input.departmentIds)];
+    return this.db.withTenant(auth.tenantId, async (tx) => {
+      await this.loadScopable(tx, userId);
+      const locations = await tx.query("SELECT 1 FROM location WHERE id = ANY($1::uuid[])", [
+        locationIds,
+      ]);
+      const departments = await tx.query("SELECT 1 FROM department WHERE id = ANY($1::uuid[])", [
+        departmentIds,
+      ]);
+      if (locations.rowCount !== locationIds.length) {
+        throw new ApiError(400, "LOCATION_NOT_FOUND", "Some locations do not exist.");
+      }
+      if (departments.rowCount !== departmentIds.length) {
+        throw new ApiError(400, "DEPARTMENT_NOT_FOUND", "Some departments do not exist.");
+      }
+      const before = await this.readScope(tx, userId);
+      await tx.query("DELETE FROM user_scope WHERE user_id = $1", [userId]);
+      for (const locationId of locationIds) {
+        await tx.query(
+          "INSERT INTO user_scope (tenant_id, user_id, location_id) VALUES ($1, $2, $3)",
+          [auth.tenantId, userId, locationId],
+        );
+      }
+      for (const departmentId of departmentIds) {
+        await tx.query(
+          "INSERT INTO user_scope (tenant_id, user_id, department_id) VALUES ($1, $2, $3)",
+          [auth.tenantId, userId, departmentId],
+        );
+      }
+      await this.audit.record(tx, {
+        tenantId: auth.tenantId,
+        action: "user.scope_set",
+        actorUserId: auth.userId,
+        actorRole: auth.role,
+        entityType: "user_account",
+        entityId: userId,
+        before,
+        after: { locationIds, departmentIds },
+        ...meta,
+      });
+      return { locationIds, departmentIds };
+    });
+  }
+
+  private async readScope(tx: Db, userId: string) {
+    const { rows } = await tx.query<{ location_id: string | null; department_id: string | null }>(
+      "SELECT location_id, department_id FROM user_scope WHERE user_id = $1",
+      [userId],
+    );
+    return {
+      locationIds: rows.flatMap((r) => (r.location_id ? [r.location_id] : [])),
+      departmentIds: rows.flatMap((r) => (r.department_id ? [r.department_id] : [])),
+    };
+  }
+
+  /** Only HR and Manager accounts have a configurable scope (Org Admin sees everything). */
+  private async loadScopable(tx: Db, userId: string): Promise<void> {
+    const { rows } = await tx.query<{ role: Role }>("SELECT role FROM user_account WHERE id = $1", [
+      userId,
+    ]);
+    if (!rows[0]) throw new ApiError(404, "USER_NOT_FOUND", "User not found.");
+    if (rows[0].role !== "HR" && rows[0].role !== "MANAGER") {
+      throw new ApiError(
+        409,
+        "SCOPE_NOT_APPLICABLE",
+        "Only HR and Manager accounts have a data scope.",
+      );
+    }
+  }
+
   /** HR-assisted / admin password reset: new one-time password, all sessions revoked (PRD 15.2). */
   async resetPassword(
     auth: AuthContext,

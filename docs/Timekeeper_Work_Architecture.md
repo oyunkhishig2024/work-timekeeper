@@ -1,7 +1,7 @@
 # Timekeeper Work
 ## Technical Architecture Document
 
-Version: 0.7 (draft for review)
+Version: 0.8 (draft for review)
 Status: Draft — based on PRD v1.9 (`docs/Timekeeper_Work_PRD.md`)
 Audience: engineering lead, backend / mobile / web developers, QA
 Scope: the **pilot tier** (1–2 tenants, ~4 months, ~640 employees), built by **one full-stack developer** (decision v0.2, see Section 14). The production tier is covered only where a decision now would be expensive to undo later.
@@ -744,3 +744,12 @@ Implemented in `apps/api/src/devices` and `apps/api/src/consent` (routes and rul
 - **Consent forms** are PDFs rendered with pdfkit and the DejaVu Sans font; draft texts carry a banner and are refused in production.
 - **Attestation** verification is an interface with a configurable placeholder; the real Google/Apple verifiers remain Phase 0 Spike 2. `ATTESTATION_MODE=enforce` fails closed (503) until they exist.
 - Scans are stored through an `ObjectStorage` interface (local disk now; S3-compatible adapter after the cloud provider is chosen).
+
+# 22. Implementation Status (organization, employees, scope)
+
+Implemented in `apps/api/src/org`, `apps/api/src/employees`, `apps/api/src/access` and the scope routes of `apps/api/src/users` (rules and routes in `apps/api/src/employees/README.md`), verified by end-to-end tests against PostgreSQL including role, scope and tenant isolation. Refinements and limits compared with this document:
+
+- **Data scope** is enforced on the server in every employee query by a `ScopeService` (Manager: none assigned means nothing; HR: only if given a scope; Org Admin: all). A record outside the scope answers 404, indistinguishable from a missing one.
+- **Lifecycle** (disable / reactivate / archive) is implemented as a single transaction each, and relies on the database triggers from migration 0008 for device deactivation and session revocation.
+- **No effective-dated history** for department / primary location yet (PRD 22.1) — to be added before attendance reports use past dates. No Excel import yet (PRD 12.3).
+- Reads that follow a write run inside the same transaction (a response can never show stale data).

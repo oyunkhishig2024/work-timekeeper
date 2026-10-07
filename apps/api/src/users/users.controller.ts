@@ -1,4 +1,4 @@
-import { Body, Controller, HttpCode, Param, Post } from "@nestjs/common";
+import { Body, Controller, Get, HttpCode, Param, Post, Put } from "@nestjs/common";
 import { z } from "zod";
 import type { AuthContext, RequestMeta } from "../auth/auth.types";
 import { CurrentAuth, Meta, Roles } from "../auth/decorators";
@@ -15,10 +15,39 @@ const createUserSchema = z.object({
   role: z.enum(["HR", "MANAGER"]),
 });
 const idSchema = z.string().uuid();
+const scopeSchema = z
+  .object({
+    locationIds: z.array(idSchema).max(200).default([]),
+    departmentIds: z.array(idSchema).max(200).default([]),
+  })
+  .strict();
 
 @Controller("users")
 export class UsersController {
   constructor(private readonly users: UsersService) {}
+
+  @Roles("ORG_ADMIN")
+  @Get()
+  list(@CurrentAuth() auth: AuthContext) {
+    return this.users.list(auth);
+  }
+
+  @Roles("ORG_ADMIN")
+  @Get(":id/scope")
+  getScope(@CurrentAuth() auth: AuthContext, @Param("id") id: string) {
+    return this.users.getScope(auth, idSchema.parse(id));
+  }
+
+  @Roles("ORG_ADMIN")
+  @Put(":id/scope")
+  setScope(
+    @CurrentAuth() auth: AuthContext,
+    @Param("id") id: string,
+    @Body() body: unknown,
+    @Meta() meta: RequestMeta,
+  ) {
+    return this.users.setScope(auth, idSchema.parse(id), scopeSchema.parse(body), meta);
+  }
 
   /** Org Admin creates HR and Manager users (PRD 4). Returns a one-time temporary password. */
   @Roles("ORG_ADMIN")
