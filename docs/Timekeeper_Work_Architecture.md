@@ -1,7 +1,7 @@
 # Timekeeper Work
 ## Technical Architecture Document
 
-Version: 0.9 (draft for review)
+Version: 0.10 (draft for review)
 Status: Draft — based on PRD v1.9 (`docs/Timekeeper_Work_PRD.md`)
 Audience: engineering lead, backend / mobile / web developers, QA
 Scope: the **pilot tier** (1–2 tenants, ~4 months, ~640 employees), built by **one full-stack developer** (decision v0.2, see Section 14). The production tier is covered only where a decision now would be expensive to undo later.
@@ -765,3 +765,14 @@ Migrations `0010_time_rules` and `0011_shifts` add the storage for attendance ru
 - Employee `schedule_mode` must be `SHIFT` for an employee to have shift assignments (also enforced in the database).
 - Seed data for tenant 310 includes the working week (Mon–Fri 08:30–17:30), default rules, example guard shift templates and a 24/48 pattern. **No holiday dates are seeded**; the Org Admin enters them (PRD 14.2). The guard shift list is a placeholder until HR supplies the real one.
 - Still missing: the effective-dated history of an employee's department / primary location (PRD 22.1), reasons, device events and heartbeats, attendance results, and the API for all of the above.
+
+# 24. Implementation Status (expectation function)
+
+`getExpectation` (Section 6.3, PRD 23.5) is implemented in `packages/domain/src/schedule` as a pure function over plain data, with 64 tests (examples from the PRD, precedence rules, shift cycles including dates before the cycle start, time-zone conversion, holiday recurrence) and seven mutation checks. Decisions made while writing it:
+
+- **Precedence:** not employed → shift override → shift schedule (working week ignored) → standard day with working-day exception > holiday > working week. A shift override is an explicit HR decision and wins over holidays.
+- **Misconfiguration is reported, not guessed:** `NOT_CONFIGURED` names what is missing (working week, rules, shift assignment, pattern, template, exception hours). A shift employee with no assignment on the date is *not* silently treated as a standard-schedule employee.
+- **Holidays never rewrite the past:** a yearly holiday starts counting from the year it was entered.
+- **Time zones:** instants are computed with `Intl` from the location's zone (default: tenant zone). The database has no per-location time zone column yet; the field exists in the function input.
+- **Employment:** the last day is still expected; reactivation currently overwrites `start_date`, so the earlier employment period is not recoverable until employee history (PRD 22.1) exists.
+- Next: the API loads the rows and calls this function (one query set per employee and date range), then `deriveStatus` combines it with events, reasons and corrections.

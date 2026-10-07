@@ -11,5 +11,6 @@
 - Auth: see `apps/api/src/auth/README.md`. Required secrets `JWT_SECRET` and `DATA_ENCRYPTION_KEY` have no defaults. Do not auto-fix `import type` in `apps/api` (NestJS DI needs value imports).
 - Devices, QR and consent API: see `apps/api/src/devices/README.md`. Consent forms are PDFs (pdfkit, DejaVu font in `apps/api/assets/fonts`); the consent text is draft until legal approval.
 - Organization, employees, lifecycle and data scope API: see `apps/api/src/employees/README.md` (Managers are limited to their assigned scope; there is no employee delete).
+- Domain rules and the expectation function (`getExpectation`): see `packages/domain/README.md`. Add rules there with tests that cite the PRD section.
 - Mobile app is intentionally not scaffolded yet (see `apps/mobile/README.md`).
 - Before finishing a change run: `pnpm format:check && pnpm lint && pnpm typecheck && pnpm test && pnpm build`.
