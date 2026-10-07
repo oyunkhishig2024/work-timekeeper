@@ -1,7 +1,7 @@
 # Timekeeper Work
 ## Product Requirements Document (PRD)
 
-Version: 1.9.1
+Version: 1.10
 Product: Timekeeper Work
 Owner: Onki
 Status: Requirements Specification (pre-development review + CTO review + stakeholder decisions applied)
@@ -549,6 +549,7 @@ Employee Fields **[CHANGED]**:
 - Full Name
 - **Department** (required)
 - **Primary Location** (required)
+- **Rank (цол)** and **Job Position (албан тушаал)** — two separate fields, each with its own effective-dated history **[v1.10]**
 - Username
 - **Schedule** (Standard / Shift Assignment, see 23) **[v1.3]**
 - **Consent status** (Not requested / Printed / Signed / Withdrawn, see 15.4) **[v1.3]**
@@ -1031,7 +1032,7 @@ The 310 organization prepares compliant phones for employees before the pilot. R
 
 - Attendance rules (Work Start Time, Grace, No-show Cut-off, Minimum Stay, accuracy threshold) and **shift templates, patterns and assignments** (23) are stored as **effective-dated versions** (`valid_from`, `valid_to`).
 - Status for a given date is always computed with the rule version in force on **that date**; changing a rule never rewrites history.
-- Likewise for Primary Location, Department and Temporary Location assignments: store history with effective dates; reports show the value as of the report date.
+- Likewise for Primary Location, Department, Temporary Location, **Rank (цол) and Job Position (албан тушаал)** assignments (rank and position are stored separately because a rank changes only by promotion, while a position changes with a transfer or new role — **[v1.10]**): store history with effective dates; reports show the value as of the report date.
 - Holidays and non-working days are versioned by date and can be added retroactively only with an audit entry and an explicit "recompute" action.
 
 ## 22.2 Time Zones
@@ -1196,6 +1197,7 @@ Added in v1.2 **[v1.2]**:
 | 1.8     | Applied architecture review deviations: (1) device-event partitioning deferred to production tier (24.3); (2) raw coordinates erased after 30 days while the 2-year geofence-level event stays (15.3); (3) heartbeat is best effort, tolerance 60 min (6.8); (4) attestation: registration strict, event batches accept-and-flag when the verdict service is unavailable (6.7); (5) PostgreSQL-backed queue confirmed (16, 24, no change). Hosting region fixed: Singapore (15.3, Appendix A). |
 | 1.9     | Release plan decided (17.1): Release 1 "Pilot-Lite" for standard-schedule employees (≈ 5.5 months), Release 2 with shifts, full analytics, PDF and tenant admin (≈ 8 months); interim manual-attendance handling for guards; "4 months" = period with only 1–2 tenants. |
 | 1.9.1   | Clarified 6.4 minimum-stay rule (short stays before confirmation are discarded; after confirmation later exits/entries do not change the status), removing a contradiction with the example table. |
+| 1.10    | Rank (цол: e.g. Ахлагч … Хурандаа) and Job Position (албан тушаал) are separate employee fields, each effective-dated (12, 22.1); lists of ranks and positions are tenant-defined; dashboard drill-down lists show both. |
 
 ---
 
