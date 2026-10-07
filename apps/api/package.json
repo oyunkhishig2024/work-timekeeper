@@ -15,7 +15,8 @@
     "db:migrate": "node-pg-migrate -m db/migrations --ignore-pattern \"(README\\\\.md|\\\\..*)\" --no-verbose up",
     "db:rollback": "node-pg-migrate -m db/migrations --ignore-pattern \"(README\\\\.md|\\\\..*)\" --no-verbose down",
     "db:seed": "psql \"$DATABASE_URL\" -v ON_ERROR_STOP=1 -f db/seed/dev-seed.sql",
-    "cli:create-user": "node dist/cli/create-user.js"
+    "cli:create-user": "node dist/cli/create-user.js",
+    "cli:load-consent-text": "node dist/cli/load-consent-text.js"
   },
   "dependencies": {
     "@nestjs/common": "^11.0.0",
@@ -24,10 +25,13 @@
     "@nestjs/throttler": "^6.7.1",
     "@node-rs/argon2": "^2.2.2",
     "@timekeeper/domain": "workspace:*",
+    "express": "^5.2.1",
     "helmet": "^8.3.0",
     "jose": "^5.10.0",
     "node-pg-migrate": "^9.0.0",
+    "pdfkit": "^0.20.2",
     "pg": "^8.23.1",
+    "qrcode": "^1.5.4",
     "reflect-metadata": "^0.2.2",
     "rxjs": "^7.8.1",
     "zod": "^3.24.1"
@@ -39,7 +43,9 @@
     "@swc/core": "^1.16.13",
     "@types/express": "^5.0.0",
     "@types/node": "^22.10.2",
+    "@types/pdfkit": "^0.17.6",
     "@types/pg": "^8.23.1",
+    "@types/qrcode": "^1.5.6",
     "@types/supertest": "^7.2.1",
     "supertest": "^7.3.1",
     "typescript": "^5.7.2",

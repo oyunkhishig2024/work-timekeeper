@@ -1,7 +1,7 @@
 # Timekeeper Work
 ## Technical Architecture Document
 
-Version: 0.6 (draft for review)
+Version: 0.7 (draft for review)
 Status: Draft — based on PRD v1.9 (`docs/Timekeeper_Work_PRD.md`)
 Audience: engineering lead, backend / mobile / web developers, QA
 Scope: the **pilot tier** (1–2 tenants, ~4 months, ~640 employees), built by **one full-stack developer** (decision v0.2, see Section 14). The production tier is covered only where a decision now would be expensive to undo later.
@@ -732,3 +732,15 @@ Migration `0008_devices_consent` adds `device`, `onboarding_qr`, `onboarding_qr_
 - Deactivation cascades are triggers (consent withdrawn → device disabled → sessions bound to it revoked; employee disabled/archived → device disabled).
 - `auth_session.device_id` now has its foreign key to `device`.
 - Still to build on top of this schema: the QR/registration/replacement/consent API endpoints, consent PDF generation, scan upload, and the Device Readiness report.
+
+# 21. Implementation Status (devices and consent API)
+
+Implemented in `apps/api/src/devices` and `apps/api/src/consent` (routes and rules in `apps/api/src/devices/README.md`), with migration `0009` (device attestation state, consent override on QR). Verified by end-to-end tests against PostgreSQL (QR lifecycle, registration, replacement, loss, consent gate, printing, signing, re-consent, withdrawal, scans, role and tenant isolation) and a rendered sample PDF (Cyrillic incl. Ү Ө embedded, one A4 page per employee). Where it refines this document:
+
+- **Registration is one transaction**: QR check → employee active → replace previous device → insert new → count QR use → bind the current session to the device. A rejected registration (for example `CONSENT_REQUIRED`) changes nothing.
+- **Override** for registration before the signed form is recorded is carried by an Org Admin-issued employee-specific QR (reason and admin stored on the QR and copied to the device), so it is always audited and single use.
+- **A general QR cannot replace a device** unless the tenant setting `onboarding_qr_may_replace_device` is true (PRD 21.1).
+- **Consent withdrawal** also sets the employee's `manual_attendance` flag (PRD 15.4 alternative attendance).
+- **Consent forms** are PDFs rendered with pdfkit and the DejaVu Sans font; draft texts carry a banner and are refused in production.
+- **Attestation** verification is an interface with a configurable placeholder; the real Google/Apple verifiers remain Phase 0 Spike 2. `ATTESTATION_MODE=enforce` fails closed (503) until they exist.
+- Scans are stored through an `ObjectStorage` interface (local disk now; S3-compatible adapter after the cloud provider is chosen).

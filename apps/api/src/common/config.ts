@@ -27,6 +27,17 @@ const envSchema = z.object({
   LOGIN_LOCK_MINUTES: z.coerce.number().int().min(1).default(15),
   /** Per-IP rate limit for the auth endpoints. */
   AUTH_RATE_LIMIT_PER_MINUTE: z.coerce.number().int().min(1).default(10),
+  /**
+   * Device attestation (Play Integrity / App Attest, PRD 6.7). "disabled" accepts registrations and records
+   * them as UNVERIFIED (development, pilot spikes). "enforce" requires a real verifier, which is NOT built
+   * yet (Phase 0 Spike 2): until then it rejects every registration with 503 ATTESTATION_UNAVAILABLE.
+   */
+  ATTESTATION_MODE: z.enum(["disabled", "enforce"]).default("disabled"),
+  /** Local directory for uploaded files (consent scans) until the cloud object store is chosen. */
+  STORAGE_DIR: z.string().default("./storage"),
+  /** Default QR lifetimes in hours (PRD 5: configurable; PRD 21.1: replacement QR 24 h). */
+  QR_ONBOARDING_HOURS: z.coerce.number().int().min(1).max(720).default(72),
+  QR_REPLACEMENT_HOURS: z.coerce.number().int().min(1).max(720).default(24),
 });
 
 export type AppConfig = z.infer<typeof envSchema>;

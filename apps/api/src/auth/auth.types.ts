@@ -6,6 +6,8 @@ export interface AuthContext {
   userId: string;
   tenantId: string;
   role: Role;
+  /** The employee behind an EMPLOYEE account; null for staff accounts. */
+  employeeId: string | null;
   sessionId: string;
   /** Steps the user must complete before normal use (change password, set up TOTP). */
   limited: LimitReason[];

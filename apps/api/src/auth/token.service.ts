@@ -107,3 +107,7 @@ export function tenantIdFromRefreshToken(token: string): string | null {
   const [tenantId] = token.split(".");
   return tenantId && /^[0-9a-f-]{36}$/u.test(tenantId) ? tenantId : null;
 }
+
+/** The same opaque, tenant-prefixed token format is used for QR codes. */
+export const newTenantToken = newRefreshToken;
+export const hashTenantToken = hashRefreshToken;

@@ -39,6 +39,7 @@ export class AuthGuard implements CanActivate {
       userId: claims.sub,
       tenantId: claims.tid,
       role: live.role,
+      employeeId: live.employeeId,
       sessionId: claims.sid,
       limited: live.limited,
     };

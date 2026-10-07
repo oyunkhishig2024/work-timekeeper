@@ -75,11 +75,11 @@ export class SessionService {
   async loadLive(
     db: Db,
     claims: AccessClaims,
-  ): Promise<{ role: UserRow["role"]; limited: LimitReason[] } | null> {
+  ): Promise<{ role: UserRow["role"]; employeeId: string | null; limited: LimitReason[] } | null> {
     const { rows } = await db.query<
-      Pick<UserRow, "role" | "status" | "must_change_password" | "totp_enabled">
+      Pick<UserRow, "role" | "status" | "must_change_password" | "totp_enabled" | "employee_id">
     >(
-      `SELECT u.role, u.status, u.must_change_password, u.totp_enabled
+      `SELECT u.role, u.status, u.must_change_password, u.totp_enabled, u.employee_id
          FROM auth_session s
          JOIN user_account u ON u.tenant_id = s.tenant_id AND u.id = s.user_id
         WHERE s.id = $1 AND s.user_id = $2 AND s.revoked_at IS NULL AND s.expires_at > $3`,
@@ -88,7 +88,7 @@ export class SessionService {
     const user = rows[0];
     if (!user || user.status !== "ACTIVE") return null;
     // Limits come from the live account, not only from the token, so finishing a step takes effect at once.
-    return { role: user.role, limited: this.limitsFor(user) };
+    return { role: user.role, employeeId: user.employee_id, limited: this.limitsFor(user) };
   }
 
   async revoke(db: Db, sessionId: string): Promise<void> {

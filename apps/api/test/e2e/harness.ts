@@ -60,7 +60,8 @@ export interface TestUser {
   orgCode: string;
   username: string;
   password: string;
-  role: "ORG_ADMIN" | "HR" | "MANAGER";
+  role: "ORG_ADMIN" | "HR" | "MANAGER" | "EMPLOYEE";
+  employeeId?: string;
   totpSecret?: string;
 }
 
@@ -85,14 +86,15 @@ export async function createUser(
     password?: string;
     mustChangePassword?: boolean;
     totp?: boolean;
+    employeeId?: string;
   },
 ): Promise<TestUser> {
   const password = opts.password ?? "Sup3r-secret passphrase";
   const totpSecret = opts.totp ? generateTotpSecret() : undefined;
   const { rows } = await h.owner.query<{ id: string }>(
     `INSERT INTO user_account
-       (tenant_id, username, display_name, password_hash, role, must_change_password, totp_enabled, totp_secret_enc)
-     VALUES ($1, $2, $2, $3, $4, $5, $6, $7) RETURNING id`,
+       (tenant_id, username, display_name, password_hash, role, must_change_password, totp_enabled, totp_secret_enc, employee_id)
+     VALUES ($1, $2, $2, $3, $4, $5, $6, $7, $8) RETURNING id`,
     [
       tenant.id,
       opts.username,
@@ -101,6 +103,7 @@ export async function createUser(
       opts.mustChangePassword ?? false,
       Boolean(totpSecret),
       totpSecret ? h.box.encrypt(totpSecret) : null,
+      opts.employeeId ?? null,
     ],
   );
   return {
@@ -110,6 +113,7 @@ export async function createUser(
     username: opts.username,
     password,
     role: opts.role,
+    employeeId: opts.employeeId,
     totpSecret,
   };
 }
@@ -155,4 +159,111 @@ export async function auditActions(h: Harness, tenantId: string): Promise<string
     [tenantId],
   );
   return rows.map((r) => r.action);
+}
+
+// ---------------------------------------------------------------- organization fixtures
+
+const orgCache = new Map<string, { departmentId: string; locationId: string; count: number }>();
+
+/** Creates an employee (with the tenant's single test department and location, created on first use). */
+export async function createEmployee(
+  h: Harness,
+  tenant: { id: string },
+  opts: { name?: string; status?: string } = {},
+): Promise<{ id: string; name: string }> {
+  let org = orgCache.get(tenant.id);
+  if (!org) {
+    const d = await h.owner.query<{ id: string }>(
+      "INSERT INTO department (tenant_id, name) VALUES ($1, 'Хүний нөөц') RETURNING id",
+      [tenant.id],
+    );
+    const l = await h.owner.query<{ id: string }>(
+      "INSERT INTO location (tenant_id, name, lat, lng, radius_m) VALUES ($1, 'Төв салбар', 47.9, 106.9, 150) RETURNING id",
+      [tenant.id],
+    );
+    org = { departmentId: d.rows[0]!.id, locationId: l.rows[0]!.id, count: 0 };
+    orgCache.set(tenant.id, org);
+  }
+  org.count += 1;
+  const name = opts.name ?? `Бадам Гэндэн ${org.count}`;
+  const { rows } = await h.owner.query<{ id: string }>(
+    `INSERT INTO employee (tenant_id, employee_no, full_name, department_id, primary_location_id, status)
+     VALUES ($1, $2, $3, $4, $5, $6) RETURNING id`,
+    [
+      tenant.id,
+      `E-${String(org.count).padStart(3, "0")}`,
+      name,
+      org.departmentId,
+      org.locationId,
+      opts.status ?? "ACTIVE",
+    ],
+  );
+  return { id: rows[0]!.id, name };
+}
+
+/** An employee with a login account (role EMPLOYEE), ready to sign in. */
+export async function createEmployeeWithUser(
+  h: Harness,
+  tenant: { id: string; code: string },
+  username: string,
+) {
+  const employee = await createEmployee(h, tenant);
+  const user = await createUser(h, tenant, { username, role: "EMPLOYEE", employeeId: employee.id });
+  return { employee, user };
+}
+
+export async function createConsentText(
+  h: Harness,
+  tenant: { id: string },
+  opts: { version?: string; body?: string; draft?: boolean; active?: boolean } = {},
+): Promise<string> {
+  const { rows } = await h.owner.query<{ id: string }>(
+    `INSERT INTO consent_text_version (tenant_id, version, body, is_draft, active)
+     VALUES ($1, $2, $3, $4, $5) RETURNING id`,
+    [
+      tenant.id,
+      opts.version ?? "v1",
+      opts.body ?? SAMPLE_CONSENT_BODY,
+      opts.draft ?? false,
+      opts.active ?? true,
+    ],
+  );
+  return rows[0]!.id;
+}
+
+export const SAMPLE_CONSENT_BODY = [
+  "Байршлын мэдээлэл боловсруулах, ирц бүртгэхийн тулд өгөх сайн дурын зөвшөөрлийн хуудас",
+  "1. Би Timekeeper Work ирцийн системд өөрийн гар утсаар ирцээ автоматаар бүртгүүлэхийг сайн дураараа зөвшөөрч байна.",
+  "2. Ямар мэдээлэл цуглуулах вэ: миний утас ажлын байрны тодорхойлсон бүс руу орсон/гарсан цаг.",
+  "3. Зорилго: зөвхөн ирц тооцох. Бусад зорилгоор ашиглахгүй. Өндөр Үүлэн Өргөн Ү Ө ү ө.",
+].join("\n");
+
+/** Marks consent as signed directly in the database (for tests that are not about the consent flow). */
+export async function signConsentSql(
+  h: Harness,
+  tenantId: string,
+  employeeId: string,
+): Promise<void> {
+  await h.owner.query(
+    `INSERT INTO consent_record (tenant_id, employee_id, form_code, text_version, status, signed_on, received_at)
+     VALUES ($1, $2, $3, 'v1', 'SIGNED', DATE '2026-10-01', now())`,
+    [tenantId, employeeId, `T-${Math.random().toString(36).slice(2, 10)}`],
+  );
+}
+
+/**
+ * A tenant with an Org Admin, an HR user (both with TOTP, signed in), an active consent text and one employee
+ * who can sign in. `consent: false` leaves the employee without signed consent.
+ */
+export async function setupWorld(h: Harness, opts: { consent?: boolean; text?: boolean } = {}) {
+  const tenant = await createTenant(h);
+  if (opts.text !== false) await createConsentText(h, tenant);
+  const hr = await createUser(h, tenant, { username: "hr", role: "HR", totp: true });
+  const admin = await createUser(h, tenant, { username: "admin", role: "ORG_ADMIN", totp: true });
+  const hrTokens = await signIn(h, hr);
+  const adminTokens = await signIn(h, admin);
+  const { employee, user } = await createEmployeeWithUser(h, tenant, "badam");
+  if (opts.consent !== false) await signConsentSql(h, tenant.id, employee.id);
+  const empTokens = await signIn(h, user);
+  return { tenant, hr, admin, hrTokens, adminTokens, employee, user, empTokens };
 }

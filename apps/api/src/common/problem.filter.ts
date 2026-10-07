@@ -54,6 +54,27 @@ export class ProblemFilter implements ExceptionFilter {
       return;
     }
 
+    // Errors from Express middleware (for example body-parser) carry an HTTP status of their own.
+    const status = (exception as { status?: unknown })?.status;
+    if (typeof status === "number" && status >= 400 && status < 500) {
+      const type = (exception as { type?: string }).type;
+      res
+        .status(status)
+        .type("application/problem+json")
+        .json({
+          title: "Bad Request",
+          status,
+          code:
+            status === 413
+              ? "PAYLOAD_TOO_LARGE"
+              : type === "entity.parse.failed"
+                ? "INVALID_JSON"
+                : "BAD_REQUEST",
+          detail: "The request could not be processed.",
+        });
+      return;
+    }
+
     this.logger.error(exception instanceof Error ? exception.stack : String(exception));
     res.status(500).type("application/problem+json").json({
       title: "Internal Server Error",
