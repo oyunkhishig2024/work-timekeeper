@@ -9,6 +9,8 @@ import { ScopeService, type DataScope } from "../access/scope.service";
 import type { AuthContext, RequestMeta } from "../auth/auth.types";
 import { PasswordService } from "../auth/password.service";
 import { SessionService } from "../auth/session.service";
+import { JobHistoryService, type AssignInput } from "./job-history.service";
+import type { JobKind } from "./job-kinds";
 
 export interface EmployeeFields {
   employeeNo: string;
@@ -19,6 +21,9 @@ export interface EmployeeFields {
   endDate?: string | null;
   scheduleMode?: "STANDARD" | "SHIFT";
   manualAttendance?: boolean;
+  /** Rank (цол) / position (албан тушаал) held from the start date (create) or from today (update). */
+  rankId?: string;
+  positionId?: string;
 }
 
 export interface EmployeeFilter {
@@ -29,6 +34,8 @@ export interface EmployeeFilter {
   scheduleMode?: "STANDARD" | "SHIFT";
   manualAttendance?: boolean;
   hasDevice?: boolean;
+  rankId?: string;
+  positionId?: string;
   consentStatus?: "NOT_REQUESTED" | "PRINTED" | "SIGNED" | "WITHDRAWN";
   sort: "employeeNo" | "fullName" | "createdAt";
   order: "asc" | "desc";
@@ -43,6 +50,8 @@ const SELECT = `
   e.start_date::text AS "startDate", e.end_date::text AS "endDate",
   e.schedule_mode AS "scheduleMode", e.manual_attendance AS "manualAttendance",
   e.device_model AS "deviceModel", e.os_version AS "osVersion", e.device_compatible AS "deviceCompatible",
+  ra.job_rank_id AS "rankId", jr.name AS "rankName",
+  pa.job_position_id AS "positionId", jp.name AS "positionName",
   cs.status AS "consentStatus",
   EXISTS (SELECT 1 FROM device dv WHERE dv.tenant_id = e.tenant_id AND dv.employee_id = e.id AND dv.status = 'ACTIVE') AS "hasActiveDevice",
   e.created_at AS "createdAt"`;
@@ -51,7 +60,11 @@ const FROM = `
   FROM employee e
   JOIN department d ON d.tenant_id = e.tenant_id AND d.id = e.department_id
   JOIN location l ON l.tenant_id = e.tenant_id AND l.id = e.primary_location_id
-  LEFT JOIN employee_consent_status cs ON cs.tenant_id = e.tenant_id AND cs.employee_id = e.id`;
+  LEFT JOIN employee_consent_status cs ON cs.tenant_id = e.tenant_id AND cs.employee_id = e.id
+  LEFT JOIN employee_rank_assignment ra ON ra.tenant_id = e.tenant_id AND ra.employee_id = e.id AND ra.valid_to IS NULL
+  LEFT JOIN job_rank jr ON jr.tenant_id = ra.tenant_id AND jr.id = ra.job_rank_id
+  LEFT JOIN employee_position_assignment pa ON pa.tenant_id = e.tenant_id AND pa.employee_id = e.id AND pa.valid_to IS NULL
+  LEFT JOIN job_position jp ON jp.tenant_id = pa.tenant_id AND jp.id = pa.job_position_id`;
 
 const SORT_COLUMNS = {
   employeeNo: "e.employee_no",
@@ -81,6 +94,7 @@ export class EmployeesService {
     private readonly scopes: ScopeService,
     private readonly passwords: PasswordService,
     private readonly sessions: SessionService,
+    private readonly jobs: JobHistoryService,
   ) {}
 
   // ------------------------------------------------------------------ reading
@@ -101,6 +115,8 @@ export class EmployeesService {
       if (filter.scheduleMode) add("e.schedule_mode = ?", filter.scheduleMode);
       if (filter.manualAttendance !== undefined)
         add("e.manual_attendance = ?", filter.manualAttendance);
+      if (filter.rankId) add("ra.job_rank_id = ?", filter.rankId);
+      if (filter.positionId) add("pa.job_position_id = ?", filter.positionId);
       if (filter.consentStatus)
         add("COALESCE(cs.status, 'NOT_REQUESTED') = ?", filter.consentStatus);
       if (filter.hasDevice !== undefined) {
@@ -175,6 +191,31 @@ export class EmployeesService {
       } catch (error) {
         throw this.mapWriteError(error);
       }
+      const today = await this.tenantToday(tx, auth.tenantId);
+      const from = input.startDate && input.startDate <= today ? input.startDate : today;
+      const initial = { id, startDate: null };
+      if (input.rankId) {
+        await this.jobs.assign(
+          tx,
+          auth,
+          "rank",
+          initial,
+          { catalogId: input.rankId, effectiveDate: from },
+          today,
+          meta,
+        );
+      }
+      if (input.positionId) {
+        await this.jobs.assign(
+          tx,
+          auth,
+          "position",
+          initial,
+          { catalogId: input.positionId, effectiveDate: from },
+          today,
+          meta,
+        );
+      }
       await this.audit.record(tx, {
         tenantId: auth.tenantId,
         action: "employee.created",
@@ -195,6 +236,7 @@ export class EmployeesService {
    * effective-dated history (PRD 22.1) is a separate, later piece of work.
    */
   async update(auth: AuthContext, id: string, input: Partial<EmployeeFields>, meta: RequestMeta) {
+    const { rankId, positionId, ...fields } = input;
     return this.db.withTenant(auth.tenantId, async (tx) => {
       const scope = await this.scopes.forUser(tx, auth);
       const current = await this.loadVisible(tx, scope, id);
@@ -217,7 +259,7 @@ export class EmployeesService {
       }
       const columns: Record<string, unknown> = {};
       for (const [key, column] of Object.entries(COLUMN_FOR)) {
-        const value = (input as Record<string, unknown>)[key];
+        const value = (fields as Record<string, unknown>)[key];
         if (value !== undefined) columns[column] = value;
       }
       let result;
@@ -235,11 +277,70 @@ export class EmployeesService {
           entityType: "employee",
           entityId: id,
           before: result.before,
-          after: input,
+          after: fields,
           ...meta,
         });
       }
+      // A different rank / position takes effect today; choosing the current one is a no-op here.
+      const today = await this.tenantToday(tx, auth.tenantId);
+      const employee = { id, startDate: current.startDate };
+      if (rankId && rankId !== current.rankId) {
+        await this.jobs.assign(tx, auth, "rank", employee, { catalogId: rankId }, today, meta);
+      }
+      if (positionId && positionId !== current.positionId) {
+        await this.jobs.assign(
+          tx,
+          auth,
+          "position",
+          employee,
+          { catalogId: positionId },
+          today,
+          meta,
+        );
+      }
       return this.loadVisible(tx, scope, id);
+    });
+  }
+
+  // ------------------------------------------------------------------ rank / position history (PRD 12, 22.1)
+
+  async jobHistory(auth: AuthContext, kind: JobKind, id: string) {
+    return this.db.withTenant(auth.tenantId, async (tx) => {
+      const scope = await this.scopes.forUser(tx, auth);
+      await this.loadVisible(tx, scope, id);
+      return this.jobs.history(tx, kind, id);
+    });
+  }
+
+  /** Promotion / transfer from `effectiveDate` (default today). Archived employees are read-only. */
+  async assignJob(
+    auth: AuthContext,
+    kind: JobKind,
+    id: string,
+    input: AssignInput,
+    meta: RequestMeta,
+  ) {
+    return this.db.withTenant(auth.tenantId, async (tx) => {
+      const scope = await this.scopes.forUser(tx, auth);
+      const employee = await this.loadVisible(tx, scope, id);
+      if (employee.status === "ARCHIVED") {
+        throw new ApiError(
+          409,
+          "EMPLOYEE_ARCHIVED",
+          "Archived employees are read-only. Reactivate the employee first.",
+        );
+      }
+      const today = await this.tenantToday(tx, auth.tenantId);
+      await this.jobs.assign(
+        tx,
+        auth,
+        kind,
+        { id, startDate: employee.startDate },
+        input,
+        today,
+        meta,
+      );
+      return this.jobs.history(tx, kind, id);
     });
   }
 
@@ -504,6 +605,8 @@ export class EmployeesService {
           startDate: string | null;
           endDate: string | null;
           fullName: string;
+          rankId: string | null;
+          positionId: string | null;
         })
       | undefined;
     // An employee outside the caller's scope looks exactly like one that does not exist.

@@ -1,4 +1,4 @@
-import { Body, Controller, Get, HttpCode, Param, Patch, Post, Query } from "@nestjs/common";
+import { Body, Controller, Get, HttpCode, Param, Patch, Post, Put, Query } from "@nestjs/common";
 import { z } from "zod";
 import { isValidIsoDate } from "../common/dates";
 import type { AuthContext, RequestMeta } from "../auth/auth.types";
@@ -18,6 +18,8 @@ const fields = {
   endDate: isoDate.nullable().optional(),
   scheduleMode: z.enum(["STANDARD", "SHIFT"]).optional(),
   manualAttendance: z.boolean().optional(),
+  rankId: id.optional(),
+  positionId: id.optional(),
 };
 const createSchema = z.object(fields).strict();
 const updateSchema = z
@@ -33,6 +35,8 @@ const listSchema = z.object({
   locationId: id.optional(),
   scheduleMode: z.enum(["STANDARD", "SHIFT"]).optional(),
   manualAttendance: bool.optional(),
+  rankId: id.optional(),
+  positionId: id.optional(),
   hasDevice: bool.optional(),
   consentStatus: z.enum(["NOT_REQUESTED", "PRINTED", "SIGNED", "WITHDRAWN"]).optional(),
   sort: z.enum(["employeeNo", "fullName", "createdAt"]).default("employeeNo"),
@@ -40,6 +44,15 @@ const listSchema = z.object({
   limit: z.coerce.number().int().min(1).max(200).default(50),
   offset: z.coerce.number().int().min(0).default(0),
 });
+
+const assignSchema = z
+  .object({
+    effectiveDate: isoDate.optional(),
+    note: z.string().trim().max(300).nullable().optional(),
+  })
+  .strict();
+const assignRank = assignSchema.extend({ rankId: id }).strict();
+const assignPosition = assignSchema.extend({ positionId: id }).strict();
 
 const disableSchema = z
   .object({ effectiveDate: isoDate.optional(), reason: z.string().trim().max(300).optional() })
@@ -94,6 +107,56 @@ export class EmployeesController {
     @Meta() meta: RequestMeta,
   ) {
     return this.employees.update(auth, id.parse(employeeId), updateSchema.parse(body), meta);
+  }
+
+  @Roles("ORG_ADMIN", "HR", "MANAGER")
+  @Get(":employeeId/rank-history")
+  rankHistory(@CurrentAuth() auth: AuthContext, @Param("employeeId") employeeId: string) {
+    return this.employees.jobHistory(auth, "rank", id.parse(employeeId));
+  }
+
+  @Roles("ORG_ADMIN", "HR", "MANAGER")
+  @Get(":employeeId/position-history")
+  positionHistory(@CurrentAuth() auth: AuthContext, @Param("employeeId") employeeId: string) {
+    return this.employees.jobHistory(auth, "position", id.parse(employeeId));
+  }
+
+  /** Promotion: the open rank period ends on the effective date and a new one starts. */
+  @Roles("ORG_ADMIN", "HR")
+  @Put(":employeeId/rank")
+  setRank(
+    @CurrentAuth() auth: AuthContext,
+    @Param("employeeId") employeeId: string,
+    @Body() body: unknown,
+    @Meta() meta: RequestMeta,
+  ) {
+    const { rankId, ...rest } = assignRank.parse(body);
+    return this.employees.assignJob(
+      auth,
+      "rank",
+      id.parse(employeeId),
+      { catalogId: rankId, ...rest },
+      meta,
+    );
+  }
+
+  /** Transfer / new role: independent of the rank. */
+  @Roles("ORG_ADMIN", "HR")
+  @Put(":employeeId/position")
+  setPosition(
+    @CurrentAuth() auth: AuthContext,
+    @Param("employeeId") employeeId: string,
+    @Body() body: unknown,
+    @Meta() meta: RequestMeta,
+  ) {
+    const { positionId, ...rest } = assignPosition.parse(body);
+    return this.employees.assignJob(
+      auth,
+      "position",
+      id.parse(employeeId),
+      { catalogId: positionId, ...rest },
+      meta,
+    );
   }
 
   @Roles("ORG_ADMIN", "HR")
