@@ -1,7 +1,7 @@
 # Timekeeper Work
 ## Technical Architecture Document
 
-Version: 0.5 (draft for review)
+Version: 0.6 (draft for review)
 Status: Draft — based on PRD v1.9 (`docs/Timekeeper_Work_PRD.md`)
 Audience: engineering lead, backend / mobile / web developers, QA
 Scope: the **pilot tier** (1–2 tenants, ~4 months, ~640 employees), built by **one full-stack developer** (decision v0.2, see Section 14). The production tier is covered only where a decision now would be expensive to undo later.
@@ -722,3 +722,13 @@ Implemented in `apps/api/src/auth` and `apps/api/src/users` (details and endpoin
 - **Mutation-tested:** removing TOTP replay protection, refresh-family revocation or the live-session check each makes tests fail.
 - **Deferred (see the auth README):** Super Admin login, device-bound mobile tokens and employee invites (with the devices module), breached-password check against an external list (needs a PRD 15.3 processor entry), escalating lockout, absolute staff session age.
 - ESLint rule `consistent-type-imports` is off for `apps/api` because NestJS dependency injection needs runtime class imports.
+
+# 20. Implementation Status (devices, QR, consent)
+
+Migration `0008_devices_consent` adds `device`, `onboarding_qr`, `onboarding_qr_use`, `consent_text_version`, `consent_record` and the view `employee_consent_status`, plus database triggers for the consent gate and automatic deactivation (rules listed in `apps/api/db/migrations/README.md`). Refinements compared with Section 5.3:
+
+- The consent gate is enforced **in the database** as well as in the API (`TK001` / `CONSENT_REQUIRED`), so no code path can register a device without signed consent or a recorded Org Admin override.
+- Consent has an extra `SUPERSEDED` state and a `consent_text_version` table (with `is_draft`) so re-consent after a text change is a data operation, and a draft text cannot be mistaken for the approved one.
+- Deactivation cascades are triggers (consent withdrawn → device disabled → sessions bound to it revoked; employee disabled/archived → device disabled).
+- `auth_session.device_id` now has its foreign key to `device`.
+- Still to build on top of this schema: the QR/registration/replacement/consent API endpoints, consent PDF generation, scan upload, and the Device Readiness report.

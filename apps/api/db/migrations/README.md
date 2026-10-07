@@ -12,8 +12,25 @@ SQL-first migrations run by [`node-pg-migrate`](https://github.com/salsita/node-
 | `0005_identity`   | `user_account`, `user_scope`, `auth_session`, `invite`                                                                                        |
 | `0006_audit_log`  | append-only `audit_log`                                                                                                                       |
 
-Still to come (in this order of need): devices + QR + consent, rules / working week / holidays / shifts,
+Still to come (in this order of need): rules / working week / holidays / shifts,
 reasons, device events + heartbeats, `attendance_day` + corrections + anomalies + `daily_summary`, export jobs.
+
+## Rules enforced by the database for devices and consent (0008)
+
+| Rule                                                                                                                  | Mechanism                                                                                       |
+| --------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------- |
+| One ACTIVE device per employee (PRD 5)                                                                                | partial unique index `device_one_active_idx`                                                    |
+| Same install key cannot be registered under two accounts (PRD 6.7)                                                    | partial unique index on `attestation_key_id`                                                    |
+| Registration needs a SIGNED consent, unless an Org Admin override with a reason ≥ 5 characters is recorded (PRD 15.4) | `BEFORE INSERT` trigger `device_consent_gate`; raises SQLSTATE **`TK001`** (`CONSENT_REQUIRED`) |
+| Withdrawing consent deactivates the device (PRD 15.4)                                                                 | trigger on `consent_record`                                                                     |
+| Disabling or archiving the employee deactivates the device (PRD 12.2)                                                 | trigger on `employee`                                                                           |
+| A device that stops being ACTIVE ends every session bound to it (PRD 21.2)                                            | trigger on `device`                                                                             |
+| REPLACEMENT QR: one employee, single use; ONBOARDING QR: no employee, any number of uses (PRD 5, 21.1)                | CHECK constraints (NULL-safe)                                                                   |
+| One SIGNED consent per employee; a newer signed form moves the old one to `SUPERSEDED`                                | partial unique index; the API does the move in one transaction                                  |
+| One active consent text per tenant; `is_draft` texts must not be printed for real employees                           | partial unique index; checked by the API                                                        |
+
+The API replaces a device in this order inside one transaction: mark the old device `REPLACED`
+(with `disabled_at`), insert the new `ACTIVE` one, then set `replaced_by_device_id` on the old one.
 
 ## Commands (from the repo root)
 

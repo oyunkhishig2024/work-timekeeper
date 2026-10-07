@@ -30,5 +30,12 @@ BEGIN
     (t, 'correction_approval', '"off"'),
     (t, 'accuracy_threshold_m', '50')
   ON CONFLICT (tenant_id, key) DO NOTHING;
+
+  -- Placeholder consent text. The real text is Appendix A of the PRD, which must be reviewed by legal
+  -- counsel before use; is_draft = true keeps it from being printed for real employees.
+  INSERT INTO consent_text_version (tenant_id, version, body, is_draft, active) VALUES
+    (t, 'consent-v1-draft',
+     'DRAFT - replace with the legally reviewed text (docs/Timekeeper_Work_PRD.md, Appendix A).', true, true)
+  ON CONFLICT (tenant_id, version) DO NOTHING;
 END
 $$;
