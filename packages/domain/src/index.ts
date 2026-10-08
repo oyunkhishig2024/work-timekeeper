@@ -5,3 +5,4 @@ export * from "./noshow";
 export * from "./schedule";
 export * from "./attendance/derive";
 export * from "./attendance/correction";
+export * from "./attendance/plausibility";

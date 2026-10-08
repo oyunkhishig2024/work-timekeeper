@@ -18,6 +18,7 @@ export class AttendanceTicker implements OnApplicationBootstrap, OnApplicationSh
   private readonly log = new Logger(AttendanceTicker.name);
   private timer: NodeJS.Timeout | null = null;
   private running = false;
+  private ticks = 0;
 
   constructor(private readonly attendance: AttendanceService) {}
 
@@ -36,6 +37,11 @@ export class AttendanceTicker implements OnApplicationBootstrap, OnApplicationSh
     try {
       const changed = await this.attendance.tick();
       if (changed > 0) this.log.log(`attendance tick: ${changed} status change(s)`);
+      // Once an hour is plenty for a 30-day retention.
+      if (this.ticks++ % 60 === 0) {
+        const erased = await this.attendance.eraseOldCoordinates();
+        if (erased > 0) this.log.log(`erased coordinates of ${erased} event(s)`);
+      }
     } catch (error) {
       this.log.error(
         `attendance tick failed: ${error instanceof Error ? error.message : String(error)}`,

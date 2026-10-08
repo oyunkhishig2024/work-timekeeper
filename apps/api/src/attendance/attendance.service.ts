@@ -7,6 +7,8 @@ import {
   deriveStatus,
   getExpectation,
   instantToLocalDate,
+  isImpossibleSpeed,
+  type Fix,
   applyCorrection,
   type AttendanceStatus,
   type Correction,
@@ -27,7 +29,14 @@ export const CLOCK_SKEW_MS = 2 * 60_000;
 export const LATE_SYNC_MS = 24 * 3_600_000;
 export const MIN_ACCURACY_M = 50;
 /** Flags that put an event in the anomaly review queue (PRD 6.7). LATE_SYNC is a sync matter, not suspicion. */
-export const REVIEW_FLAGS = ["MOCK_LOCATION", "LOW_ACCURACY", "CLOCK_SKEW"] as const;
+export const REVIEW_FLAGS = [
+  "MOCK_LOCATION",
+  "LOW_ACCURACY",
+  "CLOCK_SKEW",
+  "IMPOSSIBLE_SPEED",
+] as const;
+/** PRD 15.3: raw coordinates are erased after 30 days. */
+export const COORDINATE_RETENTION_DAYS = 30;
 const MAX_RECOMPUTE_DAYS = 62;
 const CHUNK = 200;
 
@@ -42,6 +51,9 @@ export interface IncomingEvent {
   accuracyM?: number;
   /** The phone reported that the fix came from a mock-location provider (PRD 6.7). */
   mockLocation?: boolean;
+  /** Position of the fix (PRD 6.7); both or neither. Used for the impossible-speed check, erased after 30 days. */
+  lat?: number;
+  lng?: number;
 }
 
 export type EventOutcome =
@@ -143,7 +155,9 @@ export class AttendanceService {
 
       const results: EventOutcome[] = [];
       const occurredTimes: Date[] = [];
-      for (const e of events) {
+      // Oldest first, so that every fix is compared with the one before it in time.
+      const ordered = [...events].sort((a, b) => b.ageMs - a.ageMs);
+      for (const e of ordered) {
         if (!known.has(e.locationId)) {
           results.push({
             clientEventId: e.clientEventId,
@@ -163,6 +177,19 @@ export class AttendanceService {
         if (ageMs > LATE_SYNC_MS) flags.push("LATE_SYNC");
         // Accept and flag (PRD 6.7): a mock fix still counts, but HR reviews it.
         if (e.mockLocation) flags.push("MOCK_LOCATION");
+        // PRD 6.7: a fix that cannot be reached from the neighbouring trusted fixes in the time between them.
+        if (
+          e.lat !== undefined &&
+          e.lng !== undefined &&
+          (await this.impossibleSpeed(tx, employeeId, {
+            at: occurredAt,
+            lat: e.lat,
+            lng: e.lng,
+            accuracyM: e.accuracyM ?? null,
+          }))
+        ) {
+          flags.push("IMPOSSIBLE_SPEED");
+        }
         // An imprecise fix never confirms an arrival (PRD 6.7); leaving is always honoured.
         if (e.type === "ENTER" && e.accuracyM !== undefined && e.accuracyM > MIN_ACCURACY_M) {
           flags.push("LOW_ACCURACY");
@@ -170,8 +197,9 @@ export class AttendanceService {
         const counted = !flags.includes("LATE_SYNC") && !flags.includes("LOW_ACCURACY");
         const inserted = await tx.query(
           `INSERT INTO device_event (tenant_id, employee_id, device_id, location_id, client_event_id, type,
-                                     occurred_at, received_at, claimed_at, accuracy_m, flags, counted, review_status)
-           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+                                     occurred_at, received_at, claimed_at, accuracy_m, flags, counted, review_status,
+                                     lat, lng)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
            ON CONFLICT (tenant_id, device_id, client_event_id) DO NOTHING
            RETURNING id`,
           [
@@ -188,6 +216,8 @@ export class AttendanceService {
             flags,
             counted,
             flags.some((f) => (REVIEW_FLAGS as readonly string[]).includes(f)) ? "PENDING" : null,
+            e.lat ?? null,
+            e.lng ?? null,
           ],
         );
         if (inserted.rowCount === 0) {
@@ -221,6 +251,53 @@ export class AttendanceService {
       }
       return { received: results.length, results };
     });
+  }
+
+  /**
+   * Compares a new fix with the trusted fixes just before and after it (not rejected, not mock, not already flagged for
+   * speed). Only the new event is flagged; the older ones stay as they were.
+   */
+  private async impossibleSpeed(tx: Db, employeeId: string, fix: Fix): Promise<boolean> {
+    const { rows } = await tx.query<{
+      at: Date;
+      lat: number;
+      lng: number;
+      accuracy: number | null;
+    }>(
+      `(SELECT occurred_at AS at, lat, lng, accuracy_m::float AS accuracy FROM device_event
+         WHERE employee_id = $1 AND lat IS NOT NULL AND occurred_at <= $2
+           AND review_status IS DISTINCT FROM 'REJECTED' AND NOT (flags && ARRAY['MOCK_LOCATION', 'IMPOSSIBLE_SPEED'])
+         ORDER BY occurred_at DESC LIMIT 1)
+       UNION ALL
+       (SELECT occurred_at AS at, lat, lng, accuracy_m::float AS accuracy FROM device_event
+         WHERE employee_id = $1 AND lat IS NOT NULL AND occurred_at > $2
+           AND review_status IS DISTINCT FROM 'REJECTED' AND NOT (flags && ARRAY['MOCK_LOCATION', 'IMPOSSIBLE_SPEED'])
+         ORDER BY occurred_at ASC LIMIT 1)`,
+      [employeeId, fix.at],
+    );
+    return rows.some((r) =>
+      isImpossibleSpeed({ at: r.at, lat: r.lat, lng: r.lng, accuracyM: r.accuracy }, fix),
+    );
+  }
+
+  /** Worker: clears raw coordinates older than the retention period; the event and its geofence level stay (PRD 15.3). */
+  async eraseOldCoordinates(): Promise<number> {
+    const cutoff = new Date(this.clock.now().getTime() - COORDINATE_RETENTION_DAYS * 86_400_000);
+    const tenants = await this.db.asPlatform(async (tx) =>
+      (await tx.query<{ id: string }>("SELECT id FROM tenant")).rows.map((r) => r.id),
+    );
+    let erased = 0;
+    for (const tenantId of tenants) {
+      erased += await this.db.withTenant(tenantId, async (tx) => {
+        const res = await tx.query(
+          `UPDATE device_event SET lat = NULL, lng = NULL, coordinates_erased_at = $1
+            WHERE lat IS NOT NULL AND received_at < $2`,
+          [this.clock.now(), cutoff],
+        );
+        return res.rowCount ?? 0;
+      });
+    }
+    return erased;
   }
 
   /** The phone reports it is alive (PRD 5: heartbeat shows silent devices to HR). */

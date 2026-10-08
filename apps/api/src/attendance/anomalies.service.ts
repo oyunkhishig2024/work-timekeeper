@@ -28,7 +28,7 @@ export interface AnomalyFilter {
 const COLUMNS = `ev.id, ev.employee_id AS "employeeId", e.employee_no AS "employeeNo", e.full_name AS "fullName",
   d.name AS "departmentName", l.id AS "locationId", l.name AS "locationName",
   ev.type, ev.occurred_at AS "occurredAt", ev.received_at AS "receivedAt", ev.claimed_at AS "claimedAt",
-  ev.accuracy_m::float AS "accuracyM", ev.flags, ev.counted,
+  ev.accuracy_m::float AS "accuracyM", ev.lat, ev.lng, ev.flags, ev.counted,
   ev.review_status AS "reviewStatus", ev.reviewed_at AS "reviewedAt", ev.review_note AS "reviewNote",
   COALESCE(rb.display_name, rb.username) AS "reviewedByName"`;
 const FROM = `device_event ev

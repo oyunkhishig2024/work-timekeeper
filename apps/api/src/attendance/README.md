@@ -59,8 +59,8 @@ under `alerts`. Not built: closed-month locking (PRD 25.5), the optional approva
 ## Anomaly review queue (PRD 6.7)
 
 Accept and flag: a suspicious event is stored and, unless it is held back for another reason, counts at once. Codes in the
-queue: `MOCK_LOCATION` (the phone sets `mockLocation: true`), `LOW_ACCURACY` (ENTER worse than 50 m; held back, `counted = false`)
-and `CLOCK_SKEW` (> 2 min; counts). `LATE_SYNC` (> 24 h old) is not suspicion and not queued. Queued events have
+queue: `MOCK_LOCATION` (the phone sets `mockLocation: true`), `LOW_ACCURACY` (ENTER worse than 50 m; held back, `counted = false`),
+`CLOCK_SKEW` (> 2 min; counts) and `IMPOSSIBLE_SPEED` (counts). `LATE_SYNC` (> 24 h old) is not suspicion and not queued. Queued events have
 `review_status = PENDING`; the daily result shows `flaggedEvents` and the summary `flagged` ("N flagged").
 
 | Endpoint                                           | Who           | Purpose                                                                                     |
@@ -70,5 +70,14 @@ and `CLOCK_SKEW` (> 2 min; counts). `LATE_SYNC` (> 24 h old) is not suspicion an
 
 Confirm clears the flag (and lets a low-accuracy ENTER count; a `LATE_SYNC` event never does); Reject stops the event counting
 and rebuilds the day (normally Ирээгүй); Request re-check leaves it open once. Decisions are audited
-(`attendance.anomaly_reviewed`). Not built: `IMPOSSIBLE_SPEED` / teleport checks (events carry no coordinates yet),
-`ATTESTATION_*` and `DEVICE_CONFLICT`, notifying the employee on a re-check, the tenant "hold until reviewed" policy.
+(`attendance.anomaly_reviewed`). Not built: "teleport with no preceding movement" and zero-jitter checks, `ATTESTATION_*` and `DEVICE_CONFLICT`, notifying the employee on a re-check, the tenant "hold until reviewed" policy.
+
+## Coordinates and IMPOSSIBLE_SPEED (PRD 6.7)
+
+Events may carry `lat` and `lng` (both or neither, `accuracyM` is the accuracy radius). A new fix is compared with the
+trusted fix just **before** and just **after** it in time (`isImpossibleSpeed` in packages/domain): the distance is reduced by
+both accuracy radii, and more than **150 km/h** is impossible (two places at one instant too). Trusted means not rejected and
+not already flagged `MOCK_LOCATION` / `IMPOSSIBLE_SPEED`, so one bad fix cannot taint the good ones around it. Only the new
+event is flagged (accepted, counts, queued for review). A batch is processed oldest first. Events without coordinates are
+never speed-checked. Raw coordinates are erased after **30 days** (PRD 15.3) by the worker (`eraseOldCoordinates`, hourly);
+the event, its geofence location and flags stay. Coordinates are shown only in the review queue, to ORG_ADMIN and HR.

@@ -88,7 +88,12 @@ PRD 6.9: layers HR's correction (`ON_TIME` / `LATE` / `NO_SHOW`, optional arriva
 the system value is kept by the caller. `LATE` counts minutes from `start`; `NO_SHOW` clears the arrival; a day with nobody expected
 (`start` null) is returned unchanged.
 
+## Plausibility (attendance/plausibility.ts)
+
+`distanceMeters` (haversine), `impliedSpeedKmh` and `isImpossibleSpeed(a, b, max = 150)` (PRD 6.7). The distance is reduced by both
+accuracy radii so GPS jitter is not a teleport; the same instant at two places is impossible.
+
 ## Not here yet
 
-Coordinate-based plausibility checks; the location time zone column (the field exists in
+Teleport-without-movement and zero-jitter checks; the location time zone column (the field exists in
 the input, the database does not have it yet); effective-dated employee department/location history (PRD 22.1).

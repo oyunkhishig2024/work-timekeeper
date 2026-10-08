@@ -31,8 +31,14 @@ const eventSchema = z
     deviceTime: z.string().datetime({ offset: true }).optional(),
     accuracyM: z.number().min(0).max(100_000).optional(),
     mockLocation: z.boolean().optional(),
+    lat: z.number().min(-90).max(90).optional(),
+    lng: z.number().min(-180).max(180).optional(),
   })
-  .strict();
+  .strict()
+  .refine((e) => (e.lat === undefined) === (e.lng === undefined), {
+    message: "Send lat and lng together",
+    path: ["lat"],
+  });
 const ingestSchema = z.object({ events: z.array(eventSchema).min(1).max(200) }).strict();
 
 const dailyQuery = z.object({

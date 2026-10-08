@@ -22,6 +22,7 @@ SQL-first migrations run by [`node-pg-migrate`](https://github.com/salsita/node-
 | `0015_ip_block`                       | `ip_block`: temporary IP bans from the adaptive abuse protection (service-wide, platform role only; survives restarts, operator can lift)                                   |
 | `0016_attendance_core`                | `device_event` (idempotent, server-timed, flagged), `attendance_result` (derived, rebuildable), `attendance_result_log` (status history)                                    |
 | `0017_corrections_anomalies`          | `attendance_correction` (layered over the system result, one in force per employee/date), result `source`/`system_*`/`flagged_events`, event review columns (anomaly queue) |
+| `0018_event_coordinates`              | `device_event.lat` / `lng` (both or neither) for the IMPOSSIBLE_SPEED check; erased after 30 days (PRD 15.3)                                                                |
 
 Still to come (in this order of need): export jobs.
 
