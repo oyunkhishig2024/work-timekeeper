@@ -15,5 +15,6 @@
 - Domain rules and the expectation function (`getExpectation`): see `packages/domain/README.md`. Add rules there with tests that cite the PRD section.
 - Attendance core (events, `deriveStatus`, daily results, worker tick): see `apps/api/src/attendance/README.md`. Statuses are derived data; never edit `attendance_result` by hand, rebuild it with `POST /v1/attendance/recompute`.
 - Abuse state stores (memory/Redis), the circuit breaker and Redis ops: see `apps/api/src/security/README.md`. Never copy rule logic into a store; stores only move state atomically. Detector methods are async; the middleware uses `detector.admit()` once per request. Redis tests start their own redis-server and skip if the binary is missing.
+- Backups and PITR: see `infra/backup/README.md` and `docs/operations/backup-and-restore.md`. Run `infra/backup/test/pitr-rehearsal.sh` after any change under `infra/backup` (needs PostgreSQL 16 binaries, age and jq; no network). Scripts must stay `shellcheck`-clean. Never edit them to overwrite or delete archived WAL, and never set `archive_command` to `/bin/true`. A rebuilt or upgraded cluster needs a new `BACKUP_REMOTE` prefix.
 - Mobile app is intentionally not scaffolded yet (see `apps/mobile/README.md`).
 - Before finishing a change run: `pnpm format:check && pnpm lint && pnpm typecheck && pnpm test && pnpm build`.

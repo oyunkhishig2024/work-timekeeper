@@ -1,7 +1,7 @@
 # Timekeeper Work
 ## Technical Architecture Document
 
-Version: 0.14 (draft for review)
+Version: 0.15 (draft for review)
 Status: Draft — based on PRD v1.9 (`docs/Timekeeper_Work_PRD.md`)
 Audience: engineering lead, backend / mobile / web developers, QA
 Scope: the **pilot tier** (1–2 tenants, ~4 months, ~640 employees), built by **one full-stack developer** (decision v0.2, see Section 14). The production tier is covered only where a decision now would be expensive to undo later.
@@ -812,4 +812,9 @@ Migrations `0010_time_rules` and `0011_shifts` add the storage for attendance ru
 - Adaptive abuse protection keeps per-IP state in an `AbuseStateStore`: in-process memory by default, Redis when `REDIS_URL` is set (several API instances). Rules live once in `abuse-detector.ts` as steps `(state, event, now) -> state`; Redis applies them with optimistic compare-and-set (one key per IP, TTL 2 h to 8 days). Redis is a soft dependency: timeout, circuit breaker, fail open to local memory. Postgres `ip_block` plus the 30 s sync stays the durable record and operator channel.
 - Run Redis on 127.0.0.1 or a private network with a password; no persistence; `maxmemory` plus `allkeys-lru`. Alert on the log event `security.redis_unavailable`.
 - Not verified: password/TLS Redis, Cluster/Sentinel, real multi-host load.
+
+# 30. Implementation Status (database backup and recovery)
+
+- `infra/backup/` and `docs/operations/backup-and-restore.md`. The VPS archives encrypted WAL (age, public key only on the server) to a bucket in a separate account and region; the private key is offline in two copies. Restores run through `restore-pitr.sh`; `test/pitr-rehearsal.sh` proves point-in-time recovery end to end (126 assertions).
+- **Not verified:** real rclone and provider, systemd units, production-scale restore time, non-root and Debian-layout runs. Object storage (consent scans, exports) and secrets (`DATA_ENCRYPTION_KEY`) need their own backup. Events a phone already marked acknowledged inside the lost RPO window will not return by themselves.
 

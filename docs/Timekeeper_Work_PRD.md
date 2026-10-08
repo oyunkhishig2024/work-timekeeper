@@ -1,7 +1,7 @@
 # Timekeeper Work
 ## Product Requirements Document (PRD)
 
-Version: 1.16
+Version: 1.17
 Product: Timekeeper Work
 Owner: Onki
 Status: Requirements Specification (pre-development review + CTO review + stakeholder decisions applied)
@@ -1209,6 +1209,7 @@ Added in v1.2 **[v1.2]**:
 | 1.14    | Employee code is system-assigned (16 digits: date + 8 random) and is the default login name; Овог and Нэр are separate fields; rank (цол) and position (албан тушаал) are free text instead of tenant lists (12, 22.1). Excel import files carry no code column. |
 | 1.15    | Security operations: WAF in front of the stack, adaptive IP throttling/ban in the API, DDoS response plan (25.6); hosting assumed to be a Hostinger VPS behind Cloudflare for the pilot (provider choice in the Architecture is still open for managed PostgreSQL with PITR). |
 | 1.16    | Attendance core specified as built: device events are timed by the server (receive time minus the phone's monotonic age; CLOCK_SKEW > 2 min flagged, events older than 24 h and ENTER fixes worse than 50 m are stored and flagged but not counted); statuses are derived data that can be rebuilt (`POST /attendance/recompute`), a worker re-evaluates every minute so NO_SHOW appears exactly at the cut-off; dashboard Total = everyone expected (on time + late + excused + no show + not yet decided), rates are shares of it with one decimal. |
+| 1.17    | Backups (25.2) specified as built: WAL archiving to an off-site, encrypted store (public-key encryption, private key offline), daily verified base backup, `archive_timeout` 4 min (typical RPO about 5 min), weekly logical dump, retention 7 daily / 4 weekly / 3 monthly bases; the 10-minute check alerts at 10 min and pages at 15 min (= RPO); restore onto a fresh machine rehearsed before go-live and quarterly; RTO is hours (no standby). The backup provider is a processor under 15.3 (DPA and legal clearance needed); object storage and secrets are backed up separately. |
 
 ---
 
