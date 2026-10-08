@@ -1,7 +1,7 @@
 # Timekeeper Work
 ## Product Requirements Document (PRD)
 
-Version: 1.24
+Version: 1.25
 Product: Timekeeper Work
 Owner: Onki
 Status: Requirements Specification (pre-development review + CTO review + stakeholder decisions applied)
@@ -942,7 +942,7 @@ Reports:
 
 | Report            | Period                | Content                                                                 |
 |-------------------|-----------------------|-------------------------------------------------------------------------|
-| Daily Attendance  | One day               | Employee, department, location, status, arrival time, late min, reason  |
+| Daily Attendance  | One day               | Employee, department, location, status, arrival time, departure time, late min, reason  |
 | Weekly Report     | 7 days (Mon–Sun)      | Per-employee counts of Цагтаа / Хоцорсон / Шалтгаантай / Ирээгүй + totals |
 | Monthly Report    | Calendar month        | Same as weekly plus on-time % per employee, location and department      |
 | Reason Report     | Custom                | See 11.1                                                                |
@@ -1073,7 +1073,7 @@ The 310 organization prepares compliant phones for employees before the pilot. R
 - **No-show (6.3) [CHANGED v1.24]:** no valid arrival and no reason by the **shift end** → Ирээгүй (for a 24 h shift, by 08:00 the next day). Before that the employee is Хүлээгдэж байна.
 - **Early arrival [CHANGED v1.24]:** there is no early-arrival window setting. For a standard day an entry counts from local midnight of the work date; for a shift from 12 h before its start (a duty lasts at most 24 h, so the same person's previous shift is over by then). Earlier entries are stored but belong to the previous work date. Anything before the start is Цагтаа.
 - **Back-to-back shifts and 24 h shifts:** a day's arrival is matched to the **nearest shift start** within its window; one arrival can never satisfy two shifts. For a 24 h shift (08:00 → 08:00 next day) the arrival is judged only at the start; the shift end (08:00 next day) is recorded as the departure when the device leaves the geofence after the shift end (or after the min-stay rule, 6.4).
-- **Departure and leaving early:** in V1 departure time is recorded and shown. Automatic "left early / absent mid-shift" detection and overtime calculation are **V2** (presence analytics), but the raw enter/exit events are kept (6.4) so it can be added without change.
+- **Departure and leaving early [CHANGED v1.25]:** the daily list shows a **departure time** (Гарсан цаг) next to the arrival: the last EXIT of the duty place after the confirmed arrival. A short walk out and back (lunch) changes nothing, because the later ENTER makes the person "Байгаа" (still there) again. When the duty ended more than an hour ago and the phone never reported leaving (battery, location off) it shows **Тодорхойгүй**: the system never guesses a departure. The same two columns are in the Excel / CSV / PDF export. Automatic "left early / short hours" detection and overtime stay **V2** (presence analytics). Showing the departure to HR widens the purpose of the location data, so the employee consent text (Appendix A, item 4) must say so before this is used with real employees.
 - **Minimum geofence stay (6.4)** applies unchanged to shift arrivals.
 - **Reasons and shifts (11):** a reason applies per calendar date range; a reason covering the shift's work date makes the shift **Шалтгаантай** (6.6). A reason ending the day before the shift start does not affect it.
 - **Public holidays:** a template with "observes public holidays" off (default for 24 h guard templates) means the employee works and is counted on holidays; with it on, the employee is not expected on holidays.
@@ -1215,6 +1215,7 @@ Added in v1.2 **[v1.2]**:
 | 1.22    | Daily attendance (9) specified as built: filters by status, branch, department and name/code search; the expected branch with a «Түр» badge; arrival, late minutes and the reason with its explanation; Excel/CSV/PDF export of the same list. **Байршил идэвхгүй** (6.5) = expected, no arrival yet, phone silent for over 60 minutes of the current duty; an indicator, not a status. The predefined reasons (11) become 16: **«Бусад»** (Other) is added and must be explained in words. Assigning or ending a reason updates the affected days immediately. |
 | 1.23    | Employee bulk import specified as built (12.3): dry run first with a per-row report, "valid rows only" or "abort on any error", .xlsx or CSV up to 2,000 rows, text-only cells, all rows in one transaction, audited. Because the employee code is assigned by the system, rows **without a code create** employees and rows **with a code update** them (with a diff); a row whose name and department already exist is skipped, so a repeated upload creates nothing. No password is imported: each new employee can get a login with a one-time password, returned once as a sheet and never stored (the invite link / activation code flow of 12.3 is still open). |
 | 1.24    | **No-show cut-off and early-arrival window removed** (6.2, 6.3, 13, 14.1, 23.1, 23.2, 26): there is no "Ирээгүй after N minutes" setting; whoever arrives on the day attended and is Хоцорсон however late. An employee with no arrival and no reason is Хүлээгдэж байна until their own duty ends (the end of their working day or shift) and only then Ирээгүй; arrivals before the start are always Цагтаа (a standard day counts entries from local midnight, a shift from 12 h before its start). Everyone is judged against their own hours, so early-start teams (e.g. a bakery 06:30–14:00) use their own shift template. Leaving early is still not detected (V2, 23.2). `cutoffMinutes` / `earlyWindowMinutes` are removed from the rules and shift-template APIs. |
+| 1.25    | Departure time shown to HR (6.4, 9, 23.2): the daily list and its export have an arrival and a departure column. Departure = the last EXIT of the duty place after the arrival; "Байгаа" while inside; "Тодорхойгүй" when the phone never reported leaving after the duty ended. Left-early detection stays V2. Appendix A, item 4 (purpose) must be reworded and approved before real use. |
 
 ---
 
@@ -1232,7 +1233,7 @@ Added in v1.2 **[v1.2]**:
 1. Би **Timekeeper Work** ирцийн системд өөрийн гар утсаар ирцээ автоматаар бүртгүүлэхийг **сайн дураараа** зөвшөөрч байна.
 2. **Ямар мэдээлэл цуглуулах вэ:** миний утас ажлын байрны тодорхойлсон бүс (геофенс) руу орсон/гарсан цаг, утасны төрөл ба үйлдлийн системийн хувилбар, аппын төлөв (байршлын зөвшөөрөл асаалттай эсэх).
 3. **Хэзээ цуглуулах вэ:** зөвхөн миний ажлын цаг/ээлжийн хугацаанд ажлын байрны бүстэй холбоотой. Ажлын бус цагт болон ажлын байрны бүсээс гадна миний байршлыг хянахгүй, түүхийг нь хадгалахгүй.
-4. **Зорилго:** зөвхөн ирц (цагтаа, хоцорсон, ирээгүй) тооцох. Бусад зорилгоор ашиглахгүй, гуравдагч этгээдэд худалдахгүй.
+4. **Зорилго:** зөвхөн ирц (цагтаа, хоцорсон, ирээгүй) болон ирсэн, гарсан цагийг тооцох, харуулах. **[v1.25: хуулийн зөвлөхөөр батлуулна]** Бусад зорилгоор ашиглахгүй, гуравдагч этгээдэд худалдахгүй.
 5. **Хэн харах вэ:** Хүний нөөцийн ажилтан, байгууллагын админ, миний харьяа салбар/хэлтсийн менежер (зөвхөн ирцийн мэдээлэл).
 6. **Хадгалах хугацаа:** ирцийн бүртгэл 2 жил; сэжигтэй үйл явдлын нарийвчилсан координат 30 хоног; бусад нь хуулийн дагуу.
 7. **Мэдээлэл хадгалах газар:** миний мэдээллийг Монгол улсын гадна байрлах үүлэн серверт (улс/бүс: Сингапур) хадгалж, боловсруулахыг зөвшөөрч байна. Мэдээллийг шифрлэж хамгаална. Утасны аюулгүй байдлыг шалгах (Google/Apple), байршил илрүүлэх (Google), мэдэгдэл илгээх үйлчилгээ зэрэг гуравдагч талын үйлчилгээнд зөвхөн техникийн шаардлагатай мэдээлэл дамжих боломжтойг ойлгосон. Эдгээр үйлчилгээний жагсаалтыг Хүний нөөцөөс авч танилцах эрхтэй.

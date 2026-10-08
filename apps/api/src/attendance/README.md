@@ -111,7 +111,7 @@ scope applies; resolving is audited as `device.alert_resolved`). A resolved aler
 
 `date` (required), `status` (`ON_TIME | LATE | EXCUSED | NO_SHOW | PENDING | EXPECTED | INACTIVE`), `locationId`, `departmentId`, `q`
 (name or employee code, wildcards are literal), `limit` (≤ 500), `offset`. Rows carry rank and position (valid on that date), department,
-primary and expected branch with `temporary` (expected branch differs from the primary one, PRD 12.1), status, arrival, `lateMinutes`,
+primary and expected branch with `temporary` (expected branch differs from the primary one, PRD 12.1), status, arrival, `departureAt` / `departureState` (`LEFT` = the last EXIT after the arrival, `INSIDE`, `UNKNOWN` = the phone never reported leaving an hour after the duty ended; null without an arrival; `deriveDeparture` in packages/domain), `lateMinutes`,
 `reasonName`, `reasonNote` (the written explanation, «Бусад»), `reasonAssignmentId`, `source`/`systemStatus`/`correctionId`, `flaggedEvents`,
 `lastSeenAt`, `hasDevice`, `locationInactive`. `counts` has every status chip for the other filters (ignoring `status`), plus `INACTIVE`.
 

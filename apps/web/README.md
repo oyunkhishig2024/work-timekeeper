@@ -48,7 +48,7 @@ get the actions and the export (a Manager's export depends on a tenant setting, 
   arrival, phone silent for over an hour; shown with "last heard" time; a phone that never reported says so). Branch and department
   selects, a search box (name or code, debounced). Counts follow the other filters.
 - Columns: employee (rank, position or code), department, primary branch, **expected branch with a «Түр» badge** when it differs,
-  status (+ "Засварласан", "⚑ шалгах"), arrival time, minutes late, reason (+ its written explanation).
+  status (+ "Засварласан", "⚑ шалгах"), arrival time, **departure time** (the last exit; «Байгаа» while inside, «Тодорхойгүй» when the phone never reported leaving), minutes late, reason (+ its written explanation).
 - **Шалтгаан**: assign a reason for the date, optionally until a later date. «Бусад» needs a written explanation. The day changes at once.
 - **Засах**: correction (PRD 6.9): Цагтаа / Хоцорсон / Ирээгүй, optional arrival time typed in the organization's time zone
   (`src/lib/time.ts`), mandatory correction reason, note (required for «Бусад»); **Засварыг цуцлах** goes back to the system value.

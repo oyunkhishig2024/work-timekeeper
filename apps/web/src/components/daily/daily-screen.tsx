@@ -18,6 +18,7 @@ import {
   fetchDepartments,
   fetchLocations,
   fetchReasons,
+  departureText,
   isReasonAssignable,
   MAX_BULK_ASSIGN,
   parseDailyState,
@@ -325,7 +326,7 @@ export function DailyScreen({ user }: { user: SessionUser }) {
       )}
       {data && data.items.length > 0 && org && (
         <div className="mt-2 overflow-x-auto rounded-lg border border-slate-200 bg-white">
-          <table className="w-full min-w-[980px] text-left text-sm">
+          <table className="w-full min-w-[1060px] text-left text-sm">
             <thead className="bg-slate-50 text-slate-700">
               <tr>
                 {canEdit && (
@@ -347,6 +348,7 @@ export function DailyScreen({ user }: { user: SessionUser }) {
                   "Ажиллах салбар",
                   "Төлөв",
                   "Ирсэн цаг",
+                  "Гарсан цаг",
                   "Хоцорсон",
                   "Шалтгаан",
                   "",
@@ -469,6 +471,7 @@ function Row({
         )}
       </td>
       <td className="px-3 py-2">{formatTime(r.arrivalAt, timeZone) ?? "—"}</td>
+      <td className="px-3 py-2">{departureText(r, (iso) => formatTime(iso, timeZone))}</td>
       <td className="px-3 py-2">
         {r.status === "LATE" && r.lateMinutes > 0 ? `${r.lateMinutes} мин` : "—"}
       </td>

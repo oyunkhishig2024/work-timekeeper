@@ -219,4 +219,54 @@ describe.skipIf(!hasDb)("daily attendance list (PRD 9, 6.5, 11)", () => {
     ).toBe(403);
     void at;
   });
+
+  it("shows the departure next to the arrival: the last exit, Байгаа while inside, never a guess (6.4, 23.2)", async () => {
+    const w = await k.world();
+    const row = async () =>
+      ((await list(w)).items as Array<Record<string, unknown>>).find(
+        (r) => r.employeeId === w.employee.id,
+      )!;
+    k.setClock("08:05");
+    await k.send(await k.emp(w), [k.ev(w)]);
+    k.setClock("09:00");
+    await k.tick(w.tenant.id);
+    expect(await row()).toMatchObject({
+      status: "ON_TIME",
+      departureState: "INSIDE",
+      departureAt: null,
+    });
+
+    k.setClock("12:00");
+    await k.send(await k.emp(w), [k.ev(w, { type: "EXIT" })]);
+    expect(await row()).toMatchObject({ departureState: "LEFT" });
+    k.setClock("13:00");
+    await k.send(await k.emp(w), [k.ev(w)]); // back from lunch
+    expect(await row()).toMatchObject({ departureState: "INSIDE", departureAt: null });
+
+    k.setClock("16:30");
+    await k.send(await k.emp(w), [k.ev(w, { type: "EXIT" })]);
+    const left = await row();
+    expect(left).toMatchObject({ departureState: "LEFT" });
+    expect(new Date(left.departureAt as string).toISOString()).toBe(at("16:30").toISOString());
+
+    // The second employee arrives and is never heard from again: after the day is over the departure is unknown.
+    k.setClock("08:10");
+    await k.send(await k.second(w), [k.ev(w)]);
+    k.setClock("18:30");
+    await k.tick(w.tenant.id);
+    const other = ((await list(w)).items as Array<Record<string, unknown>>).find(
+      (r) => r.employeeId === w.second.employee.id,
+    )!;
+    expect(other).toMatchObject({ departureState: "UNKNOWN", departureAt: null });
+
+    const token = await hr(w);
+    const csv = await h
+      .http()
+      .get(`/v1/exports/daily-attendance?format=csv&date=${WORK_DATE}`)
+      .set({ Authorization: `Bearer ${token}` });
+    const header = csv.text.split("\r\n").find((l) => l.includes("Ирсэн цаг"))!;
+    expect(header).toContain("Гарсан цаг");
+    expect(csv.text).toContain("16:30");
+    expect(csv.text).toContain("Тодорхойгүй");
+  });
 });

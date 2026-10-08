@@ -98,6 +98,12 @@ accuracy radii so GPS jitter is not a teleport; the same instant at two places i
 `attestationFlag`, `nextUnavailableStreak` and `reachesEscalation` (five unavailable verdicts in a row); `matchedFixes` and
 `isTraceConflict` (three coincidences at two or more places within 2 minutes and about 1 m). PRD 6.7.
 
+## Departure (attendance/departure.ts)
+
+`deriveDeparture({expectation, events, arrivalAt, now})` → `{state: LEFT | INSIDE | UNKNOWN | null, departureAt}` (PRD 6.4, 23.2). After the
+confirmed arrival the last event of the duty place decides: an EXIT is the departure, an ENTER (back from lunch) means still inside.
+Events count until 4 h after the end of the duty; an hour after the end without an EXIT the state is `UNKNOWN`, never a guess.
+
 ## Location inactive (attendance/inactive.ts)
 
 `isLocationInactive` (PRD 6.5, 6.8): expected, device registered, no arrival yet (PENDING / NO_SHOW), current duty (first 24 h), device silent for

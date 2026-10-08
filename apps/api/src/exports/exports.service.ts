@@ -236,6 +236,7 @@ export class ExportsService {
             { key: "locationName", header: "Ажиллах салбар", width: 1 },
             { key: "statusText", header: "Төлөв", width: 1 },
             { key: "arrival", header: "Ирсэн цаг", width: 1 },
+            { key: "departure", header: "Гарсан цаг", width: 1 },
             { key: "lateMinutes", header: "Хоцорсон (мин)", width: 1 },
             { key: "reason", header: "Шалтгаан", width: 2 },
             { key: "source", header: "Эх сурвалж", width: 1 },
@@ -250,6 +251,14 @@ export class ExportsService {
             locationName: `${(r.locationName as string | null) ?? ""}${r.temporary ? " (түр)" : ""}`,
             statusText: ATTENDANCE_TEXT[String(r.status)] ?? String(r.status),
             arrival: localTime(r.arrivalAt as Date | null, tz),
+            departure:
+              r.departureState === "LEFT"
+                ? localTime(r.departureAt as Date | null, tz)
+                : r.departureState === "INSIDE"
+                  ? "Байгаа"
+                  : r.departureState === "UNKNOWN"
+                    ? "Тодорхойгүй"
+                    : "",
             lateMinutes: r.status === "LATE" ? Number(r.lateMinutes) : "",
             reason: [r.reasonName, r.reasonNote].filter(Boolean).join(": "),
             source: r.source === "CORRECTED" ? "Засварласан" : "Автомат",

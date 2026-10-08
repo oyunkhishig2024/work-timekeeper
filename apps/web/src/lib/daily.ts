@@ -18,6 +18,9 @@ export interface DailyItem {
   temporary: boolean;
   status: Status | "WORKED_OFF_DAY" | "NOT_CONFIGURED";
   arrivalAt: string | null;
+  /** The last time the phone left the duty place after arriving (LEFT); INSIDE while there; UNKNOWN when it never reported leaving. */
+  departureAt: string | null;
+  departureState: "LEFT" | "INSIDE" | "UNKNOWN" | null;
   lateMinutes: number;
   reasonName: string | null;
   reasonNote: string | null;
@@ -164,4 +167,15 @@ export function overlapNames(
   if (!Array.isArray(conflicts)) return [];
   const ids = new Set(conflicts.map((c) => c.employeeId));
   return rows.filter((r) => ids.has(r.employeeId)).map((r) => r.fullName);
+}
+
+/** What the «Гарсан цаг» column shows: the time, «Байгаа», «Тодорхойгүй» (the phone never reported leaving), or nothing. */
+export function departureText(
+  r: Pick<DailyItem, "departureAt" | "departureState">,
+  format: (iso: string | null) => string | null,
+): string {
+  if (r.departureState === "LEFT") return format(r.departureAt) ?? "—";
+  if (r.departureState === "INSIDE") return "Байгаа";
+  if (r.departureState === "UNKNOWN") return "Тодорхойгүй";
+  return "—";
 }

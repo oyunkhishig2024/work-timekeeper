@@ -1,7 +1,7 @@
 # Timekeeper Work
 ## Technical Architecture Document
 
-Version: 0.26 (draft for review)
+Version: 0.27 (draft for review)
 Status: Draft — based on PRD v1.9 (`docs/Timekeeper_Work_PRD.md`)
 Audience: engineering lead, backend / mobile / web developers, QA
 Scope: the **pilot tier** (1–2 tenants, ~4 months, ~640 employees), built by **one full-stack developer** (decision v0.2, see Section 14). The production tier is covered only where a decision now would be expensive to undo later.
@@ -876,4 +876,10 @@ Migrations `0010_time_rules` and `0011_shifts` add the storage for attendance ru
 - `Expectation.cutoff` is the **end of the duty**: `NO_SHOW` appears when the day or shift ends with no arrival and no reason; before that it is `PENDING`. A late arrival is `LATE` however late. `earlyWindowStart` is local midnight of the work date for a standard day and 12 h before the start for a shift, so any arrival before the start is `ON_TIME`.
 - Migration `0022` drops `cutoff_minutes` and `early_window_minutes` from `attendance_rule_version` and `shift_template` (and from the in-use guard of templates); the rules and shift-template APIs refuse the two fields. `attendance_result.expected_cutoff` keeps its name and now stores the end of the duty.
 - Not done: detecting an employee who left early (V2). The 1-minute worker tick is unchanged; it simply flips the day at the end of the duty.
+
+# 42. Implementation Status (departure time, PRD v1.25)
+
+- Domain `deriveDeparture`; migration `0023` adds `departure_at` and `departure_state` to `attendance_result` (derived, rebuilt by recompute). The engine computes it with the arrival on every recompute, so an EXIT event updates the day at once and the worker tick turns an unanswered duty into `UNKNOWN`.
+- The daily list API, the Excel/CSV/PDF export and the `/daily` screen show arrival and departure. A correction by HR changes the status and the arrival, not the departure.
+- Not done: left-early / short-hours detection and reports (V2). The consent text must be reworded and approved before real use (PRD Appendix A, item 4).
 

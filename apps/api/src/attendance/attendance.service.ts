@@ -17,6 +17,7 @@ import {
   type BatchVerdict,
   type Fix,
   applyCorrection,
+  deriveDeparture,
   type AttendanceStatus,
   type Correction,
   type DerivedAttendance,
@@ -602,15 +603,27 @@ export class AttendanceService {
         const expectation = getExpectation(this.loader.inputFor(data, e, date));
         const reasonName = data.reasonOn(e.id, date);
         const reasonNote = data.reasonNoteOn(e.id, date);
+        const counted = mine.filter((r) => r.counted);
         const system = this.derive(
           expectation,
-          mine.filter((r) => r.counted),
+          counted,
           e.primaryLocationId,
           reasonName !== null,
           now,
           data,
           date,
         );
+        // The departure of the confirmed arrival (HR's correction does not move it): the last EXIT of the duty place.
+        const departure = expectation.expected
+          ? deriveDeparture({
+              expectation,
+              events: counted
+                .filter((r) => r.locationId === expectation.locationId)
+                .map((r) => ({ type: r.type, at: r.at })),
+              arrivalAt: system.arrivalAt,
+              now,
+            })
+          : { state: null, departureAt: null };
         // PRD 6.9: a correction is layered over the system value, which is kept next to it.
         const correction = corrections.get(`${e.id}|${date}`) ?? null;
         const derived = applyCorrection(
@@ -639,8 +652,9 @@ export class AttendanceService {
         await tx.query(
           `INSERT INTO attendance_result (tenant_id, employee_id, work_date, status, location_id, expected_start,
                                           expected_cutoff, arrival_at, late_minutes, reason_name, missing, computed_at,
-                                          source, system_status, system_arrival_at, flagged_events, correction_id, reason_note)
-           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)
+                                          source, system_status, system_arrival_at, flagged_events, correction_id, reason_note,
+                                          departure_at, departure_state)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20)
            ON CONFLICT (tenant_id, employee_id, work_date) DO UPDATE SET
              status = EXCLUDED.status, location_id = EXCLUDED.location_id, expected_start = EXCLUDED.expected_start,
              expected_cutoff = EXCLUDED.expected_cutoff, arrival_at = EXCLUDED.arrival_at,
@@ -648,7 +662,8 @@ export class AttendanceService {
              missing = EXCLUDED.missing, computed_at = EXCLUDED.computed_at, source = EXCLUDED.source,
              system_status = EXCLUDED.system_status, system_arrival_at = EXCLUDED.system_arrival_at,
              flagged_events = EXCLUDED.flagged_events, correction_id = EXCLUDED.correction_id,
-             reason_note = EXCLUDED.reason_note`,
+             reason_note = EXCLUDED.reason_note, departure_at = EXCLUDED.departure_at,
+             departure_state = EXCLUDED.departure_state`,
           [
             tenantId,
             e.id,
@@ -670,6 +685,8 @@ export class AttendanceService {
             flagged,
             correction?.id ?? null,
             derived.status === "EXCUSED" ? reasonNote : null,
+            departure.departureAt,
+            departure.state,
           ],
         );
         if (before !== derived.status) {

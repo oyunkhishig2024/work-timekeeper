@@ -3,6 +3,7 @@ import {
   correctionFormProblem,
   dailyHref,
   dailyQuery,
+  departureText,
   isReasonAssignable,
   overlapNames,
   parseDailyState,
@@ -112,5 +113,19 @@ describe("bulk reason assignment helpers", () => {
     expect(overlapNames({ conflicts: [{ employeeId: "b" }] }, rows)).toEqual(["Дорж Сараа"]);
     expect(overlapNames(null, rows)).toEqual([]);
     expect(overlapNames({ conflicts: "x" }, rows)).toEqual([]);
+  });
+});
+
+describe("departureText", () => {
+  const fmt = (iso: string | null) => (iso ? iso.slice(11, 16) : null);
+  it("shows the time, Байгаа, Тодорхойгүй, or a dash", () => {
+    expect(
+      departureText({ departureState: "LEFT", departureAt: "2026-10-06T08:10:00Z" }, fmt),
+    ).toBe("08:10");
+    expect(departureText({ departureState: "INSIDE", departureAt: null }, fmt)).toBe("Байгаа");
+    expect(departureText({ departureState: "UNKNOWN", departureAt: null }, fmt)).toBe(
+      "Тодорхойгүй",
+    );
+    expect(departureText({ departureState: null, departureAt: null }, fmt)).toBe("—");
   });
 });
