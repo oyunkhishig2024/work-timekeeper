@@ -1,0 +1,11 @@
+[Unit]
+Description=Timekeeper backup health check (Nagios style: exit 1 = WARN, 2 = CRIT)
+OnFailure=timekeeper-backup-alert@%n.service
+
+[Service]
+Type=oneshot
+User=postgres
+Group=postgres
+ExecStart=/opt/timekeeper/infra/backup/bin/verify-backups.sh
+# The JSON result is in the journal:  journalctl -u timekeeper-backup-verify -n 1
+TimeoutStartSec=5min

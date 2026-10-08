@@ -1,0 +1,9 @@
+[Unit]
+Description=Timekeeper backup alert for %i
+
+[Service]
+Type=oneshot
+User=postgres
+Group=postgres
+# Sends BACKUP_ALERT_WEBHOOK (from /etc/timekeeper-backup.env) and writes to syslog.
+ExecStart=/opt/timekeeper/infra/backup/bin/alert.sh crit "systemd unit %i failed - see: journalctl -u %i / ажил амжилтгүй"

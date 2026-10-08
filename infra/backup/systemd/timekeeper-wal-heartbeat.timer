@@ -1,0 +1,11 @@
+[Unit]
+Description=WAL heartbeat every 4 minutes
+
+[Timer]
+OnBootSec=2min
+OnUnitActiveSec=4min
+AccuracySec=10s
+Unit=timekeeper-wal-heartbeat.service
+
+[Install]
+WantedBy=timers.target

@@ -1,0 +1,10 @@
+[Unit]
+Description=Run the Timekeeper backup health check every 10 minutes
+
+[Timer]
+OnBootSec=5min
+OnCalendar=*:0/10
+Unit=timekeeper-backup-verify.service
+
+[Install]
+WantedBy=timers.target
