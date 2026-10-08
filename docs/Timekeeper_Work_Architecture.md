@@ -1,7 +1,7 @@
 # Timekeeper Work
 ## Technical Architecture Document
 
-Version: 0.11 (draft for review)
+Version: 0.12 (draft for review)
 Status: Draft — based on PRD v1.9 (`docs/Timekeeper_Work_PRD.md`)
 Audience: engineering lead, backend / mobile / web developers, QA
 Scope: the **pilot tier** (1–2 tenants, ~4 months, ~640 employees), built by **one full-stack developer** (decision v0.2, see Section 14). The production tier is covered only where a decision now would be expensive to undo later.
@@ -784,4 +784,11 @@ Migrations `0010_time_rules` and `0011_shifts` add the storage for attendance ru
 - **Reasons** (migration `0013`, `apps/api/src/reasons`): 15 predefined reasons (`seed_default_reasons`), bulk dated assignments (one reason at a time per employee, open-ended allowed), end early / delete before start, reason report (PRD 11.1); disabling an employee ends their reasons. See `apps/api/src/reasons/README.md`.
 - **Shared QR** (PRD 5, 21.1, v1.11) is for first registration only; `POST /qr/:id/regenerate` replaces a shared QR atomically.
 - Verified by end-to-end tests against PostgreSQL, including mutation checks (boundary of the recompute rule, report clipping, disable cascade, assignment end rules). Still open: roster calendar view, attendance rule version API, holiday import.
+
+# 26. Implementation Status (rules, roster, imports, exports)
+
+- **Attendance rule versions** (`schedule/attendance-rules.service.ts`) share the effective-date timeline helper with the working week (`version-timeline.ts`).
+- **Roster calendar** (`schedule/roster.service.ts`) loads plain data and calls `getExpectation` per employee and date — the single place where rules live — and adds reason clashes.
+- **Tabular I/O** (`src/tabular`): `readTable` (.xlsx via exceljs, or CSV; text-only cells, 2,000 rows) and writers for Excel, CSV (BOM, injection-safe) and PDF (pdfkit, DejaVu). Holiday import (`holiday-import.service.ts`) and the export framework (`src/exports`) use them; the employee Excel import (PRD 12.3) can reuse `readTable`.
+- Exports are generated synchronously (≤ 20,000 rows). Background export jobs and the attendance reports (daily/weekly/monthly/location) are still to come.
 

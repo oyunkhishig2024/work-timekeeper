@@ -1,0 +1,23 @@
+# Report export API (PRD 20)
+
+`GET /v1/exports/:report?format=xlsx|csv|pdf&<filters>` — the same data and filters as on screen. **Excel** is flat and tabular (frozen header,
+filter, for pivoting); **CSV** is UTF-8 with a byte-order mark (Excel opens Cyrillic correctly); **PDF** is print-ready landscape A4 with the
+organization, period and filters, who generated it and when, a repeated table header and page numbers (DejaVu Sans, Cyrillic incl. Ү Ө). Text cells
+that start with `=`, `+`, `-`, `@` are written as text (`'` prefix in CSV), never as formulas.
+
+| `:report`            | Filters                                                                                                                                                                                               |
+| -------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `reason-report`      | `from`, `to` (required, ≤ 367 days), `locationId`, `departmentId` — per reason: distinct employees, employee-days (PRD 11.1)                                                                          |
+| `reason-assignments` | `employeeId`, `reasonId`, `departmentId`, `locationId`, `from`, `to`, `activeOn` — the drill-down list with descriptions                                                                              |
+| `employees`          | `status` (default ACTIVE), `q`, `departmentId`, `locationId`, `scheduleMode`, `rankId`, `positionId`, `consentStatus`, `manualAttendance`, `hasDevice`                                                |
+| `holidays`           | `year` or `from`/`to`, `locationId`                                                                                                                                                                   |
+| `shift-assignments`  | `employeeId`, `from`, `to`                                                                                                                                                                            |
+| `shift-roster`       | `from`, `to` (required, ≤ 62 days), `departmentId`, `locationId`, `employeeId`, `scheduleMode` — one column per date: `08:00-20:00`, `20:00-08:00+1`, `–`, `Баяр`, `!` (reason clash), `*` (override) |
+
+Who: **HR and Org Admin**. A **Manager only if the Org Admin set tenant setting `manager_may_export` to `true`** (default off; otherwise `403`), and then
+only inside their data scope, because the rows come from the same scoped services as the screens. HR with a scope exports only that scope.
+**Every export is audited** (`report.exported`: report, format, filters, row count). An export has at most 20,000 rows (`422 EXPORT_TOO_LARGE`) — it is
+generated synchronously; background export jobs are the next step for big reports.
+
+The daily / weekly / monthly attendance reports and the location summary (PRD 20) need the attendance results and are added with the attendance engine;
+they will use the same `Table` and writers (`src/tabular`).

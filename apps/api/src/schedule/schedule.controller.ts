@@ -9,12 +9,21 @@ import {
   Post,
   Put,
   Query,
+  Req,
+  Res,
 } from "@nestjs/common";
+import type { Request, Response } from "express";
 import { z } from "zod";
+import { ApiError } from "../common/api-error";
+import { CONTENT_TYPES } from "../tabular/table";
+import { toCsv, toXlsx } from "../tabular/write";
 import { isValidIsoDate } from "../common/dates";
 import type { AuthContext, RequestMeta } from "../auth/auth.types";
 import { CurrentAuth, Meta, Roles } from "../auth/decorators";
+import { AttendanceRulesService } from "./attendance-rules.service";
+import { HolidayImportService } from "./holiday-import.service";
 import { HolidaysService } from "./holidays.service";
+import { RosterService } from "./roster.service";
 import { ShiftsService, type TemplateInput } from "./shifts.service";
 import { WorkingWeekService } from "./working-week.service";
 
@@ -207,6 +216,12 @@ const holidayQuery = z.object({
   locationId: id.optional(),
 });
 const deleteHolidayQuery = z.object({ confirmRecompute: bool.optional() });
+const importQuery = z.object({
+  dryRun: bool.default("true"),
+  mode: z.enum(["VALID_ONLY", "ABORT_ON_ERROR"]).default("VALID_ONLY"),
+  confirmRecompute: bool.default("false"),
+  fileName: z.string().trim().max(200).optional(),
+});
 const copyYear = z
   .object({
     fromYear: z.number().int().min(2000).max(2100),
@@ -218,12 +233,56 @@ const copyYear = z
 
 @Controller("holidays")
 export class HolidaysController {
-  constructor(private readonly holidays: HolidaysService) {}
+  constructor(
+    private readonly holidays: HolidaysService,
+    private readonly imports: HolidayImportService,
+  ) {}
 
   @Roles("ORG_ADMIN", "HR", "MANAGER")
   @Get()
   list(@CurrentAuth() auth: AuthContext, @Query() query: unknown) {
     return this.holidays.list(auth, holidayQuery.parse(query));
+  }
+
+  /** Import template (header and two example rows): `?format=xlsx` (default) or `csv`. */
+  @Roles("ORG_ADMIN")
+  @Get("import/template")
+  async importTemplate(
+    @Query() query: unknown,
+    @CurrentAuth() auth: AuthContext,
+    @Res() res: Response,
+  ) {
+    const { format } = z.object({ format: z.enum(["xlsx", "csv"]).default("xlsx") }).parse(query);
+    const table = this.imports.template();
+    const body = format === "csv" ? toCsv(table) : await toXlsx(table, auth.userId, new Date());
+    res.setHeader("Content-Type", CONTENT_TYPES[format]);
+    res.setHeader("Content-Disposition", `attachment; filename="holidays_template.${format}"`);
+    res.send(body);
+  }
+
+  /**
+   * Bulk import (.xlsx or CSV as the raw request body, max 5 MB, 2,000 rows). `dryRun` defaults to true: nothing is
+   * written and the per-row report is returned; send `dryRun=false` to import. `mode`: `VALID_ONLY` (default) or
+   * `ABORT_ON_ERROR`. `confirmRecompute=true` allows holidays that start today or earlier.
+   */
+  @Roles("ORG_ADMIN")
+  @Post("import")
+  @HttpCode(200)
+  importHolidays(
+    @CurrentAuth() auth: AuthContext,
+    @Query() query: unknown,
+    @Req() req: Request,
+    @Meta() meta: RequestMeta,
+  ) {
+    const q = importQuery.parse(query);
+    if (!Buffer.isBuffer(req.body) || req.body.length === 0) {
+      throw new ApiError(
+        415,
+        "UNSUPPORTED_FILE_TYPE",
+        "Send the file as the raw request body (.xlsx or CSV).",
+      );
+    }
+    return this.imports.run(auth, req.body, q, meta);
   }
 
   @Roles("ORG_ADMIN", "HR", "MANAGER")
@@ -556,5 +615,81 @@ export class ShiftRosterController {
     @Meta() meta: RequestMeta,
   ) {
     await this.shifts.deleteOverride(auth, id.parse(overrideId), meta);
+  }
+}
+
+// ---------------------------------------------------------------------------------------------- attendance rules
+
+const rulesFields = {
+  // Late after start + grace (PRD 6.2), no-show after start + cutoff (6.3), minimum stay (6.4), early window (23.2).
+  graceMinutes: z.number().int().min(0).max(240),
+  cutoffMinutes: z.number().int().min(0).max(1440),
+  minStayMinutes: z.number().int().min(1).max(15),
+  earlyWindowMinutes: z.number().int().min(0).max(720),
+};
+const putRules = z
+  .object({
+    locationId: id.nullable().optional(),
+    effectiveFrom: isoDate.optional(),
+    ...rulesFields,
+  })
+  .strict();
+const rulesQuery = z.object({ locationId: id.optional(), asOf: isoDate.optional() });
+
+/** Reading is open to Manager too; the rules are configuration for the Org Admin (PRD 13). */
+@Controller("attendance-rules")
+export class AttendanceRulesController {
+  constructor(private readonly rules: AttendanceRulesService) {}
+
+  @Roles("ORG_ADMIN", "HR", "MANAGER")
+  @Get()
+  get(@CurrentAuth() auth: AuthContext, @Query() query: unknown) {
+    return this.rules.get(auth, rulesQuery.parse(query));
+  }
+
+  @Roles("ORG_ADMIN", "HR", "MANAGER")
+  @Get("versions")
+  versions(@CurrentAuth() auth: AuthContext, @Query() query: unknown) {
+    return this.rules.versions(auth, versionsQuery.parse(query).locationId ?? null);
+  }
+
+  @Roles("ORG_ADMIN")
+  @Put()
+  put(@CurrentAuth() auth: AuthContext, @Body() body: unknown, @Meta() meta: RequestMeta) {
+    return this.rules.put(auth, putRules.parse(body), meta);
+  }
+
+  @Roles("ORG_ADMIN")
+  @Post("inherit")
+  @HttpCode(200)
+  inherit(@CurrentAuth() auth: AuthContext, @Body() body: unknown, @Meta() meta: RequestMeta) {
+    return this.rules.inherit(auth, inheritSchema.parse(body), meta);
+  }
+}
+
+// ---------------------------------------------------------------------------------------------- roster calendar
+
+const rosterQuery = z
+  .object({
+    from: isoDate,
+    to: isoDate,
+    departmentId: id.optional(),
+    locationId: id.optional(),
+    employeeId: id.optional(),
+    scheduleMode: z.enum(["STANDARD", "SHIFT"]).optional(),
+    limit: z.coerce.number().int().min(1).max(500).default(100),
+    offset: z.coerce.number().int().min(0).default(0),
+  })
+  .refine((v) => v.to >= v.from, "to is before from");
+
+/** Employees x dates grid of what is expected (PRD 23.5); Managers see their data scope only. */
+@Controller("shift-roster")
+export class RosterController {
+  constructor(private readonly roster: RosterService) {}
+
+  @Roles("ORG_ADMIN", "HR", "MANAGER")
+  @Get()
+  get(@CurrentAuth() auth: AuthContext, @Query() query: unknown) {
+    return this.roster.roster(auth, rosterQuery.parse(query));
   }
 }

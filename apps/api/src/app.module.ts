@@ -7,6 +7,7 @@ import { ProblemFilter } from "./common/problem.filter";
 import { ConsentModule } from "./consent/consent.module";
 import { DatabaseModule } from "./database/database.module";
 import { DevicesModule } from "./devices/devices.module";
+import { ExportsModule } from "./exports/exports.module";
 import { EmployeesModule } from "./employees/employees.module";
 import { HealthModule } from "./modules/health/health.module";
 import { OrgModule } from "./org/org.module";
@@ -34,6 +35,7 @@ import { UsersModule } from "./users/users.module";
     ConsentModule,
     ScheduleModule,
     ReasonsModule,
+    ExportsModule,
     HealthModule,
   ],
   providers: [{ provide: APP_FILTER, useClass: ProblemFilter }],

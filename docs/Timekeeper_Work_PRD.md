@@ -1,7 +1,7 @@
 # Timekeeper Work
 ## Product Requirements Document (PRD)
 
-Version: 1.12
+Version: 1.13
 Product: Timekeeper Work
 Owner: Onki
 Status: Requirements Specification (pre-development review + CTO review + stakeholder decisions applied)
@@ -1203,6 +1203,7 @@ Added in v1.2 **[v1.2]**:
 | 1.10    | Rank (цол: e.g. Ахлагч … Хурандаа) and Job Position (албан тушаал) are separate employee fields, each effective-dated (12, 22.1); lists of ranks and positions are tenant-defined; dashboard drill-down lists show both. |
 | 1.11    | Shared QR is for first device registration only and may be posted publicly or shown on a screen; a new phone always needs an HR replacement QR (5, 21.1); HR can regenerate a shared QR. |
 | 1.12    | Refinements made while building the APIs: an employee has **one reason at a time** and a reason may be open-ended (11); a reason that has not started can be deleted, a started one is ended (11); a new working week applies from today or later only (14.1); a shift template/pattern in use is replaced by a new version, never edited (23, 22.1); holiday changes reaching today or the past need a recompute confirmation (14.2). |
+| 1.13    | Refinements: holiday import accepts .xlsx or CSV with the 12.3 dry-run / valid-only / abort rules and skips existing holidays (14.2); attendance rule versions are effective-dated per tenant or location with the PRD defaults until saved (13, 6.2–6.4); the roster calendar flags duties that collide with reasons (23.5); exports are Excel, CSV and PDF, audited, with Manager export off by default via tenant setting `manager_may_export` (20). |
 
 ---
 

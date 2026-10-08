@@ -1,4 +1,4 @@
-# Working week, holidays and shifts API (PRD 14, 23, 22.1)
+# Working week, holidays, attendance rules, shifts and roster API (PRD 14, 13, 23, 22.1)
 
 Stores and protects the schedule configuration. **How a date turns into "expected / not expected" is not here**: it is
 `getExpectation` in `packages/domain` (see its README). All routes are under `/v1`; every change is audited in the same
@@ -19,6 +19,15 @@ A new table applies **forward only**: `effectiveFrom` in the past is `400 EFFECT
 it must be after the start of the table in force (`409 EFFECTIVE_DATE_NOT_AFTER_CURRENT`). A change that has not started yet is
 simply replaced by a new one.
 
+## Attendance rules (PRD 6.2–6.4, 13)
+
+`GET /attendance-rules?locationId&asOf`, `GET /attendance-rules/versions?locationId`, `PUT /attendance-rules` (Org Admin),
+`POST /attendance-rules/inherit` — effective-dated like the working week (same timeline helper, `version-timeline.ts`).
+Fields: `graceMinutes` (0–240; late after start + grace), `cutoffMinutes` (0–1440; Ирээгүй after start + cutoff with no arrival and no reason),
+`minStayMinutes` (1–15), `earlyWindowMinutes` (0–720). A location may have its own version (`source: LOCATION`), else the tenant version
+(`TENANT`), else the **PRD defaults 15 / 120 / 3 / 120** (`DEFAULT`, `id: null`) until the first version is saved. New rules apply from today or
+later only; a version that has not started is replaced.
+
 ## Holidays (PRD 14.2)
 
 `GET /holidays?from&to&year&locationId`, `GET /holidays/:id`, `POST`, `PATCH /:id`, `DELETE /:id`, `POST /holidays/copy-year`.
@@ -28,7 +37,14 @@ The system ships **no** holiday dates. A holiday that starts **today or in the p
 and for a delete) changes attendance that exists, so it needs `confirmRecompute: true` (`409 RECOMPUTE_CONFIRMATION_REQUIRED`;
 for DELETE use `?confirmRecompute=true`). The recompute itself comes with the attendance engine.
 `copy-year` `{fromYear, toYear}` copies every holiday of one year to another and skips duplicates (29 Feb → 28 Feb).
-Excel/CSV import (PRD 14.2) is not built yet.
+
+**Import** (`POST /holidays/import`, Org Admin): the raw request body is an `.xlsx` or CSV file (type decided from the content; ≤ 5 MB, ≤ 2,000 rows).
+Columns (Mongolian or English headers): `Нэр | Эхлэх | Дуусах | Төрөл | Салбар | Жил бүр` (`name, from, to, type, locations, repeats`; name and start are required,
+`Салбар` is `all` or location names separated by `,`/`;`). **`dryRun` defaults to true**: nothing is written and the per-row report
+(`OK | WARNING | ERROR` with message codes) is returned; pass `dryRun=false` to import. `mode=VALID_ONLY` (default) or `ABORT_ON_ERROR`
+(`409 IMPORT_HAS_ERRORS` with the report, nothing imported). A holiday whose name and start date already exist is a WARNING and skipped, so
+re-uploading is safe; today/past dates are errors unless `confirmRecompute=true`. Cells are text: `=`, `+`, `-`, `@` are never evaluated.
+`GET /holidays/import/template?format=xlsx|csv` gives a template. Imports are audited (`holiday.imported`).
 
 ## Shift templates and patterns (PRD 23.1)
 
@@ -48,10 +64,16 @@ Excel/CSV import (PRD 14.2) is not built yet.
   `POST /shift-assignments/:id/end` `{toDate}` shortens one; `DELETE` only before it starts (`409 ASSIGNMENT_STARTED`).
 - `GET/POST /shift-overrides`, `DELETE /shift-overrides/:id` — for one date: `ADD` / `SWAP` need a `templateId`, `REMOVE` has none; one per employee and date.
 
+## Roster calendar (PRD 23.5)
+
+`GET /shift-roster?from&to&departmentId&locationId&employeeId&scheduleMode&limit&offset` (≤ 62 days, ≤ 500 employees per page; Managers inside their
+scope) → employees × dates. **Every cell comes from `getExpectation` in `packages/domain`**; the API only loads the inputs (tenant zone, locations,
+working weeks, exceptions, holidays, rule versions with the PRD-default fallback, templates, patterns, the employees' assignments, overrides, temporary
+assignments). A cell: `expected`, `reason` (`HOLIDAY | OFF_DAY | SHIFT_OFF | INACTIVE | NOT_CONFIGURED` + `missing`), `source`, `locationId`, local `start`/`end`
+(`endsNextDay`), `absenceReason` (a reason assignment covers the date), `override` (`ADD|REMOVE|SWAP`) and `conflict` — a planned duty that collides with a
+reason assignment (flagged, PRD 23.5). The response also lists the shift `templates` (names, times) and the total number of `conflicts`.
+
 ## Not done yet (deliberate)
 
-- The **roster calendar view** (PRD 23.5) and conflict flags (shift vs reason / temporary assignment) — they need the expectation function
-  over a date range; build them with the attendance engine.
-- Attendance rule versions (grace, cut-off, minimum stay; table `attendance_rule_version`) have no API yet.
-- Holiday Excel/CSV import with dry run, the 12-month calendar view, and recompute after a holiday change.
+- Roster conflict flags against **temporary location assignments** (the roster already flags reasons); the 12-month holiday calendar view; recompute after a holiday change.
 - A shift template has no validity dates of its own (assignments carry the dates).

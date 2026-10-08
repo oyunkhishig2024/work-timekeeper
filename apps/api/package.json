@@ -25,6 +25,7 @@
     "@nestjs/throttler": "^6.7.1",
     "@node-rs/argon2": "^2.2.2",
     "@timekeeper/domain": "workspace:*",
+    "exceljs": "^4.4.0",
     "express": "^5.2.1",
     "helmet": "^8.3.0",
     "jose": "^5.10.0",

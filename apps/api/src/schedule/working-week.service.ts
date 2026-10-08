@@ -4,6 +4,7 @@ import { Clock } from "../common/clock";
 import { mapDbError } from "../common/db-errors";
 import { tenantToday } from "../common/tenant-today";
 import { DatabaseService, type Db } from "../database/database.service";
+import { makeRoomFrom } from "./version-timeline";
 import { AuditService } from "../audit/audit.service";
 import type { AuthContext, RequestMeta } from "../auth/auth.types";
 
@@ -102,7 +103,7 @@ export class WorkingWeekService {
             "A new working week applies from today or later; past attendance is not rewritten.",
           );
         }
-        await this.makeRoomFrom(tx, locationId, effective, today);
+        await makeRoomFrom(tx, "working_week_version", locationId, effective, today);
         const { rows } = await tx.query<{ id: string }>(
           `INSERT INTO working_week_version (tenant_id, location_id, valid_from, created_by)
            VALUES ($1, $2, $3, $4) RETURNING id`,
@@ -175,7 +176,7 @@ export class WorkingWeekService {
           "The location already uses the default.",
         );
       }
-      await this.makeRoomFrom(tx, input.locationId, effective, today);
+      await makeRoomFrom(tx, "working_week_version", input.locationId, effective, today);
       await tx.query("UPDATE location SET working_week_mode = 'INHERIT' WHERE id = $1", [
         input.locationId,
       ]);
@@ -305,57 +306,5 @@ export class WorkingWeekService {
       [versionId],
     );
     return rows;
-  }
-
-  /**
-   * Prepares the scope's timeline for a new version starting on `effective`: versions that have not started
-   * yet are dropped (they are being replaced), and the one in force ends the day the new one starts.
-   */
-  private async makeRoomFrom(
-    tx: Db,
-    locationId: string | null,
-    effective: string,
-    today: string,
-  ): Promise<void> {
-    await tx.query(
-      "DELETE FROM working_week_version WHERE location_id IS NOT DISTINCT FROM $1 AND valid_from > $2",
-      [locationId, today],
-    );
-    // The version in force pointed at the dropped one (its end date was the dropped start): reopen it.
-    await tx.query(
-      `UPDATE working_week_version SET valid_to = NULL
-        WHERE location_id IS NOT DISTINCT FROM $1 AND valid_to IS NOT NULL AND valid_to > $2`,
-      [locationId, today],
-    );
-    const latest = (
-      await tx.query<VersionRow>(
-        `SELECT id, valid_from::text AS "validFrom", valid_to::text AS "validTo"
-           FROM working_week_version WHERE location_id IS NOT DISTINCT FROM $1
-          ORDER BY valid_from DESC LIMIT 1 FOR UPDATE`,
-        [locationId],
-      )
-    ).rows[0];
-    if (!latest) return;
-    if (latest.validTo === null) {
-      if (effective <= latest.validFrom) {
-        throw new ApiError(
-          409,
-          "EFFECTIVE_DATE_NOT_AFTER_CURRENT",
-          "The effective date must be after the current working week started.",
-          { currentFrom: latest.validFrom },
-        );
-      }
-      await tx.query("UPDATE working_week_version SET valid_to = $2 WHERE id = $1", [
-        latest.id,
-        effective,
-      ]);
-    } else if (effective < latest.validTo) {
-      throw new ApiError(
-        409,
-        "EFFECTIVE_DATE_NOT_AFTER_CURRENT",
-        "The effective date overlaps the previous working week.",
-        { previousUntil: latest.validTo },
-      );
-    }
   }
 }

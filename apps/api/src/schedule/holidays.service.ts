@@ -90,7 +90,7 @@ export class HolidaysService {
     try {
       return await this.db.withTenant(auth.tenantId, async (tx) => {
         await this.assertRecompute(tx, auth, input.fromDate, input.confirmRecompute);
-        const id = await this.insert(tx, auth, input);
+        const id = await this.insertHoliday(tx, auth, input);
         await this.audit.record(tx, {
           tenantId: auth.tenantId,
           action: "holiday.created",
@@ -220,7 +220,7 @@ export class HolidaysService {
           continue;
         }
         await this.assertRecompute(tx, auth, copy.fromDate, input.confirmRecompute);
-        created.push(await this.insert(tx, auth, copy));
+        created.push(await this.insertHoliday(tx, auth, copy));
       }
       await this.audit.record(tx, {
         tenantId: auth.tenantId,
@@ -237,7 +237,7 @@ export class HolidaysService {
 
   // ------------------------------------------------------------------ helpers
 
-  private async insert(tx: Db, auth: AuthContext, h: HolidayInput): Promise<string> {
+  async insertHoliday(tx: Db, auth: AuthContext, h: HolidayInput): Promise<string> {
     const { rows } = await tx.query<{ id: string }>(
       `INSERT INTO holiday (tenant_id, name, from_date, to_date, kind, repeats_yearly, applies_to_all, created_by)
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id`,
