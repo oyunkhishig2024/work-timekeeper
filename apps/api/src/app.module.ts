@@ -13,6 +13,7 @@ import { HealthModule } from "./modules/health/health.module";
 import { OrgModule } from "./org/org.module";
 import { ReasonsModule } from "./reasons/reasons.module";
 import { ScheduleModule } from "./schedule/schedule.module";
+import { SecurityModule } from "./security/security.module";
 import { StorageModule } from "./storage/storage.module";
 import { UsersModule } from "./users/users.module";
 
@@ -24,6 +25,7 @@ import { UsersModule } from "./users/users.module";
 @Module({
   imports: [
     DatabaseModule,
+    SecurityModule,
     AuditModule,
     AccessModule,
     StorageModule,

@@ -1,0 +1,49 @@
+{
+  "_readme": "Source of truth for the Cloudflare WAF custom rules and the rate-limiting rule of Timekeeper Work. Replace api.example.mn / admin.example.mn with the real hostnames and the inline IP list with your own. Apply with infra/cloudflare/apply.sh. Fits the Free plan (5 custom rules, 1 rate-limiting rule: check the current limits on Cloudflare's plan page); more rules need a paid plan. Roll out in 'log' mode first (see docs/security/waf-hostinger-cloudflare.md).",
+  "customRules": [
+    {
+      "ref": "block-bad-requests",
+      "description": "Block attack probes, scanner tools and impossible methods",
+      "action": "block",
+      "enabled": true,
+      "expression": "(http.request.uri.path contains \"/.env\") or (http.request.uri.path contains \"/.git\") or (http.request.uri.path contains \"/.aws\") or (http.request.uri.path contains \"/wp-\") or (http.request.uri.path contains \"/xmlrpc\") or (http.request.uri.path contains \"phpmyadmin\") or (http.request.uri.path contains \"/cgi-bin\") or (http.request.uri.path contains \"/actuator\") or (http.request.uri.path contains \"/server-status\") or (http.request.uri.path contains \"../\") or (http.request.uri.path contains \"%2e%2e\") or (http.request.uri.path contains \"%00\") or (ends_with(http.request.uri.path, \".php\")) or (ends_with(http.request.uri.path, \".asp\")) or (ends_with(http.request.uri.path, \".aspx\")) or (ends_with(http.request.uri.path, \".jsp\")) or (lower(http.user_agent) contains \"sqlmap\") or (lower(http.user_agent) contains \"nikto\") or (lower(http.user_agent) contains \"nmap\") or (lower(http.user_agent) contains \"masscan\") or (lower(http.user_agent) contains \"acunetix\") or (lower(http.user_agent) contains \"wpscan\") or (lower(http.user_agent) contains \"gobuster\") or (lower(http.user_agent) contains \"dirbuster\") or (lower(http.user_agent) contains \"nuclei\") or (http.user_agent eq \"\") or (not http.request.method in {\"GET\" \"POST\" \"PUT\" \"PATCH\" \"DELETE\" \"OPTIONS\" \"HEAD\"})"
+    },
+    {
+      "ref": "api-only-v1",
+      "description": "API host answers only under /v1/",
+      "action": "block",
+      "enabled": true,
+      "expression": "(http.host eq \"api.example.mn\") and (not starts_with(http.request.uri.path, \"/v1/\"))"
+    },
+    {
+      "ref": "emergency-api-mongolia-only",
+      "description": "EMERGENCY (off by default): API host only for Mongolia and trusted IPs",
+      "action": "block",
+      "enabled": false,
+      "expression": "(http.host eq \"api.example.mn\") and (not ip.src.country in {\"MN\"}) and (not ip.src in {198.51.100.10 198.51.100.11})"
+    },
+    {
+      "ref": "emergency-admin-challenge",
+      "description": "EMERGENCY (off by default): challenge every browser on the admin host",
+      "action": "managed_challenge",
+      "enabled": false,
+      "expression": "(http.host eq \"admin.example.mn\")"
+    }
+  ],
+  "rateLimitRules": [
+    {
+      "ref": "auth-endpoints",
+      "description": "Per-IP limit on the sign-in endpoints",
+      "action": "block",
+      "enabled": true,
+      "expression": "(http.host eq \"api.example.mn\") and starts_with(http.request.uri.path, \"/v1/auth/\")",
+      "ratelimit": {
+        "characteristics": ["ip.src"],
+        "period": 10,
+        "requests_per_period": 15,
+        "mitigation_timeout": 10
+      },
+      "_paidPlanValues": "period 60, requests_per_period 20, mitigation_timeout 600 (10 minutes), characteristics [\"cf.colo.id\", \"ip.src\"]"
+    }
+  ]
+}

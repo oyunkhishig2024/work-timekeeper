@@ -16,6 +16,7 @@
     "db:rollback": "node-pg-migrate -m db/migrations --ignore-pattern \"(README\\\\.md|\\\\..*)\" --no-verbose down",
     "db:seed": "psql \"$DATABASE_URL\" -v ON_ERROR_STOP=1 -f db/seed/dev-seed.sql",
     "cli:create-user": "node dist/cli/create-user.js",
+    "cli:ip-blocks": "node dist/cli/ip-blocks.js",
     "cli:load-consent-text": "node dist/cli/load-consent-text.js"
   },
   "dependencies": {

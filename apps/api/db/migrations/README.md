@@ -19,6 +19,7 @@ SQL-first migrations run by [`node-pg-migrate`](https://github.com/salsita/node-
 | `0012_rank_position`                  | `job_rank` (ordered), `job_position`, `employee_rank_assignment`, `employee_position_assignment` (separate, effective-dated, no overlaps)                |
 | `0013_reasons`                        | `absence_reason` (15 predefined, `seed_default_reasons()`), `reason_assignment` (dated, one per employee at a time)                                      |
 | `0014_names_and_free_titles`          | `employee.last_name` / `first_name` (kept in step with `full_name` by a trigger); rank and position histories hold free text (`title`), catalogs dropped |
+| `0015_ip_block`                       | `ip_block`: temporary IP bans from the adaptive abuse protection (service-wide, platform role only; survives restarts, operator can lift)                |
 
 Still to come (in this order of need): device events + heartbeats, `attendance_day` + corrections + anomalies + `daily_summary`, export jobs.
 

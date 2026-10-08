@@ -1,7 +1,7 @@
 # Timekeeper Work
 ## Technical Architecture Document
 
-Version: 0.12 (draft for review)
+Version: 0.13 (draft for review)
 Status: Draft — based on PRD v1.9 (`docs/Timekeeper_Work_PRD.md`)
 Audience: engineering lead, backend / mobile / web developers, QA
 Scope: the **pilot tier** (1–2 tenants, ~4 months, ~640 employees), built by **one full-stack developer** (decision v0.2, see Section 14). The production tier is covered only where a decision now would be expensive to undo later.
@@ -791,4 +791,11 @@ Migrations `0010_time_rules` and `0011_shifts` add the storage for attendance ru
 - **Roster calendar** (`schedule/roster.service.ts`) loads plain data and calls `getExpectation` per employee and date — the single place where rules live — and adds reason clashes.
 - **Tabular I/O** (`src/tabular`): `readTable` (.xlsx via exceljs, or CSV; text-only cells, 2,000 rows) and writers for Excel, CSV (BOM, injection-safe) and PDF (pdfkit, DejaVu). Holiday import (`holiday-import.service.ts`) and the export framework (`src/exports`) use them; the employee Excel import (PRD 12.3) can reuse `readTable`.
 - Exports are generated synchronously (≤ 20,000 rows). Background export jobs and the attendance reports (daily/weekly/monthly/location) are still to come.
+
+# 27. Implementation Status (traffic protection)
+
+- **Layers:** Cloudflare (DNS proxy: DDoS, WAF, rate limits) → VPS firewall / Tunnel (origin reachable only through Cloudflare) → nginx (real client IP, coarse limits, slow-client protection) → API adaptive protection. Configuration as files: `infra/cloudflare`, `infra/nginx`, `infra/hostinger`; documents in `docs/security/`.
+- **Adaptive protection** (`apps/api/src/security`, migration `0015_ip_block`): per-IP score from behaviour (probing, credential stuffing, enumeration, scanners, floods), decaying; THROTTLE → temporary BAN (15 min, 1 h, 6 h, 24 h), valid access tokens exempt from bans so shared mobile-network addresses keep working; bans persisted and synced across instances; operator CLI `ip-blocks`; attached before everything (`applyAbuseProtection`) so unknown URLs and probes outside `/v1` are seen.
+- **`TRUST_PROXY`** (number of proxies or trusted addresses) decides which X-Forwarded-For entry is the client; it must match the deployment.
+- **Open:** the Cloudflare and nginx files were written without access to the real accounts or servers and must be applied in log mode first; rules are sized for the Cloudflare Free plan (limits to be re-checked); Hostinger VPS has no managed PostgreSQL/PITR, so backups and restore rehearsal are to be built on the VPS (PRD 25.2); per-process scores (Redis if the API is scaled out).
 

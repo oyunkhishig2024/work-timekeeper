@@ -25,6 +25,17 @@ export class DatabaseService implements OnModuleDestroy {
     });
   }
 
+  /**
+   * For service-wide tables that belong to no tenant (for example the IP block list). Runs as the `platform_admin`
+   * role (no BYPASSRLS; it only has the grants those tables give it), never as a tenant session.
+   */
+  async asPlatform<T>(fn: (db: Db) => Promise<T>): Promise<T> {
+    return this.transaction(async (db) => {
+      await db.query("SET LOCAL ROLE platform_admin");
+      return fn(db);
+    });
+  }
+
   /** Resolves an organization code to a tenant id before any tenant context exists (login). */
   async resolveTenant(orgCode: string): Promise<string | null> {
     return this.transaction(async (db) => {

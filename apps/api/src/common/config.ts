@@ -37,6 +37,29 @@ const envSchema = z.object({
   STORAGE_DIR: z.string().default("./storage"),
   /** Default QR lifetimes in hours (PRD 5: configurable; PRD 21.1: replacement QR 24 h). */
   QR_ONBOARDING_HOURS: z.coerce.number().int().min(1).max(720).default(72),
+  /**
+   * How many reverse proxies sit in front of the API (a number of hops, e.g. 1 for nginx) or a comma-separated list of
+   * trusted proxy addresses / CIDRs / keywords (`loopback`, `uniquelocal`). Decides which X-Forwarded-For entry is the
+   * client IP, which rate limiting and bans depend on: too high lets a client spoof its IP, too low sees only the proxy.
+   */
+  TRUST_PROXY: z.string().default("1"),
+  /** Adaptive abuse protection (behaviour-based IP throttle / temporary ban). */
+  ABUSE_PROTECTION: z.enum(["on", "off"]).default("on"),
+  /** Comma-separated IPs / CIDRs that are never throttled or banned (office, monitoring, load tests). */
+  ABUSE_ALLOWLIST: z.string().default(""),
+  /** Loopback is never banned (health checks, local tools); turn off only for tests of the protection itself. */
+  ABUSE_ALLOW_LOOPBACK: z
+    .enum(["true", "false"])
+    .default("true")
+    .transform((v) => v === "true"),
+  /** Score at which an IP is throttled / banned (see apps/api/src/security/README.md). */
+  ABUSE_THROTTLE_SCORE: z.coerce.number().min(1).default(40),
+  ABUSE_BAN_SCORE: z.coerce.number().min(2).default(100),
+  /** Anonymous requests per minute an IP may make while throttled. */
+  ABUSE_THROTTLE_PER_MINUTE: z.coerce.number().int().min(1).default(20),
+  /** Anonymous requests per 10 seconds that count as a flood signal, and the cap for authenticated traffic from one IP. */
+  ABUSE_ANON_BURST_PER_10S: z.coerce.number().int().min(5).default(100),
+  ABUSE_AUTH_BURST_PER_10S: z.coerce.number().int().min(10).default(400),
   QR_REPLACEMENT_HOURS: z.coerce.number().int().min(1).max(720).default(24),
 });
 

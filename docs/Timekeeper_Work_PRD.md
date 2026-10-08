@@ -1,7 +1,7 @@
 # Timekeeper Work
 ## Product Requirements Document (PRD)
 
-Version: 1.14
+Version: 1.15
 Product: Timekeeper Work
 Owner: Onki
 Status: Requirements Specification (pre-development review + CTO review + stakeholder decisions applied)
@@ -1159,6 +1159,7 @@ The 310 organization prepares compliant phones for employees before the pilot. R
 ## 25.6 Security Operations
 - Dependency and container vulnerability scanning in CI; annual third-party penetration test and an immediate one before launch.
 - Documented incident-response and breach-notification runbook (15.3); audit of privileged (Super Admin) access.
+- **Traffic protection [v1.15]:** a web application firewall in front of the whole stack (Cloudflare in front of the Hosting VPS) with managed and custom rules and rate limits; the server accepts web traffic only from it; behaviour-based adaptive rate limiting in the API that escalates from throttling to temporary IP bans (signed-in users are not punished for others on a shared address); and a written **DDoS response plan** (roles, notification tree, switches, failover) rehearsed every quarter. Files: `docs/security/`.
 - Support access to tenant data requires tenant approval and is time-limited and logged.
 
 ---
@@ -1206,6 +1207,7 @@ Added in v1.2 **[v1.2]**:
 | 1.12    | Refinements made while building the APIs: an employee has **one reason at a time** and a reason may be open-ended (11); a reason that has not started can be deleted, a started one is ended (11); a new working week applies from today or later only (14.1); a shift template/pattern in use is replaced by a new version, never edited (23, 22.1); holiday changes reaching today or the past need a recompute confirmation (14.2). |
 | 1.13    | Refinements: holiday import accepts .xlsx or CSV with the 12.3 dry-run / valid-only / abort rules and skips existing holidays (14.2); attendance rule versions are effective-dated per tenant or location with the PRD defaults until saved (13, 6.2–6.4); the roster calendar flags duties that collide with reasons (23.5); exports are Excel, CSV and PDF, audited, with Manager export off by default via tenant setting `manager_may_export` (20). |
 | 1.14    | Employee code is system-assigned (16 digits: date + 8 random) and is the default login name; Овог and Нэр are separate fields; rank (цол) and position (албан тушаал) are free text instead of tenant lists (12, 22.1). Excel import files carry no code column. |
+| 1.15    | Security operations: WAF in front of the stack, adaptive IP throttling/ban in the API, DDoS response plan (25.6); hosting assumed to be a Hostinger VPS behind Cloudflare for the pilot (provider choice in the Architecture is still open for managed PostgreSQL with PITR). |
 
 ---
 

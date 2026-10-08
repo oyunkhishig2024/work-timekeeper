@@ -3,6 +3,7 @@ import { Test } from "@nestjs/testing";
 import request from "supertest";
 import type { Client } from "pg";
 import { AppModule } from "../../src/app.module";
+import { applyAbuseProtection } from "../../src/security/apply";
 import { Clock } from "../../src/common/clock";
 import { PasswordService } from "../../src/auth/password.service";
 import { SecretBox } from "../../src/auth/secret-box";
@@ -30,7 +31,9 @@ export interface Harness {
   close: () => Promise<void>;
 }
 
-export async function startHarness(): Promise<Harness> {
+export async function startHarness(
+  options: { trustProxy?: number | string | string[] } = {},
+): Promise<Harness> {
   const clock = new TestClock();
   const module = await Test.createTestingModule({ imports: [AppModule] })
     .overrideProvider(Clock)
@@ -38,6 +41,14 @@ export async function startHarness(): Promise<Harness> {
     .compile();
   const app = module.createNestApplication();
   app.setGlobalPrefix("v1");
+  if (options.trustProxy !== undefined) {
+    // Tests send X-Forwarded-For to play different client addresses; the test client itself is the loopback proxy.
+    (app.getHttpAdapter().getInstance() as { set: (k: string, v: unknown) => void }).set(
+      "trust proxy",
+      options.trustProxy,
+    );
+  }
+  applyAbuseProtection(app);
   await app.init();
   const owner = await connectOwner();
   return {
