@@ -123,7 +123,7 @@ describe.skipIf(!hasDb)("adaptive abuse protection (throttle -> temporary ban)",
   it("scanner user agents are recorded", async () => {
     const ip = freshIp();
     await get(ip, "/v1/health", { "User-Agent": "sqlmap/1.7" });
-    const state = h.app.get(AbuseService).detector.inspect(ip, h.clock.now().getTime());
+    const state = await h.app.get(AbuseService).detector.inspect(ip, h.clock.now().getTime());
     expect(state?.score).toBeGreaterThan(20);
     expect((await get(freshIp(), "/v1/health", { "User-Agent": "Mozilla/5.0" })).status).toBe(200);
   });
@@ -181,7 +181,7 @@ describe.skipIf(!hasDb)("adaptive abuse protection (throttle -> temporary ban)",
     expect(Number(refused.headers["retry-after"])).toBeGreaterThan(3500);
     await new Promise((r) => setTimeout(r, 100)); // the row is written in the background
     const rows = await h.owner.query(
-      "SELECT strike FROM ip_block WHERE ip = $1::inet ORDER BY created_at",
+      "SELECT strike FROM ip_block WHERE ip = $1::inet ORDER BY strike",
       [ip],
     );
     expect(rows.rows.map((r) => r.strike)).toEqual([1, 2]);

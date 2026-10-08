@@ -1,4 +1,11 @@
 import { BlockList, isIP } from "node:net";
+import {
+  type AbuseStateStore,
+  type IpState,
+  MemoryStateStore,
+  newIpState,
+  type Step,
+} from "./abuse-state";
 
 /**
  * Behaviour-based abuse detection for client IPs. It judges WHAT an address does, not only how much: failed logins
@@ -10,6 +17,11 @@ import { BlockList, isIP } from "node:net";
  * Escalation: NORMAL -> THROTTLE (anonymous requests limited; authenticated traffic untouched) -> BLOCK (temporary
  * ban: anonymous requests refused with Retry-After; requests with a valid access token still pass). Repeat offenders
  * get longer bans (15 min, 1 h, 6 h, 24 h). Pure logic with an injected clock; persistence and HTTP are elsewhere.
+ *
+ * The rules below are written once, as steps `(state, event, now) -> new state`. WHERE the state lives is an
+ * `AbuseStateStore`: process memory (default) or Redis shared by several API instances (abuse-redis.ts). A step is
+ * applied atomically by the store, may be run again by it (so it has no side effects), and escalations are announced
+ * only after the store has committed the step.
  */
 
 export type Signal =
@@ -109,43 +121,292 @@ const DISTINCT_PATHS_FOR_ENUMERATION = 15;
 const BUCKET_MS = 10_000;
 const SUSTAINED_BUCKETS = 3;
 
-interface IpState {
-  score: number;
-  scoreAt: number;
-  lastSeen: number;
-  blockedUntil: number;
-  /** End times of recent bans: a strike is remembered for `strikeMemoryMinutes` after its ban ended. */
-  bans: number[];
-  /** Per-signal counts since the state was created (shown in the audit trail of a ban). */
-  counts: Record<string, number>;
-  usernames: Map<string, number>;
-  paths: Map<string, number>;
-  /** Timestamps of anonymous requests in the last minute (only kept while needed). */
-  anonRecent: number[];
-  anonBucket: number;
-  anonBucketCount: number;
-  anonBucketFlagged: boolean;
-  anonBurstStreak: number;
-  authBucket: number;
-  authBucketCount: number;
-  stuffingAt: number;
-  enumerationAt: number;
-  scannerAt: number;
-  wasThrottled: boolean;
+/** What a step needs besides the state: the options, and where it announces escalations (emitted after commit). */
+interface Ctx {
+  opts: DetectorOptions;
+  events: Escalation[];
 }
 
+// ------------------------------------------------------------------ the rules (state, event, now) -> state
+
+function levelOf(c: Ctx, state: IpState, now: number): Level {
+  if (state.blockedUntil > now) return "BLOCK";
+  decay(c.opts, state, now);
+  return state.score >= c.opts.throttleScore ? "THROTTLE" : "NORMAL";
+}
+
+function decay(opts: DetectorOptions, state: IpState, now: number): void {
+  if (now <= state.scoreAt) return;
+  const halfLives = (now - state.scoreAt) / (opts.halfLifeMinutes * 60_000);
+  state.score *= Math.pow(0.5, halfLives);
+  if (state.score < 0.05) state.score = 0;
+  state.scoreAt = now;
+}
+
+function recentBans(opts: DetectorOptions, state: IpState, now: number): number[] {
+  // Strikes are forgotten after a clean stretch counted from the END of the ban (a 24 h ban is not "old" the moment it ends).
+  return state.bans.filter((end) => now - end < opts.strikeMemoryMinutes * 60_000);
+}
+
+function add(
+  c: Ctx,
+  ip: string,
+  state: IpState,
+  signal: string,
+  points: number,
+  now: number,
+): void {
+  decay(c.opts, state, now);
+  state.counts[signal] = (state.counts[signal] ?? 0) + 1;
+  if (state.blockedUntil > now) return; // already banned: points would only prolong a decision already taken
+  const before = levelOf(c, state, now);
+  state.score = Math.max(0, state.score + points);
+  if (state.score >= c.opts.banScore) {
+    ban(c, ip, state, signal, now);
+  } else if (before === "NORMAL" && state.score >= c.opts.throttleScore) {
+    state.wasThrottled = true;
+    c.events.push({
+      type: "THROTTLE",
+      ip,
+      score: Math.round(state.score),
+      strike: recentBans(c.opts, state, now).length,
+      until: 0,
+      reason: signal,
+      signals: { ...state.counts },
+    });
+  }
+}
+
+function ban(c: Ctx, ip: string, state: IpState, reason: string, now: number): void {
+  const recent = recentBans(c.opts, state, now);
+  const strike = recent.length + 1;
+  const minutes = c.opts.banMinutes[Math.min(strike, c.opts.banMinutes.length) - 1] ?? 15;
+  state.blockedUntil = now + minutes * 60_000;
+  state.bans = [...recent, state.blockedUntil];
+  const score = state.score;
+  state.score = c.opts.scoreAfterBan;
+  state.scoreAt = now;
+  state.anonRecent = [];
+  c.events.push({
+    type: "BAN",
+    ip,
+    score: Math.round(score),
+    strike,
+    until: state.blockedUntil,
+    reason,
+    signals: { ...state.counts },
+  });
+}
+
+/** The state of an address, created on first use. */
+function stateFor(current: IpState | null, now: number): IpState {
+  const state = current ?? newIpState(now);
+  state.lastSeen = now;
+  return state;
+}
+
+/** `check`: what to do with a request. Returns whether the state must be stored (it changed in a way that matters). */
+function checkRule(
+  c: Ctx,
+  state: IpState | null,
+  authenticated: boolean,
+  now: number,
+): { decision: Decision; dirty: boolean } {
+  if (!state) return { decision: allow("NORMAL"), dirty: false };
+  state.lastSeen = now;
+  const level = levelOf(c, state, now);
+
+  if (authenticated) {
+    // Valid tokens pass even from a banned address; only an absurd burst is slowed (never counted as abuse).
+    const bucket = Math.floor(now / BUCKET_MS);
+    if (state.authBucket !== bucket) {
+      state.authBucket = bucket;
+      state.authBucketCount = 0;
+    }
+    state.authBucketCount += 1;
+    if (state.authBucketCount > c.opts.authBurstPer10s) {
+      return {
+        decision: {
+          action: "throttle",
+          level,
+          retryAfterSeconds: 10,
+          reason: "AUTHENTICATED_BURST",
+        },
+        dirty: true,
+      };
+    }
+    return { decision: allow(level), dirty: true };
+  }
+
+  if (level === "BLOCK") {
+    return {
+      decision: {
+        action: "block",
+        level,
+        retryAfterSeconds: Math.max(1, Math.ceil((state.blockedUntil - now) / 1000)),
+        reason: "TEMPORARILY_BLOCKED",
+      },
+      dirty: false,
+    };
+  }
+  let dirty = false;
+  if (level === "THROTTLE") {
+    state.anonRecent = state.anonRecent.filter((t) => now - t < 60_000);
+    dirty = true;
+    if (state.anonRecent.length >= c.opts.throttlePerMinute) {
+      const oldest = state.anonRecent[0] ?? now;
+      return {
+        decision: {
+          action: "throttle",
+          level,
+          retryAfterSeconds: Math.max(1, Math.ceil((oldest + 60_000 - now) / 1000)),
+          reason: "THROTTLED",
+        },
+        dirty,
+      };
+    }
+    state.anonRecent.push(now);
+  }
+  return { decision: allow(level), dirty };
+}
+
+/** `noteRequest`: volume of anonymous requests. Returns the state to store, or null when nothing is to be kept. */
+function noteRule(
+  c: Ctx,
+  ip: string,
+  current: IpState | null,
+  authenticated: boolean,
+  now: number,
+): IpState | null {
+  if (authenticated) return null;
+  const state = stateFor(current, now);
+  const bucket = Math.floor(now / BUCKET_MS);
+  if (state.anonBucket !== bucket) {
+    // A new bucket: was the previous one part of an unbroken flood?
+    if (state.anonBucket !== 0 && !(state.anonBucketFlagged && bucket === state.anonBucket + 1)) {
+      state.anonBurstStreak = 0;
+    }
+    state.anonBucket = bucket;
+    state.anonBucketCount = 0;
+    state.anonBucketFlagged = false;
+  }
+  state.anonBucketCount += 1;
+  if (!state.anonBucketFlagged && state.anonBucketCount > c.opts.anonBurstPer10s) {
+    state.anonBucketFlagged = true;
+    state.anonBurstStreak += 1;
+    add(c, ip, state, "FLOOD", WEIGHTS.FLOOD_BUCKET, now);
+    if (state.anonBurstStreak === SUSTAINED_BUCKETS) {
+      add(c, ip, state, "FLOOD_SUSTAINED", WEIGHTS.FLOOD_SUSTAINED, now);
+    }
+  }
+  return state;
+}
+
+/** `record`: a finished request with a notable outcome. */
+function recordRule(
+  c: Ctx,
+  ip: string,
+  current: IpState | null,
+  signal: Signal,
+  now: number,
+): IpState {
+  const state = stateFor(current, now);
+  switch (signal.type) {
+    case "LOGIN_FAILURE": {
+      add(c, ip, state, "LOGIN_FAILURE", WEIGHTS.LOGIN_FAILURE, now);
+      if (signal.username) {
+        state.usernames.set(signal.username.toLowerCase(), now);
+        for (const [name, at] of state.usernames)
+          if (now - at > USERNAME_WINDOW_MS) state.usernames.delete(name);
+        if (
+          state.usernames.size >= USERNAMES_FOR_STUFFING &&
+          now - state.stuffingAt > USERNAME_WINDOW_MS
+        ) {
+          state.stuffingAt = now;
+          add(c, ip, state, "CREDENTIAL_STUFFING", WEIGHTS.CREDENTIAL_STUFFING, now);
+        }
+      }
+      break;
+    }
+    case "UNAUTHORIZED":
+      add(c, ip, state, "UNAUTHORIZED", WEIGHTS.UNAUTHORIZED, now);
+      break;
+    case "HONEYPOT":
+      add(c, ip, state, "HONEYPOT", WEIGHTS.HONEYPOT, now);
+      break;
+    case "NOT_FOUND": {
+      // The same missing URL again and again is a broken link; many different ones is enumeration.
+      const fresh =
+        !state.paths.has(signal.path) || now - (state.paths.get(signal.path) ?? 0) > PATH_WINDOW_MS;
+      state.paths.set(signal.path, now);
+      for (const [path, at] of state.paths) if (now - at > PATH_WINDOW_MS) state.paths.delete(path);
+      if (fresh) add(c, ip, state, "NOT_FOUND", WEIGHTS.NOT_FOUND, now);
+      if (
+        state.paths.size >= DISTINCT_PATHS_FOR_ENUMERATION &&
+        now - state.enumerationAt > PATH_WINDOW_MS
+      ) {
+        state.enumerationAt = now;
+        add(c, ip, state, "PATH_ENUMERATION", WEIGHTS.PATH_ENUMERATION, now);
+      }
+      break;
+    }
+    case "BAD_REQUEST":
+      add(c, ip, state, "BAD_REQUEST", WEIGHTS.BAD_REQUEST, now);
+      break;
+    case "SCANNER_USER_AGENT":
+      if (now - state.scannerAt > 3_600_000) {
+        state.scannerAt = now;
+        add(c, ip, state, "SCANNER_USER_AGENT", WEIGHTS.SCANNER_USER_AGENT, now);
+      }
+      break;
+    case "THROTTLED_HIT":
+      add(c, ip, state, "THROTTLED_HIT", WEIGHTS.THROTTLED_HIT, now);
+      break;
+  }
+  return state;
+}
+
+/** How long (ms) a state must be remembered: the score fades in ~2 h, a strike counts for a week after its ban ended. */
+export function ttlMsFor(opts: DetectorOptions, state: IpState, now: number): number {
+  const base = 2 * 3_600_000;
+  const lastBanEnd = state.bans.reduce((m, end) => Math.max(m, end), 0);
+  const strikes = lastBanEnd > 0 ? lastBanEnd + opts.strikeMemoryMinutes * 60_000 - now : 0;
+  return Math.ceil(Math.max(base, strikes, state.blockedUntil - now));
+}
+
+const settle = (opts: DetectorOptions, state: IpState, now: number): void =>
+  decay(opts, state, now);
+
+const forgettable = (opts: DetectorOptions, s: IpState, now: number): boolean => {
+  const idle = now - s.lastSeen > 10 * 60_000;
+  const harmless = s.score < 1 && s.blockedUntil <= now && recentBans(opts, s, now).length === 0;
+  return idle && harmless;
+};
+
+/** The in-process store with this detector's eviction rules (the default, and the fallback when Redis is unavailable). */
+export function createMemoryStore(options: Partial<DetectorOptions> = {}): MemoryStateStore {
+  const opts = { ...DEFAULT_OPTIONS, ...options };
+  return new MemoryStateStore({
+    maxTracked: opts.maxTrackedIps,
+    settle: (s, now) => settle(opts, s, now),
+    forgettable: (s, now) => forgettable(opts, s, now),
+  });
+}
+
+// ------------------------------------------------------------------ the detector
+
 export class AbuseDetector {
-  private readonly states = new Map<string, IpState>();
   private readonly allow = new BlockList();
   private readonly opts: DetectorOptions;
-  /** Blocks announced by `loadBlock` (operator or other instance) rather than decided here. */
-  private readonly external = new Set<string>();
+  readonly store: AbuseStateStore;
 
   constructor(
     options: Partial<DetectorOptions> = {},
     private readonly onEscalate: (event: Escalation) => void = () => undefined,
+    store?: AbuseStateStore,
   ) {
     this.opts = { ...DEFAULT_OPTIONS, ...options };
+    this.store = store ?? createMemoryStore(options);
     for (const entry of this.opts.allowlist) this.addAllow(entry);
     if (this.opts.allowLoopback) {
       this.allow.addSubnet("127.0.0.0", 8, "ipv4");
@@ -156,311 +417,154 @@ export class AbuseDetector {
   // ------------------------------------------------------------------ before the request
 
   /** Decide what to do with a request from `ip`. `authenticated` means a valid access token was presented. */
-  check(ip: string, authenticated: boolean, now: number): Decision {
+  async check(ip: string, authenticated: boolean, now: number): Promise<Decision> {
     const key = normalize(ip);
     if (this.isAllowed(key)) return allow("NORMAL");
-    const state = this.states.get(key);
-    if (!state) return allow("NORMAL");
-    state.lastSeen = now;
-    const level = this.levelOf(state, now);
+    return this.apply(key, now, (current, c) => {
+      const { decision, dirty } = checkRule(c, current, authenticated, now);
+      return { result: decision, ...(dirty && current ? { state: current } : {}) };
+    });
+  }
 
-    if (authenticated) {
-      // Valid tokens pass even from a banned address; only an absurd burst is slowed (never counted as abuse).
-      const bucket = Math.floor(now / BUCKET_MS);
-      if (state.authBucket !== bucket) {
-        state.authBucket = bucket;
-        state.authBucketCount = 0;
-      }
-      state.authBucketCount += 1;
-      if (state.authBucketCount > this.opts.authBurstPer10s) {
-        return { action: "throttle", level, retryAfterSeconds: 10, reason: "AUTHENTICATED_BURST" };
-      }
-      return allow(level);
-    }
+  /** A request arrived from `ip` (volume). Anonymous floods add points. */
+  async noteRequest(ip: string, authenticated: boolean, now: number): Promise<void> {
+    const key = normalize(ip);
+    if (this.isAllowed(key) || authenticated) return;
+    await this.apply(key, now, (current, c) => ({
+      result: undefined,
+      state: noteRule(c, key, current, false, now) ?? undefined,
+    }));
+  }
 
-    if (level === "BLOCK") {
-      return {
-        action: "block",
-        level,
-        retryAfterSeconds: Math.max(1, Math.ceil((state.blockedUntil - now) / 1000)),
-        reason: "TEMPORARILY_BLOCKED",
-      };
-    }
-    if (level === "THROTTLE") {
-      state.anonRecent = state.anonRecent.filter((t) => now - t < 60_000);
-      if (state.anonRecent.length >= this.opts.throttlePerMinute) {
-        const oldest = state.anonRecent[0] ?? now;
-        return {
-          action: "throttle",
-          level,
-          retryAfterSeconds: Math.max(1, Math.ceil((oldest + 60_000 - now) / 1000)),
-          reason: "THROTTLED",
-        };
+  /**
+   * `check` + `noteRequest` (+ `THROTTLED_HIT` when an anonymous request is refused) as ONE atomic step: what the
+   * middleware does for every request, in a single round trip to a shared store.
+   */
+  async admit(ip: string, authenticated: boolean, now: number): Promise<Decision> {
+    const key = normalize(ip);
+    if (this.isAllowed(key)) return allow("NORMAL");
+    return this.apply(key, now, (current, c) => {
+      const { decision, dirty } = checkRule(c, current, authenticated, now);
+      let state = current;
+      let changed = dirty && current !== null;
+      if (!authenticated) {
+        state = noteRule(c, key, current, false, now);
+        changed = true;
+        if (decision.action !== "allow")
+          state = recordRule(c, key, state, { type: "THROTTLED_HIT" }, now);
       }
-      state.anonRecent.push(now);
-    }
-    return allow(level);
+      return { result: decision, ...(changed && state ? { state } : {}) };
+    });
   }
 
   // ------------------------------------------------------------------ after the request
 
-  /** A request arrived from `ip` (volume). Anonymous floods add points. */
-  noteRequest(ip: string, authenticated: boolean, now: number): void {
-    const key = normalize(ip);
-    if (this.isAllowed(key) || authenticated) return;
-    const state = this.stateFor(key, now);
-    const bucket = Math.floor(now / BUCKET_MS);
-    if (state.anonBucket !== bucket) {
-      // A new bucket: was the previous one part of an unbroken flood?
-      if (state.anonBucket !== 0 && !(state.anonBucketFlagged && bucket === state.anonBucket + 1)) {
-        state.anonBurstStreak = 0;
-      }
-      state.anonBucket = bucket;
-      state.anonBucketCount = 0;
-      state.anonBucketFlagged = false;
-    }
-    state.anonBucketCount += 1;
-    if (!state.anonBucketFlagged && state.anonBucketCount > this.opts.anonBurstPer10s) {
-      state.anonBucketFlagged = true;
-      state.anonBurstStreak += 1;
-      this.add(key, state, "FLOOD", WEIGHTS.FLOOD_BUCKET, now);
-      if (state.anonBurstStreak === SUSTAINED_BUCKETS) {
-        this.add(key, state, "FLOOD_SUSTAINED", WEIGHTS.FLOOD_SUSTAINED, now);
-      }
-    }
-  }
-
   /** A request finished with a notable outcome. */
-  record(ip: string, signal: Signal, now: number): void {
+  async record(ip: string, signal: Signal, now: number): Promise<void> {
     const key = normalize(ip);
     if (this.isAllowed(key)) return;
-    const state = this.stateFor(key, now);
-    switch (signal.type) {
-      case "LOGIN_FAILURE": {
-        this.add(key, state, "LOGIN_FAILURE", WEIGHTS.LOGIN_FAILURE, now);
-        if (signal.username) {
-          state.usernames.set(signal.username.toLowerCase(), now);
-          for (const [name, at] of state.usernames)
-            if (now - at > USERNAME_WINDOW_MS) state.usernames.delete(name);
-          if (
-            state.usernames.size >= USERNAMES_FOR_STUFFING &&
-            now - state.stuffingAt > USERNAME_WINDOW_MS
-          ) {
-            state.stuffingAt = now;
-            this.add(key, state, "CREDENTIAL_STUFFING", WEIGHTS.CREDENTIAL_STUFFING, now);
-          }
-        }
-        break;
-      }
-      case "UNAUTHORIZED":
-        this.add(key, state, "UNAUTHORIZED", WEIGHTS.UNAUTHORIZED, now);
-        break;
-      case "HONEYPOT":
-        this.add(key, state, "HONEYPOT", WEIGHTS.HONEYPOT, now);
-        break;
-      case "NOT_FOUND": {
-        // The same missing URL again and again is a broken link; many different ones is enumeration.
-        const fresh =
-          !state.paths.has(signal.path) ||
-          now - (state.paths.get(signal.path) ?? 0) > PATH_WINDOW_MS;
-        state.paths.set(signal.path, now);
-        for (const [path, at] of state.paths)
-          if (now - at > PATH_WINDOW_MS) state.paths.delete(path);
-        if (fresh) this.add(key, state, "NOT_FOUND", WEIGHTS.NOT_FOUND, now);
-        if (
-          state.paths.size >= DISTINCT_PATHS_FOR_ENUMERATION &&
-          now - state.enumerationAt > PATH_WINDOW_MS
-        ) {
-          state.enumerationAt = now;
-          this.add(key, state, "PATH_ENUMERATION", WEIGHTS.PATH_ENUMERATION, now);
-        }
-        break;
-      }
-      case "BAD_REQUEST":
-        this.add(key, state, "BAD_REQUEST", WEIGHTS.BAD_REQUEST, now);
-        break;
-      case "SCANNER_USER_AGENT":
-        if (now - state.scannerAt > 3_600_000) {
-          state.scannerAt = now;
-          this.add(key, state, "SCANNER_USER_AGENT", WEIGHTS.SCANNER_USER_AGENT, now);
-        }
-        break;
-      case "THROTTLED_HIT":
-        this.add(key, state, "THROTTLED_HIT", WEIGHTS.THROTTLED_HIT, now);
-        break;
-    }
+    await this.apply(key, now, (current, c) => ({
+      result: undefined,
+      state: recordRule(c, key, current, signal, now),
+    }));
   }
 
   /** A normal authenticated request succeeded: lowers the score a little (shared addresses stay healthy). */
-  recordAuthenticatedOk(ip: string, now: number): void {
+  async recordAuthenticatedOk(ip: string, now: number): Promise<void> {
     const key = normalize(ip);
     if (this.isAllowed(key)) return;
-    const state = this.states.get(key);
-    if (!state || state.score <= 0) return;
-    this.decay(state, now);
-    state.score = Math.max(0, state.score + WEIGHTS.AUTHENTICATED_OK);
+    await this.apply(key, now, (state, c) => {
+      if (!state || state.score <= 0) return { result: undefined };
+      decay(c.opts, state, now);
+      state.score = Math.max(0, state.score + WEIGHTS.AUTHENTICATED_OK);
+      return { result: undefined, state };
+    });
   }
 
   // ------------------------------------------------------------------ blocks from outside (operator, restart, other instance)
 
   /** Applies a block that was decided elsewhere (stored ban, operator). `strikeEnds` are end times of earlier bans. */
-  loadBlock(ip: string, until: number, strikeEnds: readonly number[] = []): void {
+  async loadBlock(
+    ip: string,
+    until: number,
+    strikeEnds: readonly number[] = [],
+    now: number = Date.now(),
+  ): Promise<void> {
     const key = normalize(ip);
-    const now = Date.now();
-    const state = this.stateFor(key, now);
-    state.blockedUntil = Math.max(state.blockedUntil, until);
-    state.bans = [...new Set([...state.bans, ...strikeEnds])];
-    this.external.add(key);
+    await this.apply(key, now, (current) => {
+      const state = stateFor(current, now);
+      const blockedUntil = Math.max(state.blockedUntil, until);
+      const bans = [...new Set([...state.bans, ...strikeEnds])];
+      const changed =
+        current === null ||
+        blockedUntil !== state.blockedUntil ||
+        bans.length !== state.bans.length;
+      state.blockedUntil = blockedUntil;
+      state.bans = bans;
+      return { result: undefined, ...(changed ? { state } : {}) };
+    });
   }
 
-  /** Lifts a block (operator); the address starts clean. */
-  liftBlock(ip: string): void {
-    const state = this.states.get(normalize(ip));
-    if (!state) return;
-    state.blockedUntil = 0;
-    state.score = 0;
-    state.anonRecent = [];
-    this.external.delete(normalize(ip));
-  }
-
-  /** Addresses currently blocked, with their end time (for the sync with the store). */
-  blocked(now: number): Array<{ ip: string; until: number }> {
-    const out: Array<{ ip: string; until: number }> = [];
-    for (const [ip, s] of this.states)
-      if (s.blockedUntil > now) out.push({ ip, until: s.blockedUntil });
-    return out;
+  /** Lifts a block (operator); the address starts clean (its earlier strikes stay). */
+  async liftBlock(ip: string, now: number = Date.now()): Promise<void> {
+    await this.apply(normalize(ip), now, (state) => {
+      if (!state) return { result: undefined };
+      state.blockedUntil = 0;
+      state.score = 0;
+      state.anonRecent = [];
+      return state.bans.length === 0
+        ? { result: undefined, remove: true }
+        : { result: undefined, state };
+    });
   }
 
   /** Current state of one address (for tests and operators). */
-  inspect(
+  async inspect(
     ip: string,
     now: number,
-  ): { level: Level; score: number; strikes: number; blockedUntil: number } | null {
-    const state = this.states.get(normalize(ip));
+  ): Promise<{ level: Level; score: number; strikes: number; blockedUntil: number } | null> {
+    const state = await this.store.get(normalize(ip));
     if (!state) return null;
-    this.decay(state, now);
+    const c = { opts: this.opts, events: [] };
+    decay(this.opts, state, now);
     return {
-      level: this.levelOf(state, now),
+      level: levelOf(c, state, now),
       score: Math.round(state.score * 10) / 10,
-      strikes: this.recentBans(state, now).length,
+      strikes: recentBans(this.opts, state, now).length,
       blockedUntil: state.blockedUntil,
     };
   }
 
+  /** States held in this process (0 for a store that lives elsewhere). */
   get tracked(): number {
-    return this.states.size;
+    return this.store.size ?? 0;
   }
 
-  /** Forget idle, harmless addresses (called periodically and when the table is full). */
+  /** Forget idle, harmless addresses held in this process (called periodically and when the table is full). */
   prune(now: number): void {
-    for (const [ip, s] of this.states) {
-      this.decay(s, now);
-      const idle = now - s.lastSeen > 10 * 60_000;
-      const harmless = s.score < 1 && s.blockedUntil <= now && this.recentBans(s, now).length === 0;
-      if (idle && harmless) this.states.delete(ip);
-    }
-    if (this.states.size >= this.opts.maxTrackedIps) {
-      const byAge = [...this.states.entries()]
-        .filter(([, s]) => s.blockedUntil <= now)
-        .sort((a, b) => a[1].lastSeen - b[1].lastSeen);
-      for (const [ip] of byAge.slice(0, this.states.size - this.opts.maxTrackedIps + 1))
-        this.states.delete(ip);
-    }
+    this.store.prune?.(now);
   }
 
   // ------------------------------------------------------------------ internals
 
-  private add(ip: string, state: IpState, signal: string, points: number, now: number): void {
-    this.decay(state, now);
-    state.counts[signal] = (state.counts[signal] ?? 0) + 1;
-    if (state.blockedUntil > now) return; // already banned: points would only prolong a decision already taken
-    const before = this.levelOf(state, now);
-    state.score = Math.max(0, state.score + points);
-    if (state.score >= this.opts.banScore) {
-      this.ban(ip, state, signal, now);
-    } else if (before === "NORMAL" && state.score >= this.opts.throttleScore) {
-      state.wasThrottled = true;
-      this.onEscalate({
-        type: "THROTTLE",
-        ip,
-        score: Math.round(state.score),
-        strike: this.recentBans(state, now).length,
-        until: 0,
-        reason: signal,
-        signals: { ...state.counts },
-      });
-    }
-  }
-
-  private ban(ip: string, state: IpState, reason: string, now: number): void {
-    const recent = this.recentBans(state, now);
-    const strike = recent.length + 1;
-    const minutes = this.opts.banMinutes[Math.min(strike, this.opts.banMinutes.length) - 1] ?? 15;
-    state.blockedUntil = now + minutes * 60_000;
-    state.bans = [...recent, state.blockedUntil];
-    const score = state.score;
-    state.score = this.opts.scoreAfterBan;
-    state.scoreAt = now;
-    state.anonRecent = [];
-    this.onEscalate({
-      type: "BAN",
-      ip,
-      score: Math.round(score),
-      strike,
-      until: state.blockedUntil,
-      reason,
-      signals: { ...state.counts },
-    });
-  }
-
-  private levelOf(state: IpState, now: number): Level {
-    if (state.blockedUntil > now) return "BLOCK";
-    this.decay(state, now);
-    return state.score >= this.opts.throttleScore ? "THROTTLE" : "NORMAL";
-  }
-
-  private decay(state: IpState, now: number): void {
-    if (now <= state.scoreAt) return;
-    const halfLives = (now - state.scoreAt) / (this.opts.halfLifeMinutes * 60_000);
-    state.score *= Math.pow(0.5, halfLives);
-    if (state.score < 0.05) state.score = 0;
-    state.scoreAt = now;
-  }
-
-  private recentBans(state: IpState, now: number): number[] {
-    // Strikes are forgotten after a clean stretch counted from the END of the ban (a 24 h ban is not "old" the moment it ends).
-    return state.bans.filter((end) => now - end < this.opts.strikeMemoryMinutes * 60_000);
-  }
-
-  private stateFor(ip: string, now: number): IpState {
-    let state = this.states.get(ip);
-    if (!state) {
-      if (this.states.size >= this.opts.maxTrackedIps) this.prune(now);
-      state = {
-        score: 0,
-        scoreAt: now,
-        lastSeen: now,
-        blockedUntil: 0,
-        bans: [],
-        counts: {},
-        usernames: new Map(),
-        paths: new Map(),
-        anonRecent: [],
-        anonBucket: 0,
-        anonBucketCount: 0,
-        anonBucketFlagged: false,
-        anonBurstStreak: 0,
-        authBucket: 0,
-        authBucketCount: 0,
-        stuffingAt: 0,
-        enumerationAt: 0,
-        scannerAt: 0,
-        wasThrottled: false,
-      };
-      this.states.set(ip, state);
-    }
-    state.lastSeen = now;
-    return state;
+  /** Runs one rule step atomically on the store; announces what it escalated only after the store committed. */
+  private async apply<R>(
+    key: string,
+    now: number,
+    body: (current: IpState | null, c: Ctx) => Step<R>,
+  ): Promise<R> {
+    const events: Escalation[] = [];
+    const c: Ctx = { opts: this.opts, events };
+    const result = await this.store.update(
+      key,
+      (state) => ttlMsFor(this.opts, state, now),
+      (current) => {
+        events.length = 0; // the store may run a step again
+        return body(current, c);
+      },
+    );
+    for (const event of events) this.onEscalate(event);
+    return result;
   }
 
   private isAllowed(ip: string): boolean {

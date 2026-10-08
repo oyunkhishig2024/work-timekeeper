@@ -60,6 +60,27 @@ const envSchema = z.object({
   /** Anonymous requests per 10 seconds that count as a flood signal, and the cap for authenticated traffic from one IP. */
   ABUSE_ANON_BURST_PER_10S: z.coerce.number().int().min(5).default(100),
   ABUSE_AUTH_BURST_PER_10S: z.coerce.number().int().min(10).default(400),
+  /**
+   * Shared abuse-protection state for several API instances (apps/api/src/security/README.md). Unset = in-process
+   * memory (single instance). Example: redis://:password@127.0.0.1:6379
+   */
+  REDIS_URL: z
+    .string()
+    .trim()
+    .optional()
+    .transform((v) => (v ? v : undefined))
+    .pipe(
+      z
+        .string()
+        .regex(/^rediss?:\/\//u, "must start with redis:// or rediss://")
+        .optional(),
+    ),
+  /** Key prefix of the abuse state in Redis (use a different one per environment sharing a Redis). */
+  ABUSE_REDIS_PREFIX: z.string().min(1).default("tk:abuse:"),
+  /** Per Redis command timeout, consecutive failures that open the circuit breaker, and how long it stays open. */
+  ABUSE_REDIS_TIMEOUT_MS: z.coerce.number().int().min(20).max(5000).default(200),
+  ABUSE_REDIS_BREAKER_FAILURES: z.coerce.number().int().min(1).default(3),
+  ABUSE_REDIS_BREAKER_COOLDOWN_SECONDS: z.coerce.number().min(0.05).default(15),
   QR_REPLACEMENT_HOURS: z.coerce.number().int().min(1).max(720).default(24),
 });
 

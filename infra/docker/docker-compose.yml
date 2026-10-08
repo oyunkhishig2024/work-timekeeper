@@ -11,5 +11,26 @@ services:
     volumes:
       - pgdata:/var/lib/postgresql/data
       - ./init-test-db.sql:/docker-entrypoint-initdb.d/10-test-db.sql:ro
+  # Shared abuse-protection state for several API instances (set REDIS_URL=redis://127.0.0.1:6379). Not needed with
+  # one instance. No persistence on purpose: bans are durable in PostgreSQL (table ip_block) and re-applied at start.
+  redis:
+    image: redis:7-alpine
+    command:
+      - redis-server
+      - --save
+      - ""
+      - --appendonly
+      - "no"
+      - --maxmemory
+      - 256mb
+      - --maxmemory-policy
+      - allkeys-lru
+    ports:
+      - "127.0.0.1:6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
 volumes:
   pgdata:

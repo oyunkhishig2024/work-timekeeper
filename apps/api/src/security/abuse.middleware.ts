@@ -3,7 +3,7 @@ import type { NextFunction, Request, Response } from "express";
 import { TokenService } from "../auth/token.service";
 import { AbuseService } from "./abuse.service";
 import { Clock } from "../common/clock";
-import { normalize, type Signal } from "./abuse-detector";
+import { type Decision, normalize, type Signal } from "./abuse-detector";
 
 /** Paths that only an attacker or a scanner asks for: none of them exists in this application. */
 const HONEYPOT =
@@ -47,10 +47,18 @@ export class AbuseMiddleware {
     const now = this.clock.now().getTime();
     const authenticated = await this.hasValidToken(req);
 
-    const decision = detector.check(ip, authenticated, now);
-    detector.noteRequest(ip, authenticated, now);
+    // One atomic step: look at the address, count the request, and note a refused one as "ignored the limit".
+    // Any failure of the state store must never stop a request: fail open.
+    let decision: Decision;
+    try {
+      decision = await detector.admit(ip, authenticated, now);
+    } catch (error) {
+      this.logger.error(
+        JSON.stringify({ event: "security.judgement_failed", error: String(error) }),
+      );
+      return next();
+    }
     if (decision.action !== "allow") {
-      if (!authenticated) detector.record(ip, { type: "THROTTLED_HIT" }, now);
       this.logBlocked(ip, decision.reason ?? "", now);
       res
         .status(429)
@@ -71,13 +79,14 @@ export class AbuseMiddleware {
 
     const userAgent = req.get("user-agent") ?? "";
     if (!authenticated && SCANNER_UA.test(userAgent))
-      detector.record(ip, { type: "SCANNER_USER_AGENT" }, now);
+      await detector.record(ip, { type: "SCANNER_USER_AGENT" }, now).catch((e) => this.failed(e));
 
     res.on("finish", () => {
       const signal = this.signalFor(req, res, authenticated);
       const at = this.clock.now().getTime();
-      if (signal) detector.record(ip, signal, at);
-      else if (authenticated && res.statusCode < 400) detector.recordAuthenticatedOk(ip, at);
+      if (signal) void detector.record(ip, signal, at).catch((e) => this.failed(e));
+      else if (authenticated && res.statusCode < 400)
+        void detector.recordAuthenticatedOk(ip, at).catch((e) => this.failed(e));
     });
     next();
   }
@@ -116,6 +125,10 @@ export class AbuseMiddleware {
     } catch {
       return false;
     }
+  }
+
+  private failed(error: unknown): void {
+    this.logger.error(JSON.stringify({ event: "security.judgement_failed", error: String(error) }));
   }
 
   private logBlocked(ip: string, reason: string, now: number): void {
