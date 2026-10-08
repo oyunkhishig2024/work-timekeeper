@@ -93,6 +93,11 @@ the system value is kept by the caller. `LATE` counts minutes from `start`; `NO_
 `distanceMeters` (haversine), `impliedSpeedKmh` and `isImpossibleSpeed(a, b, max = 150)` (PRD 6.7). The distance is reduced by both
 accuracy radii so GPS jitter is not a teleport; the same instant at two places is impossible.
 
+## Attestation and device conflict (attendance/attestation.ts, conflict.ts)
+
+`attestationFlag`, `nextUnavailableStreak` and `reachesEscalation` (five unavailable verdicts in a row); `matchedFixes` and
+`isTraceConflict` (three coincidences at two or more places within 2 minutes and about 1 m). PRD 6.7.
+
 ## Not here yet
 
 Teleport-without-movement and zero-jitter checks; the location time zone column (the field exists in

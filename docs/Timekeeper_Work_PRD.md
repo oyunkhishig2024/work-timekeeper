@@ -1,7 +1,7 @@
 # Timekeeper Work
 ## Product Requirements Document (PRD)
 
-Version: 1.19
+Version: 1.20
 Product: Timekeeper Work
 Owner: Onki
 Status: Requirements Specification (pre-development review + CTO review + stakeholder decisions applied)
@@ -1212,6 +1212,7 @@ Added in v1.2 **[v1.2]**:
 | 1.17    | Backups (25.2) specified as built: WAL archiving to an off-site, encrypted store (public-key encryption, private key offline), daily verified base backup, `archive_timeout` 4 min (typical RPO about 5 min), weekly logical dump, retention 7 daily / 4 weekly / 3 monthly bases; the 10-minute check alerts at 10 min and pages at 15 min (= RPO); restore onto a fresh machine rehearsed before go-live and quarterly; RTO is hours (no standby). The backup provider is a processor under 15.3 (DPA and legal clearance needed); object storage and secrets are backed up separately. |
 | 1.18    | Corrections (6.9) and the Anomaly Review Queue (6.7) specified as built: a correction replaces an earlier one for the same day (old kept, revoked), only expected days within 31 days; the Corrections report flags a user with more than 10 corrections a day; staff accounts have no employee record, so the self-correction rule cannot arise. Queue codes built: MOCK_LOCATION, LOW_ACCURACY, CLOCK_SKEW; Confirm lets a held-back low-accuracy ENTER count, Reject rebuilds the day; three flagged events in seven days mark an employee. Still open: IMPOSSIBLE_SPEED, attestation and DEVICE_CONFLICT checks, month closing, optional approval step. |
 | 1.19    | IMPOSSIBLE_SPEED built (6.7): events carry coordinates; a fix is compared with the trusted fixes before and after it (accuracy radii subtracted, limit 150 km/h); flagged events are accepted, count and enter the review queue. Raw coordinates are erased after 30 days (15.3), the event stays. Still open: teleport-without-movement, zero-jitter, attestation and DEVICE_CONFLICT checks. |
+| 1.20    | Batch attestation and DEVICE_CONFLICT built (6.7): one verdict per event batch (FAILED is flagged and queued, UNAVAILABLE is only noted so an outage never blocks attendance, five in a row alert HR); DEVICE_CONFLICT when a batch is signed by another install key or when another employee's device reports the same places at the same times at least three times at two or more places. Alerts for HR in `device-alerts`. The Google Play Integrity and Apple App Attest verifiers themselves are still to be built (Spike 2); until then enforce mode treats a token as unavailable. |
 
 ---
 

@@ -6,3 +6,5 @@ export * from "./schedule";
 export * from "./attendance/derive";
 export * from "./attendance/correction";
 export * from "./attendance/plausibility";
+export * from "./attendance/attestation";
+export * from "./attendance/conflict";

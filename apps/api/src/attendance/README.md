@@ -60,7 +60,7 @@ under `alerts`. Not built: closed-month locking (PRD 25.5), the optional approva
 
 Accept and flag: a suspicious event is stored and, unless it is held back for another reason, counts at once. Codes in the
 queue: `MOCK_LOCATION` (the phone sets `mockLocation: true`), `LOW_ACCURACY` (ENTER worse than 50 m; held back, `counted = false`),
-`CLOCK_SKEW` (> 2 min; counts) and `IMPOSSIBLE_SPEED` (counts). `LATE_SYNC` (> 24 h old) is not suspicion and not queued. Queued events have
+`CLOCK_SKEW` (> 2 min; counts), `IMPOSSIBLE_SPEED` (counts), `ATTESTATION_FAILED` (counts) and `DEVICE_CONFLICT` (counts). `LATE_SYNC` (> 24 h old) is not suspicion and not queued. Queued events have
 `review_status = PENDING`; the daily result shows `flaggedEvents` and the summary `flagged` ("N flagged").
 
 | Endpoint                                           | Who           | Purpose                                                                                     |
@@ -81,3 +81,28 @@ not already flagged `MOCK_LOCATION` / `IMPOSSIBLE_SPEED`, so one bad fix cannot 
 event is flagged (accepted, counts, queued for review). A batch is processed oldest first. Events without coordinates are
 never speed-checked. Raw coordinates are erased after **30 days** (PRD 15.3) by the worker (`eraseOldCoordinates`, hourly);
 the event, its geofence location and flags stay. Coordinates are shown only in the review queue, to ORG_ADMIN and HR.
+
+## Batch attestation and DEVICE_CONFLICT (PRD 6.7)
+
+`POST /v1/events` takes an optional batch-level `attestationToken` (Play Integrity / App Attest verdict) and `attestationKeyId`
+(the install key that signed the batch). `AttestationVerifier.verifyBatch` (devices/attestation.ts) returns one verdict per batch:
+
+- `OK` - nothing to flag. `UNVERIFIED` - attestation is off (`ATTESTATION_MODE=disabled`, the default): no flags, no bookkeeping.
+- `FAILED` - every event of the batch gets `ATTESTATION_FAILED`: accepted, counts, queued for review.
+- `UNAVAILABLE` (the verifier threw, e.g. Google is down) - events get `ATTESTATION_UNAVAILABLE` and are accepted; this is **not**
+  queued, so an outage never floods HR. The device counts its unavailable verdicts in a row; the **fifth** opens one alert
+  (`ATTESTATION_UNAVAILABLE_STREAK`). Any given verdict (OK or FAILED) resets the run.
+- With `ATTESTATION_MODE=enforce` a batch with no token is `FAILED`. **The real Google / Apple verifiers are not built**, so with a
+  token the verdict is `UNAVAILABLE` today. Plug them in behind `verifyBatch`; nothing else changes.
+
+`DEVICE_CONFLICT` (accepted and flagged, queued, plus an alert in `device_alert`):
+
+1. **Another install** - `attestationKeyId` differs from the registered device's key; if it is the key of another employee's device,
+   that employee is named as the counterpart (one physical device claiming for two employees).
+2. **Identical movement** - an event with coordinates is compared with other employees' fixes of the last 24 h. A conflict is at
+   least three of the employee's fixes with a fix of the same other employee at the same place (5 decimals, about 1 m) within
+   2 minutes, at two or more different places (`isTraceConflict`, packages/domain). One place only is not a conflict (phones can
+   share a cached network position). Only the new event is flagged; the same pair opens one alert, whoever triggered it.
+
+Alerts: `GET /v1/device-alerts?status=OPEN|ALL&kind=` and `POST /v1/device-alerts/:id/resolve {note?}` (ORG_ADMIN, HR; data
+scope applies; resolving is audited as `device.alert_resolved`). A resolved alert can open again if the problem returns.

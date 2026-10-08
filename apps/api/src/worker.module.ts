@@ -2,6 +2,7 @@ import { Module } from "@nestjs/common";
 import { AccessModule } from "./access/access.module";
 import { AttendanceService } from "./attendance/attendance.service";
 import { AttendanceTicker } from "./attendance/attendance.ticker";
+import { AttestationVerifier, ConfiguredAttestationVerifier } from "./devices/attestation";
 import { DatabaseModule } from "./database/database.module";
 import { ExpectationLoader } from "./schedule/expectation-loader.service";
 
@@ -11,6 +12,11 @@ import { ExpectationLoader } from "./schedule/expectation-loader.service";
  */
 @Module({
   imports: [DatabaseModule, AccessModule],
-  providers: [ExpectationLoader, AttendanceService, AttendanceTicker],
+  providers: [
+    ExpectationLoader,
+    AttendanceService,
+    AttendanceTicker,
+    { provide: AttestationVerifier, useClass: ConfiguredAttestationVerifier },
+  ],
 })
 export class WorkerModule {}

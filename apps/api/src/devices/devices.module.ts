@@ -11,6 +11,6 @@ import { DevicesService } from "./devices.service";
     DevicesService,
     { provide: AttestationVerifier, useClass: ConfiguredAttestationVerifier },
   ],
-  exports: [DevicesService],
+  exports: [DevicesService, AttestationVerifier],
 })
 export class DevicesModule {}

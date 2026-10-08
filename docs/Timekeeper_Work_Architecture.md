@@ -1,7 +1,7 @@
 # Timekeeper Work
 ## Technical Architecture Document
 
-Version: 0.17 (draft for review)
+Version: 0.18 (draft for review)
 Status: Draft — based on PRD v1.9 (`docs/Timekeeper_Work_PRD.md`)
 Audience: engineering lead, backend / mobile / web developers, QA
 Scope: the **pilot tier** (1–2 tenants, ~4 months, ~640 employees), built by **one full-stack developer** (decision v0.2, see Section 14). The production tier is covered only where a decision now would be expensive to undo later.
@@ -828,4 +828,10 @@ Migrations `0010_time_rules` and `0011_shifts` add the storage for attendance ru
 
 - Migration `0018`: `device_event.lat/lng` (+ `coordinates_erased_at`). `AttendanceService.impossibleSpeed` compares a new fix with its neighbours using `isImpossibleSpeed` (packages/domain); the worker erases coordinates after 30 days (hourly).
 - Open: coordinates are stored in plain columns (location is personal data, protected by RLS and the 30-day erasure; field encryption was not added); teleport and zero-jitter checks.
+
+# 33. Implementation Status (attestation and device conflict)
+
+- Migration `0019`: per-device verdict and unavailable run length, `device_alert`. `AttestationVerifier.verifyBatch` is the single seam for the Google / Apple verifiers; the worker module provides the same verifier.
+- Rules (`attestation.ts`, `conflict.ts`) are in packages/domain; the API loads fixes and records alerts.
+- Open: the real verifiers (Spike 2), pushing alerts to HR (they are listed, not sent), a per-tenant switch for the conflict thresholds.
 

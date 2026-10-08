@@ -4,6 +4,7 @@ import { isValidIsoDate } from "../common/dates";
 import type { AuthContext, RequestMeta } from "../auth/auth.types";
 import { CurrentAuth, Meta, Roles } from "../auth/decorators";
 import { AnomaliesService } from "./anomalies.service";
+import { DeviceAlertsService } from "./device-alerts.service";
 import { AttendanceService } from "./attendance.service";
 import { CORRECTION_REASONS, CorrectionsService } from "./corrections.service";
 
@@ -39,7 +40,14 @@ const eventSchema = z
     message: "Send lat and lng together",
     path: ["lat"],
   });
-const ingestSchema = z.object({ events: z.array(eventSchema).min(1).max(200) }).strict();
+const ingestSchema = z
+  .object({
+    events: z.array(eventSchema).min(1).max(200),
+    /** Play Integrity / App Attest verdict for this batch, and the install key that signed it (PRD 6.7). */
+    attestationToken: z.string().min(1).max(20_000).optional(),
+    attestationKeyId: z.string().min(1).max(512).optional(),
+  })
+  .strict();
 
 const dailyQuery = z.object({
   date: isoDate,
@@ -63,7 +71,11 @@ export class DeviceEventsController {
   @Post("events")
   @HttpCode(200)
   ingest(@CurrentAuth() auth: AuthContext, @Body() body: unknown) {
-    return this.attendance.ingest(auth, ingestSchema.parse(body).events);
+    const b = ingestSchema.parse(body);
+    return this.attendance.ingest(auth, b.events, {
+      attestationToken: b.attestationToken,
+      attestationKeyId: b.attestationKeyId,
+    });
   }
 
   @Roles("EMPLOYEE")
@@ -234,5 +246,37 @@ export class AnomaliesController {
   ) {
     const b = reviewSchema.parse(body);
     return this.anomalies.review(auth, id.parse(eventId), b.decision, b.note, meta);
+  }
+}
+
+// ---------------------------------------------------------------------------------------------- device alerts (PRD 6.7)
+
+const alertQuery = z.object({
+  status: z.enum(["OPEN", "ALL"]).default("OPEN"),
+  kind: z.enum(["ATTESTATION_UNAVAILABLE_STREAK", "DEVICE_CONFLICT"]).optional(),
+  limit: z.coerce.number().int().min(1).max(500).default(100),
+  offset: z.coerce.number().int().min(0).default(0),
+});
+
+@Controller("device-alerts")
+export class DeviceAlertsController {
+  constructor(private readonly alerts: DeviceAlertsService) {}
+
+  @Roles("ORG_ADMIN", "HR")
+  @Get()
+  list(@CurrentAuth() auth: AuthContext, @Query() query: unknown) {
+    return this.alerts.list(auth, alertQuery.parse(query));
+  }
+
+  @Roles("ORG_ADMIN", "HR")
+  @Post(":alertId/resolve")
+  @HttpCode(200)
+  resolve(
+    @CurrentAuth() auth: AuthContext,
+    @Param("alertId") alertId: string,
+    @Body() body: unknown,
+    @Meta() meta: RequestMeta,
+  ) {
+    return this.alerts.resolve(auth, id.parse(alertId), revokeSchema.parse(body ?? {}).note, meta);
   }
 }

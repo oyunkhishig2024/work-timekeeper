@@ -50,10 +50,18 @@ describe.skipIf(!hasDb)("adaptive abuse protection (throttle -> temporary ban)",
     expect((await get(freshIp(), "/v1/health")).status).toBe(200);
     expect((await h.http().get("/v1/health")).status).toBe(200);
     // the ban is written down for the operator
-    const rows = await h.owner.query(
+    // The row is written in the background, so give it a moment under load.
+    let rows = await h.owner.query(
       "SELECT strike, reason, signals, expires_at > now() AS active FROM ip_block WHERE ip = $1::inet",
       [ip],
     );
+    for (let i = 0; i < 40 && rows.rows.length === 0; i++) {
+      await new Promise((r) => setTimeout(r, 50));
+      rows = await h.owner.query(
+        "SELECT strike, reason, signals, expires_at > now() AS active FROM ip_block WHERE ip = $1::inet",
+        [ip],
+      );
+    }
     expect(rows.rows).toHaveLength(1);
     expect(rows.rows[0]).toMatchObject({ strike: 1, reason: "HONEYPOT", active: true });
     expect(rows.rows[0].signals).toMatchObject({ HONEYPOT: 2 });

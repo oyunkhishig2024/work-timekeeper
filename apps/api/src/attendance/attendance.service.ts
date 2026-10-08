@@ -7,7 +7,14 @@ import {
   deriveStatus,
   getExpectation,
   instantToLocalDate,
+  attestationFlag,
   isImpossibleSpeed,
+  isTraceConflict,
+  matchedFixes,
+  nextUnavailableStreak,
+  reachesEscalation,
+  CONFLICT_MAX_GAP_SECONDS,
+  type BatchVerdict,
   type Fix,
   applyCorrection,
   type AttendanceStatus,
@@ -22,6 +29,8 @@ import { ApiError } from "../common/api-error";
 import { Clock } from "../common/clock";
 import { tenantToday } from "../common/tenant-today";
 import { DatabaseService, type Db } from "../database/database.service";
+import { AttestationVerifier } from "../devices/attestation";
+import { raiseDeviceAlert } from "./device-alerts";
 import { ExpectationLoader, type EmployeeRow } from "../schedule/expectation-loader.service";
 
 /** PRD 6.8 / 6.7 thresholds. */
@@ -34,6 +43,8 @@ export const REVIEW_FLAGS = [
   "LOW_ACCURACY",
   "CLOCK_SKEW",
   "IMPOSSIBLE_SPEED",
+  "ATTESTATION_FAILED",
+  "DEVICE_CONFLICT",
 ] as const;
 /** PRD 15.3: raw coordinates are erased after 30 days. */
 export const COORDINATE_RETENTION_DAYS = 30;
@@ -112,11 +123,16 @@ export class AttendanceService {
     private readonly db: DatabaseService,
     private readonly scopes: ScopeService,
     private readonly loader: ExpectationLoader,
+    private readonly attestation: AttestationVerifier,
   ) {}
 
   // ------------------------------------------------------------------ ingest (PRD 6.7, 6.8)
 
-  async ingest(auth: AuthContext, events: IncomingEvent[]) {
+  async ingest(
+    auth: AuthContext,
+    events: IncomingEvent[],
+    batch: { attestationToken?: string; attestationKeyId?: string } = {},
+  ) {
     if (!auth.employeeId) {
       throw new ApiError(
         403,
@@ -131,8 +147,12 @@ export class AttendanceService {
         deviceId: string | null;
         status: string | null;
         employeeId: string | null;
+        platform: "ANDROID" | "IOS" | null;
+        keyId: string | null;
+        streak: number | null;
       }>(
-        `SELECT s.device_id AS "deviceId", d.status, d.employee_id AS "employeeId"
+        `SELECT s.device_id AS "deviceId", d.status, d.employee_id AS "employeeId", d.platform,
+                d.attestation_key_id AS "keyId", d.attestation_unavailable_streak AS streak
            FROM auth_session s LEFT JOIN device d ON d.tenant_id = s.tenant_id AND d.id = s.device_id
           WHERE s.id = $1`,
         [auth.sessionId],
@@ -153,6 +173,39 @@ export class AttendanceService {
         ).rows.map((r) => r.id),
       );
 
+      // PRD 6.7: one verdict for the whole batch. A verdict service that cannot be reached never blocks attendance.
+      const verdict = await this.batchVerdict(device.platform!, device.keyId, batch);
+      const batchFlags: string[] = [];
+      const verdictFlag = attestationFlag(verdict);
+      if (verdictFlag) batchFlags.push(verdictFlag);
+      // PRD 6.7 buddy punching: this session's device is not the install that was registered.
+      if (batch.attestationKeyId && device.keyId && batch.attestationKeyId !== device.keyId) {
+        batchFlags.push("DEVICE_CONFLICT");
+        const other = await tx.query<{ employeeId: string }>(
+          'SELECT employee_id AS "employeeId" FROM device WHERE attestation_key_id = $1 AND employee_id <> $2',
+          [batch.attestationKeyId, employeeId],
+        );
+        await raiseDeviceAlert(tx, {
+          tenantId: auth.tenantId,
+          kind: "DEVICE_CONFLICT",
+          deviceId: device.deviceId,
+          employeeId,
+          relatedEmployeeId: other.rows[0]?.employeeId ?? null,
+          detail: other.rows[0]
+            ? "The install key belongs to another employee's device."
+            : "The install key differs from the registered device.",
+        });
+      }
+      await this.recordVerdict(
+        tx,
+        auth.tenantId,
+        employeeId,
+        device.deviceId,
+        device.streak ?? 0,
+        verdict,
+        receivedAt,
+      );
+
       const results: EventOutcome[] = [];
       const occurredTimes: Date[] = [];
       // Oldest first, so that every fix is compared with the one before it in time.
@@ -170,7 +223,7 @@ export class AttendanceService {
         const ageMs = Math.max(0, Math.round(e.ageMs));
         const occurredAt = new Date(receivedAt.getTime() - ageMs);
         const claimed = e.deviceTime ? new Date(e.deviceTime) : null;
-        const flags: string[] = [];
+        const flags: string[] = [...batchFlags];
         if (claimed && Math.abs(claimed.getTime() - occurredAt.getTime()) > CLOCK_SKEW_MS) {
           flags.push("CLOCK_SKEW");
         }
@@ -189,6 +242,25 @@ export class AttendanceService {
           }))
         ) {
           flags.push("IMPOSSIBLE_SPEED");
+        }
+        // PRD 6.7: identical coordinates and movement as another employee's device.
+        if (e.lat !== undefined && e.lng !== undefined) {
+          const partner = await this.traceConflict(tx, employeeId, {
+            at: occurredAt,
+            lat: e.lat,
+            lng: e.lng,
+          });
+          if (partner) {
+            if (!flags.includes("DEVICE_CONFLICT")) flags.push("DEVICE_CONFLICT");
+            await raiseDeviceAlert(tx, {
+              tenantId: auth.tenantId,
+              kind: "DEVICE_CONFLICT",
+              deviceId: device.deviceId,
+              employeeId,
+              relatedEmployeeId: partner,
+              detail: "Identical coordinates and movement as another employee's device.",
+            });
+          }
         }
         // An imprecise fix never confirms an arrival (PRD 6.7); leaving is always honoured.
         if (e.type === "ENTER" && e.accuracyM !== undefined && e.accuracyM > MIN_ACCURACY_M) {
@@ -251,6 +323,82 @@ export class AttendanceService {
       }
       return { received: results.length, results };
     });
+  }
+
+  private async batchVerdict(
+    platform: "ANDROID" | "IOS",
+    registeredKeyId: string | null,
+    batch: { attestationToken?: string; attestationKeyId?: string },
+  ): Promise<BatchVerdict> {
+    try {
+      return await this.attestation.verifyBatch({
+        platform,
+        keyId: batch.attestationKeyId ?? registeredKeyId ?? undefined,
+        token: batch.attestationToken,
+      });
+    } catch {
+      return "UNAVAILABLE";
+    }
+  }
+
+  private async recordVerdict(
+    tx: Db,
+    tenantId: string,
+    employeeId: string,
+    deviceId: string,
+    previousStreak: number,
+    verdict: BatchVerdict,
+    at: Date,
+  ) {
+    if (verdict === "UNVERIFIED") return;
+    await tx.query(
+      `UPDATE device SET attestation_unavailable_streak = $2, last_batch_verdict = $3, last_batch_attested_at = $4
+        WHERE id = $1`,
+      [deviceId, nextUnavailableStreak(previousStreak, verdict), verdict, at],
+    );
+    if (reachesEscalation(previousStreak, verdict)) {
+      await raiseDeviceAlert(tx, {
+        tenantId,
+        kind: "ATTESTATION_UNAVAILABLE_STREAK",
+        deviceId,
+        employeeId,
+        detail: "The attestation service did not answer for five batches in a row.",
+      });
+    }
+  }
+
+  /**
+   * The employee whose device reports the same places at the same times as this fix and the employee's recent fixes (PRD
+   * 6.7), or null. Looks at the last 24 hours; the rule itself (`isTraceConflict`) is in packages/domain.
+   */
+  private async traceConflict(tx: Db, employeeId: string, fix: Fix): Promise<string | null> {
+    const since = new Date(fix.at.getTime() - 24 * 3_600_000);
+    const until = new Date(fix.at.getTime() + CONFLICT_MAX_GAP_SECONDS * 1000);
+    const mine: Fix[] = (
+      await tx.query<{ at: Date; lat: number; lng: number }>(
+        `SELECT occurred_at AS at, lat, lng FROM device_event
+          WHERE employee_id = $1 AND lat IS NOT NULL AND occurred_at BETWEEN $2 AND $3`,
+        [employeeId, since, fix.at],
+      )
+    ).rows;
+    mine.push(fix);
+    const others = (
+      await tx.query<{ employeeId: string; at: Date; lat: number; lng: number }>(
+        `SELECT employee_id AS "employeeId", occurred_at AS at, lat, lng FROM device_event
+          WHERE employee_id <> $1 AND lat IS NOT NULL AND occurred_at BETWEEN $2 AND $3
+            AND review_status IS DISTINCT FROM 'REJECTED'
+            AND (round(lat::numeric, 5), round(lng::numeric, 5)) IN (
+              SELECT round(t.lat::numeric, 5), round(t.lng::numeric, 5) FROM unnest($4::float8[], $5::float8[]) AS t(lat, lng))`,
+        [employeeId, since, until, mine.map((m) => m.lat), mine.map((m) => m.lng)],
+      )
+    ).rows;
+    const byEmployee = new Map<string, Fix[]>();
+    for (const o of others)
+      byEmployee.set(o.employeeId, [...(byEmployee.get(o.employeeId) ?? []), o]);
+    for (const [other, theirs] of byEmployee) {
+      if (isTraceConflict(matchedFixes(mine, theirs))) return other;
+    }
+    return null;
   }
 
   /**
