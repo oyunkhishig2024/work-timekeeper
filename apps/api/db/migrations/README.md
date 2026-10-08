@@ -17,8 +17,9 @@ SQL-first migrations run by [`node-pg-migrate`](https://github.com/salsita/node-
 | `0010_time_rules`                     | `attendance_rule_version`, `working_week_version` / `working_week_day`, `working_day_exception`, `holiday` / `holiday_location`                 |
 | `0011_shifts`                         | `shift_template`, `shift_pattern` / `shift_pattern_day`, `shift_assignment`, `shift_override`                                                   |
 | `0012_rank_position`                  | `job_rank` (ordered), `job_position`, `employee_rank_assignment`, `employee_position_assignment` (separate, effective-dated, no overlaps)       |
+| `0013_reasons`                        | `absence_reason` (15 predefined, `seed_default_reasons()`), `reason_assignment` (dated, one per employee at a time)                             |
 
-Still to come (in this order of need): reasons, device events + heartbeats, `attendance_day` + corrections + anomalies + `daily_summary`, export jobs.
+Still to come (in this order of need): device events + heartbeats, `attendance_day` + corrections + anomalies + `daily_summary`, export jobs.
 
 ## Rules enforced by the database for devices and consent (0008)
 

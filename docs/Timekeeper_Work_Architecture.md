@@ -1,7 +1,7 @@
 # Timekeeper Work
 ## Technical Architecture Document
 
-Version: 0.10 (draft for review)
+Version: 0.11 (draft for review)
 Status: Draft — based on PRD v1.9 (`docs/Timekeeper_Work_PRD.md`)
 Audience: engineering lead, backend / mobile / web developers, QA
 Scope: the **pilot tier** (1–2 tenants, ~4 months, ~640 employees), built by **one full-stack developer** (decision v0.2, see Section 14). The production tier is covered only where a decision now would be expensive to undo later.
@@ -776,3 +776,12 @@ Migrations `0010_time_rules` and `0011_shifts` add the storage for attendance ru
 - **Time zones:** instants are computed with `Intl` from the location's zone (default: tenant zone). The database has no per-location time zone column yet; the field exists in the function input.
 - **Employment:** the last day is still expected; reactivation currently overwrites `start_date`, so the earlier employment period is not recoverable until employee history (PRD 22.1) exists.
 - Next: the API loads the rows and calls this function (one query set per employee and date range), then `deriveStatus` combines it with events, reasons and corrections.
+
+# 25. Implementation Status (rank/position, schedule and reasons APIs)
+
+- **Rank and position** (migration `0012`, `apps/api/src/employees/job-*.ts`): separate effective-dated histories, ordered rank catalog, `PUT /employees/:id/rank|position`. See `apps/api/src/employees/README.md`.
+- **Working week, holidays, shifts** (`apps/api/src/schedule`): effective-dated weekly table (tenant default + location override + single-date exceptions), holiday calendar with recompute confirmation for changes reaching today or the past, shift templates (new-version instead of edit once used), patterns, bulk assignments with staggered cycles, one-day overrides. Storage and protection only; the expectation rules stay in `packages/domain`. See `apps/api/src/schedule/README.md`.
+- **Reasons** (migration `0013`, `apps/api/src/reasons`): 15 predefined reasons (`seed_default_reasons`), bulk dated assignments (one reason at a time per employee, open-ended allowed), end early / delete before start, reason report (PRD 11.1); disabling an employee ends their reasons. See `apps/api/src/reasons/README.md`.
+- **Shared QR** (PRD 5, 21.1, v1.11) is for first registration only; `POST /qr/:id/regenerate` replaces a shared QR atomically.
+- Verified by end-to-end tests against PostgreSQL, including mutation checks (boundary of the recompute rule, report clipping, disable cascade, assignment end rules). Still open: roster calendar view, attendance rule version API, holiday import.
+

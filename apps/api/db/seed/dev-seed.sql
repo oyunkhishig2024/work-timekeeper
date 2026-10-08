@@ -30,6 +30,8 @@ BEGIN
     (t, 'ЭМАА',           'PLACEHOLDER', 47.9280, 106.9280, 200)
   ON CONFLICT (tenant_id, name) DO NOTHING;
 
+  PERFORM seed_default_reasons(t);
+
   INSERT INTO tenant_setting (tenant_id, key, value) VALUES
     (t, 'anomaly_mode', '"accept_and_flag"'),
     (t, 'correction_approval', '"off"'),

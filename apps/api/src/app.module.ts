@@ -10,6 +10,8 @@ import { DevicesModule } from "./devices/devices.module";
 import { EmployeesModule } from "./employees/employees.module";
 import { HealthModule } from "./modules/health/health.module";
 import { OrgModule } from "./org/org.module";
+import { ReasonsModule } from "./reasons/reasons.module";
+import { ScheduleModule } from "./schedule/schedule.module";
 import { StorageModule } from "./storage/storage.module";
 import { UsersModule } from "./users/users.module";
 
@@ -30,6 +32,8 @@ import { UsersModule } from "./users/users.module";
     EmployeesModule,
     DevicesModule,
     ConsentModule,
+    ScheduleModule,
+    ReasonsModule,
     HealthModule,
   ],
   providers: [{ provide: APP_FILTER, useClass: ProblemFilter }],

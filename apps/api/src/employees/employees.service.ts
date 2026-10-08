@@ -407,6 +407,15 @@ export class EmployeesService {
         "DELETE FROM temp_location_assignment WHERE employee_id = $1 AND from_date > $2",
         [id, effective],
       );
+      // PRD 12.2: reasons open after the effective date end with the employment; later ones are removed.
+      const reasonsEnded = await tx.query(
+        "UPDATE reason_assignment SET to_date = $2, ended_at = $3, ended_by = $4 WHERE employee_id = $1 AND from_date <= $2 AND (to_date IS NULL OR to_date > $2)",
+        [id, effective, this.clock.now(), auth.userId],
+      );
+      const reasonsRemoved = await tx.query(
+        "DELETE FROM reason_assignment WHERE employee_id = $1 AND from_date > $2",
+        [id, effective],
+      );
       await tx.query(
         "UPDATE onboarding_qr SET cancelled_at = $2 WHERE employee_id = $1 AND cancelled_at IS NULL",
         [id, this.clock.now()],
@@ -419,6 +428,8 @@ export class EmployeesService {
         accountDisabled: accounts.rowCount === 1,
         temporaryAssignmentsEnded: ended.rowCount ?? 0,
         temporaryAssignmentsRemoved: removed.rowCount ?? 0,
+        reasonAssignmentsEnded: reasonsEnded.rowCount ?? 0,
+        reasonAssignmentsRemoved: reasonsRemoved.rowCount ?? 0,
       };
       await this.audit.record(tx, {
         tenantId: auth.tenantId,

@@ -18,6 +18,40 @@ export function mapDbError(error: unknown): unknown {
       "The employee has no signed consent form on record.",
     );
   }
+  if (e?.code === "TK002") {
+    return new ApiError(400, "SHIFT_MODE_REQUIRED", "The employee is not on a shift schedule.");
+  }
+  if (e?.code === "TK003") {
+    return new ApiError(400, "WORKING_WEEK_INCOMPLETE", "A working week needs all 7 weekdays.");
+  }
+  if (e?.code === "TK004") {
+    return new ApiError(
+      400,
+      "HOLIDAY_SCOPE_INVALID",
+      "A holiday applies either to all locations or to a non-empty list of locations.",
+    );
+  }
+  if (e?.code === "TK005") {
+    return new ApiError(
+      409,
+      "SHIFT_TEMPLATE_IN_USE",
+      "The shift template is already used; create a new version instead.",
+    );
+  }
+  if (e?.code === "TK006") {
+    return new ApiError(
+      409,
+      "SHIFT_PATTERN_IN_USE",
+      "The shift pattern is already assigned; create a new pattern instead.",
+    );
+  }
+  if (e?.code === "TK007") {
+    return new ApiError(
+      400,
+      "SHIFT_PATTERN_INCOMPLETE",
+      "The pattern must define every day of its cycle.",
+    );
+  }
   if (e?.code === "23505") {
     if (e.constraint === "device_attestation_key_idx") {
       return new ApiError(
