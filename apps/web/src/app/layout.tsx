@@ -4,6 +4,7 @@ import "./globals.css";
 export const metadata = {
   title: "Timekeeper Work",
   description: "Workforce attendance and presence management",
+  icons: { icon: "/icon.svg" },
 };
 
 export default function RootLayout({ children }: { children: ReactNode }) {

@@ -29,5 +29,10 @@ export default tseslint.config(
     files: ["apps/api/**/*.ts"],
     rules: { "@typescript-eslint/consistent-type-imports": "off" },
   },
+  {
+    // The Web Push service worker runs in the worker global scope, not in Node.
+    files: ["apps/web/public/sw.js"],
+    languageOptions: { sourceType: "script", globals: { ...globals.serviceworker } },
+  },
   prettier,
 );

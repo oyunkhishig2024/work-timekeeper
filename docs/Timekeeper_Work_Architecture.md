@@ -1,7 +1,7 @@
 # Timekeeper Work
 ## Technical Architecture Document
 
-Version: 0.19 (draft for review)
+Version: 0.20 (draft for review)
 Status: Draft — based on PRD v1.9 (`docs/Timekeeper_Work_PRD.md`)
 Audience: engineering lead, backend / mobile / web developers, QA
 Scope: the **pilot tier** (1–2 tenants, ~4 months, ~640 employees), built by **one full-stack developer** (decision v0.2, see Section 14). The production tier is covered only where a decision now would be expensive to undo later.
@@ -840,4 +840,9 @@ Migrations `0010_time_rules` and `0011_shifts` add the storage for attendance ru
 - Migration `0020`: `push_subscription`, `notification` (a transactional outbox with retry state). `notifyOrgAdmins(tx, ...)` is called inside the transaction of the thing it announces; `NotificationTicker` in the worker delivers (`apps/api/src/notifications/README.md`).
 - Provider seam: `PushSender` (Web Push with VAPID via the `web-push` library). FCM / APNs for a native app would be a second implementation.
 - Open: never run against a real push service; the admin web app (service worker, subscribe flow) is not built; per-user preferences.
+
+# 35. Implementation Status (admin web: sign-in and push)
+
+- `apps/web`: sign-in (TOTP step), session handling, Org Admin notifications page, `public/sw.js` service worker, web manifest, `/v1` rewrite to the API (`apps/web/README.md`).
+- Open: refresh token in `sessionStorage` (httpOnly-cookie BFF later), a real subscription through the vendors' push services and iOS installed-app behaviour were not verified, and the dashboard and other admin screens are not built.
 
