@@ -44,8 +44,8 @@ describe("getExpectation — standard schedule (PRD 14, 6.1)", () => {
     });
     expect(iso(e.start)).toBe("2026-10-05T00:30:00.000Z"); // 08:30 UTC+8
     expect(iso(e.end)).toBe("2026-10-05T09:30:00.000Z"); // 17:30
-    expect(iso(e.cutoff)).toBe("2026-10-05T02:30:00.000Z"); // 10:30
-    expect(iso(e.earlyWindowStart)).toBe("2026-10-04T22:30:00.000Z"); // 06:30
+    expect(iso(e.cutoff)).toBe("2026-10-05T09:30:00.000Z"); // 17:30: the end of the day (PRD 6.3)
+    expect(iso(e.earlyWindowStart)).toBe("2026-10-04T16:00:00.000Z"); // local midnight: any earlier arrival is on time
   });
 
   it("weekends are off days", () => {
@@ -75,16 +75,12 @@ describe("getExpectation — standard schedule (PRD 14, 6.1)", () => {
       defaultRules({
         validFrom: "2026-10-06",
         graceMinutes: 5,
-        cutoffMinutes: 90,
         minStayMinutes: 5,
-        earlyWindowMinutes: 60,
       }),
     ];
     expect(expectDuty(run(baseInput({ workDate: MON, rules }))).graceMinutes).toBe(15); // valid_to is exclusive
     const tue = expectDuty(run(baseInput({ workDate: TUE, rules })));
     expect(tue).toMatchObject({ graceMinutes: 5, minStayMinutes: 5 });
-    expect(iso(tue.cutoff)).toBe("2026-10-06T02:00:00.000Z"); // 08:30 + 90 min = 10:00 local
-    expect(iso(tue.earlyWindowStart)).toBe("2026-10-05T23:30:00.000Z"); // 07:30 local
   });
 
   it("a location's rules override the tenant default", () => {
@@ -370,7 +366,7 @@ describe("getExpectation — shifts (PRD 23)", () => {
     expect(e).toMatchObject({ source: "SHIFT", shiftTemplateId: "t-24h", workDate: "2026-10-10" });
     expect(iso(e.start)).toBe("2026-10-10T00:00:00.000Z"); // 08:00 local
     expect(iso(e.end)).toBe("2026-10-11T00:00:00.000Z"); // 08:00 next day
-    expect(iso(e.cutoff)).toBe("2026-10-10T02:00:00.000Z");
+    expect(iso(e.cutoff)).toBe("2026-10-11T00:00:00.000Z"); // the end of the shift
   });
 
   it("a night shift crosses midnight and belongs to the day it starts (PRD 23.2)", () => {
@@ -413,16 +409,14 @@ describe("getExpectation — shifts (PRD 23)", () => {
       rules: [
         defaultRules({
           graceMinutes: 99,
-          cutoffMinutes: 999,
-          earlyWindowMinutes: 999,
           minStayMinutes: 4,
         }),
       ],
     });
     const e = expectDuty(run(input));
     expect(e.graceMinutes).toBe(night.graceMinutes);
-    expect(iso(e.cutoff)).toBe("2026-10-05T13:00:00.000Z"); // 20:00 + 60 min = 21:00 local
-    expect(iso(e.earlyWindowStart)).toBe("2026-10-05T11:30:00.000Z"); // 19:30 local
+    expect(iso(e.cutoff)).toBe(iso(e.end)); // 08:00 next day: a no-show only once the shift is over
+    expect(iso(e.earlyWindowStart)).toBe("2026-10-05T00:00:00.000Z"); // 12 h before 20:00 local
     expect(e.minStayMinutes).toBe(4);
   });
 

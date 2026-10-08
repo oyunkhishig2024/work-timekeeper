@@ -7,7 +7,7 @@ and the tests are the executable examples.
 | Module                                   | What it answers                                                                                                |
 | ---------------------------------------- | -------------------------------------------------------------------------------------------------------------- |
 | `arrival.ts`                             | `classifyArrival` — on time or late (PRD 6.2); `findConfirmedArrival` — minimum stay in the geofence (PRD 6.4) |
-| `noshow.ts`                              | `noShowCutoff`, `isPastCutoff` (PRD 6.3)                                                                       |
+| `noshow.ts`                              | `isPastCutoff` (PRD 6.3: `cutoff` is the end of the duty)                                                      |
 | `schedule/expectation.ts`                | **`getExpectation`** — must this employee attend on this work date, where and when? (PRD 6.1, 14, 23.5)        |
 | `schedule/holidays.ts`                   | `holidayCovers`, `isHoliday` — one-off and yearly holidays, location scope                                     |
 | `schedule/dates.ts`, `schedule/zoned.ts` | plain-date arithmetic (`"YYYY-MM-DD"`), wall-clock ↔ UTC in a time zone, `candidateWorkDates`                  |
@@ -50,7 +50,7 @@ The input is plain data in the shape of the database rows (`employee`, `temp_loc
 Where: a temporary assignment covering the date (inclusive), otherwise the primary location. The holiday calendar, the
 working week (own version only if the location is `OVERRIDE`, else the tenant's), the rules and the time zone are those
 of that location. **When:** a standard day uses the weekday's hours; a shift starts at the template's `startTime` on the
-work date and lasts `durationMinutes` (it may end the next day). Grace, no-show cut-off and early window come from the
+work date and lasts `durationMinutes` (it may end the next day). Grace comes from the
 template for shifts and from the rule version otherwise; minimum stay always comes from the rule version.
 
 ### Not guessed
@@ -76,10 +76,10 @@ Turns one expectation + the geofence events of the duty location + "a reason cov
 1. Not expected → `NOT_EXPECTED`; `NOT_CONFIGURED` is passed through for HR to fix (never guessed).
 2. A reason covers the date → `EXCUSED` (even if the person also arrived).
 3. A confirmed stay (PRD 6.4: first ENTER of a stay of at least `minStayMinutes`) → `ON_TIME` / `LATE` (PRD 6.2, minute
-   precision, grace). A late arrival **after** the cut-off is still `LATE` (PRD 6.3).
-4. `now` is at or past the cut-off → `NO_SHOW`; otherwise `PENDING`.
+   precision, grace). A late arrival, however late, is `LATE`, never `NO_SHOW` (PRD 6.3).
+4. `now` is at or past the end of the duty (`cutoff`) → `NO_SHOW`; otherwise `PENDING` (there is no cut-off after the start since PRD v1.24).
 
-Events before `earlyWindowStart` are ignored (PRD 23.2). `deriveOffDayStatus` adds `WORKED_OFF_DAY` for a confirmed stay on
+Events before `earlyWindowStart` are ignored: local midnight of the work date for a standard day, 12 h before the start for a shift; anything earlier than the start is on time (PRD 6.2, 23.2). `deriveOffDayStatus` adds `WORKED_OFF_DAY` for a confirmed stay on
 a holiday / off day (never for inactive employees). Both are pure; the API supplies events and the clock.
 
 ## `applyCorrection(system, correction, start)` (attendance/correction.ts)

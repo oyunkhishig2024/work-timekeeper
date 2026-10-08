@@ -337,8 +337,6 @@ export class HolidaysController {
 
 const templateTiming = {
   graceMinutes: z.number().int().min(0).max(240).optional(),
-  cutoffMinutes: z.number().int().min(0).max(1440).optional(),
-  earlyWindowMinutes: z.number().int().min(0).max(720).optional(),
   observesHolidays: z.boolean().optional(),
 };
 const name = z.string().trim().min(1).max(120);
@@ -621,11 +619,9 @@ export class ShiftRosterController {
 // ---------------------------------------------------------------------------------------------- attendance rules
 
 const rulesFields = {
-  // Late after start + grace (PRD 6.2), no-show after start + cutoff (6.3), minimum stay (6.4), early window (23.2).
+  // Late after start + grace (PRD 6.2), minimum stay (6.4). There is no no-show cut-off or early window (6.3, 23.2).
   graceMinutes: z.number().int().min(0).max(240),
-  cutoffMinutes: z.number().int().min(0).max(1440),
   minStayMinutes: z.number().int().min(1).max(15),
-  earlyWindowMinutes: z.number().int().min(0).max(720),
 };
 const putRules = z
   .object({

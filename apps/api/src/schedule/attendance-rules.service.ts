@@ -10,22 +10,17 @@ import { makeRoomFrom } from "./version-timeline";
 
 export interface RulesInput {
   graceMinutes: number;
-  cutoffMinutes: number;
   minStayMinutes: number;
-  earlyWindowMinutes: number;
 }
 
-/** The PRD defaults (6.2–6.4, 23.2), used until the Org Admin saves the first version. */
+/** The PRD defaults (6.2, 6.4), used until the Org Admin saves the first version. */
 export const DEFAULT_RULES: RulesInput = {
   graceMinutes: 15,
-  cutoffMinutes: 120,
   minStayMinutes: 3,
-  earlyWindowMinutes: 120,
 };
 
 const COLUMNS = `id, valid_from::text AS "validFrom", valid_to::text AS "validTo",
-  grace_minutes AS "graceMinutes", cutoff_minutes AS "cutoffMinutes",
-  min_stay_minutes AS "minStayMinutes", early_window_minutes AS "earlyWindowMinutes"`;
+  grace_minutes AS "graceMinutes", min_stay_minutes AS "minStayMinutes"`;
 
 /**
  * Attendance rule versions (PRD 6.2–6.4, 13, 22.1): grace (late after start + grace), no-show cut-off (Ирээгүй after
@@ -97,16 +92,14 @@ export class AttendanceRulesService {
         await makeRoomFrom(tx, "attendance_rule_version", locationId, effective, today);
         const { rows } = await tx.query<{ id: string }>(
           `INSERT INTO attendance_rule_version
-             (tenant_id, location_id, valid_from, grace_minutes, cutoff_minutes, min_stay_minutes, early_window_minutes, created_by)
-           VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id`,
+             (tenant_id, location_id, valid_from, grace_minutes, min_stay_minutes, created_by)
+           VALUES ($1, $2, $3, $4, $5, $6) RETURNING id`,
           [
             auth.tenantId,
             locationId,
             effective,
             input.graceMinutes,
-            input.cutoffMinutes,
             input.minStayMinutes,
-            input.earlyWindowMinutes,
             auth.userId,
           ],
         );
@@ -186,7 +179,5 @@ export class AttendanceRulesService {
 
 const pick = (r: RulesInput): RulesInput => ({
   graceMinutes: r.graceMinutes,
-  cutoffMinutes: r.cutoffMinutes,
   minStayMinutes: r.minStayMinutes,
-  earlyWindowMinutes: r.earlyWindowMinutes,
 });

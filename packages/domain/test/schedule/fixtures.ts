@@ -41,15 +41,13 @@ export const standardWeek = (over: Partial<WorkingWeek> = {}): WorkingWeek => ({
   ...over,
 });
 
-/** Grace 15, no-show after 2 h, minimum stay 3 min, early window 2 h (PRD defaults). */
+/** Grace 15, minimum stay 3 min (PRD defaults). */
 export const defaultRules = (over: Partial<AttendanceRules> = {}): AttendanceRules => ({
   locationId: null,
   validFrom: "2026-01-01",
   validTo: null,
   graceMinutes: 15,
-  cutoffMinutes: 120,
   minStayMinutes: 3,
-  earlyWindowMinutes: 120,
   ...over,
 });
 
@@ -58,8 +56,6 @@ export const guard24h: ShiftTemplate = {
   startTime: "08:00",
   durationMinutes: 1440,
   graceMinutes: 15,
-  cutoffMinutes: 120,
-  earlyWindowMinutes: 120,
   observesHolidays: false,
 };
 export const night: ShiftTemplate = {
@@ -67,8 +63,6 @@ export const night: ShiftTemplate = {
   startTime: "20:00",
   durationMinutes: 720,
   graceMinutes: 10,
-  cutoffMinutes: 60,
-  earlyWindowMinutes: 30,
   observesHolidays: false,
 };
 export const dayShift: ShiftTemplate = {
@@ -76,8 +70,6 @@ export const dayShift: ShiftTemplate = {
   startTime: "08:00",
   durationMinutes: 720,
   graceMinutes: 15,
-  cutoffMinutes: 120,
-  earlyWindowMinutes: 120,
   observesHolidays: true,
 };
 /** 24 h on, 48 h off. */

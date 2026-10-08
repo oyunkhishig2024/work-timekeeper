@@ -35,7 +35,7 @@ Open to Org Admin, HR and Manager (the API limits the numbers to the caller's da
   (count and share); a pill opens the list for that branch or department.
 - **List**: rank, full name, position, department, branch, status and an explanation (arrival time and minutes late, the reason,
   "no record, no reason given", ...), with "Засварласан" and "⚑ шалгах" marks. Chips switch the status inside the same scope.
-- Today's numbers refresh every minute (the worker moves people from "not yet due" to "no show" at the cut-off).
+- Today's numbers refresh every minute (the worker moves people from "not yet due" to "no show" when the day ends).
 - Numbers come from `GET /v1/attendance/summary`, lists from `GET /v1/attendance/daily` (`status=EXPECTED` = the total). The web only
   formats; no attendance rule is repeated here.
 

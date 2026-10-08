@@ -12,7 +12,7 @@ const expected: Expectation = {
   start: t("08:00"),
   end: t("17:00"),
   graceMinutes: 15,
-  cutoff: t("10:00"),
+  cutoff: t("17:00"), // the end of the duty (PRD 6.3)
   earlyWindowStart: t("06:00"),
   minStayMinutes: 3,
 };
@@ -28,20 +28,30 @@ describe("deriveStatus (PRD 6.6)", () => {
   it("LATE after grace with minutes since start (6.2)", () => {
     expect(run({ events: [enter("08:24")] })).toMatchObject({ status: "LATE", lateMinutes: 24 });
   });
-  it("arrival after the cut-off is still LATE (6.3)", () => {
-    expect(run({ events: [enter("10:30")], now: t("11:00") })).toMatchObject({ status: "LATE" });
+  it("a very late arrival is still LATE, never NO_SHOW (6.3)", () => {
+    expect(run({ events: [enter("12:30")], now: t("13:00") })).toMatchObject({
+      status: "LATE",
+      lateMinutes: 270,
+    });
   });
-  it("PENDING before the cut-off without arrival", () => {
-    expect(run({ now: t("09:59") }).status).toBe("PENDING");
+  it("PENDING all day without arrival, even hours after the start", () => {
+    expect(run({ now: t("10:00") }).status).toBe("PENDING");
+    expect(run({ now: t("16:59") }).status).toBe("PENDING");
   });
-  it("NO_SHOW at the cut-off without arrival (6.3)", () => {
-    expect(run({ now: t("10:00") }).status).toBe("NO_SHOW");
+  it("NO_SHOW once the duty is over without arrival (6.3)", () => {
+    expect(run({ now: t("17:00") }).status).toBe("NO_SHOW");
+  });
+  it("arriving long before the start is on time (6.2)", () => {
+    expect(run({ events: [enter("06:30")], now: t("09:00") })).toMatchObject({
+      status: "ON_TIME",
+      lateMinutes: 0,
+    });
   });
   it("a stay shorter than the minimum does not confirm (6.4)", () => {
     expect(run({ events: [enter("08:00"), exit("08:02")], now: t("09:00") }).status).toBe(
       "PENDING",
     );
-    expect(run({ events: [enter("08:00"), exit("08:02")], now: t("10:00") }).status).toBe(
+    expect(run({ events: [enter("08:00"), exit("08:02")], now: t("17:00") }).status).toBe(
       "NO_SHOW",
     );
   });

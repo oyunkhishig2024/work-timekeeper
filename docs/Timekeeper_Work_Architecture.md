@@ -1,7 +1,7 @@
 # Timekeeper Work
 ## Technical Architecture Document
 
-Version: 0.25 (draft for review)
+Version: 0.26 (draft for review)
 Status: Draft — based on PRD v1.9 (`docs/Timekeeper_Work_PRD.md`)
 Audience: engineering lead, backend / mobile / web developers, QA
 Scope: the **pilot tier** (1–2 tenants, ~4 months, ~640 employees), built by **one full-stack developer** (decision v0.2, see Section 14). The production tier is covered only where a decision now would be expensive to undo later.
@@ -96,7 +96,7 @@ Each module owns its tables and exposes services; other modules call services, n
 | `devices` | devices, onboarding/replacement QR, attestation keys | PRD 5, 21 |
 | `consent` | consent records, form generation (PDF), scans | PRD 15.4; consent gate used by `devices` |
 | `schedule` | working week, exceptions, holidays, shift templates/patterns/assignments/overrides, temporary location assignments | **Exposes `ExpectationService.get(employee, date)`** (PRD 6.1, 23.5) |
-| `rules` | effective-dated attendance rules (grace, cut-off, min stay, accuracy) | |
+| `rules` | effective-dated attendance rules (grace, min stay, accuracy) | |
 | `events` | raw device events, heartbeats, ingest endpoint, dedupe | Immutable |
 | `attendance` | attendance engine, `attendance_day`, anomalies, corrections, daily summary | Pure-function core |
 | `reasons` | reason types, assignments | |
@@ -195,12 +195,12 @@ CREATE POLICY tenant_isolation ON employee
 
 | Table | Key columns |
 |---|---|
-| `attendance_rule_version` | tenant_id, location_id, valid_from, valid_to, grace_minutes, cutoff_hours, min_stay_minutes, early_window_minutes |
+| `attendance_rule_version` | tenant_id, location_id, valid_from, valid_to, grace_minutes, min_stay_minutes |
 | `working_week_version` | tenant_id, location_id NULL (NULL = tenant default), valid_from, valid_to |
 | `working_week_day` | working_week_version_id, weekday 1–7, working bool, start_time, end_time |
 | `working_day_exception` | tenant_id, location_id NULL, date, working bool, start_time, end_time |
 | `holiday` | tenant_id, id, name, from_date, to_date, type, repeats_yearly, applies_to (all / location ids) |
-| `shift_template` | tenant_id, id, name, start_time, duration_minutes (≤ 1440, may cross midnight), grace_minutes, cutoff_hours, early_window_minutes, observes_holidays bool, valid_from, valid_to |
+| `shift_template` | tenant_id, id, name, start_time, duration_minutes (≤ 1440, may cross midnight), grace_minutes, observes_holidays bool, valid_from, valid_to |
 | `shift_pattern` | tenant_id, id, name, cycle_length_days |
 | `shift_pattern_day` | pattern_id, day_index, template_id NULL (NULL = off) |
 | `shift_assignment` | tenant_id, employee_id, pattern_id OR template_id, cycle_start_date, from_date, to_date; exclusion constraint on (employee_id, daterange) |
@@ -313,8 +313,8 @@ type Expectation =
       shiftTemplateId?: string;
       start: Date; end: Date;          // absolute instants (UTC)
       graceMinutes: number;
-      cutoff: Date;                    // start + cutoff hours
-      earlyWindowStart: Date;          // start - early window
+      cutoff: Date;                    // the end of the duty (PRD 6.3, v1.24)
+      earlyWindowStart: Date;          // local midnight (standard day) / start - 12 h (shift)
     };
 
 getExpectation(employeeId, workDate): Expectation
@@ -758,7 +758,7 @@ Implemented in `apps/api/src/org`, `apps/api/src/employees`, `apps/api/src/acces
 
 Migrations `0010_time_rules` and `0011_shifts` add the storage for attendance rule versions, the working week and its exceptions, holidays, and shift templates / patterns / assignments / overrides (rules enforced by the database are listed in `apps/api/db/migrations/README.md`), verified by 59 schema tests and by mutation checks. Decisions that refine Section 5.3:
 
-- **Rules are versioned with half-open ranges** and exclusion constraints, so "the rule in force on a date" is unambiguous. The no-show cut-off is stored in **minutes** (`cutoff_minutes`) rather than hours.
+- **Rules are versioned with half-open ranges** and exclusion constraints, so "the rule in force on a date" is unambiguous.
 - **History cannot be rewritten:** a shift template or pattern that is in use is immutable; a change means a new row and retiring the old one (`active = false`, `supersedes_id`). This implements PRD 22.1 for shifts without a separate history table.
 - **The database stores and protects, the domain decides:** no schedule logic (holiday recurrence, expected attendance, cycle position) is in SQL. It goes into `packages/domain` with the single expectation function (Section 6.3 / PRD 23.5), which is the next piece of work.
 - Completeness rules (7 weekdays, all pattern days, holiday scope) are deferred constraint triggers, so related rows must be written in one transaction.
@@ -870,3 +870,10 @@ Migrations `0010_time_rules` and `0011_shifts` add the storage for attendance ru
 
 - API: `EmployeeImportService` (`POST /employees/import`, template), `EmployeesService.createIn / updateIn / createAccountIn` (the same code as the single-employee routes, inside the import's one transaction). Web: `/employees/import`.
 - Open: invite link / activation code instead of one-time passwords (PRD 12.3), re-downloading the logins sheet, imports above 2,000 rows (background jobs), importing consent or device state.
+
+# 41. Implementation Status (no no-show cut-off, PRD v1.24)
+
+- `Expectation.cutoff` is the **end of the duty**: `NO_SHOW` appears when the day or shift ends with no arrival and no reason; before that it is `PENDING`. A late arrival is `LATE` however late. `earlyWindowStart` is local midnight of the work date for a standard day and 12 h before the start for a shift, so any arrival before the start is `ON_TIME`.
+- Migration `0022` drops `cutoff_minutes` and `early_window_minutes` from `attendance_rule_version` and `shift_template` (and from the in-use guard of templates); the rules and shift-template APIs refuse the two fields. `attendance_result.expected_cutoff` keeps its name and now stores the end of the duty.
+- Not done: detecting an employee who left early (V2). The 1-minute worker tick is unchanged; it simply flips the day at the end of the duty.
+

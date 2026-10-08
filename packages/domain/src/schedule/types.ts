@@ -57,9 +57,7 @@ export interface WorkingDayException {
 
 export interface AttendanceRules extends Versioned {
   graceMinutes: number;
-  cutoffMinutes: number;
   minStayMinutes: number;
-  earlyWindowMinutes: number;
 }
 
 export interface ShiftTemplate {
@@ -67,8 +65,6 @@ export interface ShiftTemplate {
   startTime: string;
   durationMinutes: number;
   graceMinutes: number;
-  cutoffMinutes: number;
-  earlyWindowMinutes: number;
   observesHolidays: boolean;
 }
 
@@ -148,9 +144,9 @@ export type Expectation =
       start: Date;
       end: Date;
       graceMinutes: number;
-      /** No arrival and no reason by this instant means no-show (PRD 6.3). */
+      /** The end of the duty: no arrival and no reason by this instant means no-show (PRD 6.3). */
       cutoff: Date;
-      /** Entries before this instant do not count for this duty (PRD 23.2). */
+      /** Entries before this instant do not count for this duty; any earlier arrival is on time (PRD 6.2, 23.2). */
       earlyWindowStart: Date;
       minStayMinutes: number;
     };

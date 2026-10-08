@@ -158,7 +158,7 @@ describe.skipIf(!hasDb)("impossible-speed check on event coordinates (PRD 6.7)",
     });
     expect(res.body).toMatchObject({ reviewStatus: "REJECTED", counted: false });
     expect(await k.resultOf(w.tenant.id, w.employee.id)).toMatchObject({ status: "PENDING" });
-    k.setClock("10:00");
+    k.setClock("17:00");
     await k.tick(w.tenant.id);
     expect(await k.resultOf(w.tenant.id, w.employee.id)).toMatchObject({ status: "NO_SHOW" });
     expect(WORK_DATE).toBe("2026-10-06");

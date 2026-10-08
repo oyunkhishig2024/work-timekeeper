@@ -56,7 +56,7 @@ describe.skipIf(!hasDb)("daily attendance list (PRD 9, 6.5, 11)", () => {
     );
     k.setClock("08:05");
     await k.send(await k.emp(w), [k.ev(w)]);
-    k.setClock("10:30");
+    k.setClock("17:30");
     await k.tick(w.tenant.id);
 
     const byName = await list(w, "&q=" + encodeURIComponent("төгөл"));
@@ -183,7 +183,7 @@ describe.skipIf(!hasDb)("daily attendance list (PRD 9, 6.5, 11)", () => {
     const w = await k.world();
     k.setClock("08:05");
     await k.send(await k.emp(w), [k.ev(w)]);
-    k.setClock("10:30");
+    k.setClock("17:30");
     await k.tick(w.tenant.id);
     const token = await hr(w);
     const csv = await h

@@ -512,7 +512,6 @@ describe.skipIf(!hasDb)("working week, holidays and shifts API (PRD 14, 23)", ()
         durationMinutes: 720,
         endsNextDay: false,
         graceMinutes: 15,
-        cutoffMinutes: 120,
         observesHolidays: false,
         active: true,
         inUse: false,

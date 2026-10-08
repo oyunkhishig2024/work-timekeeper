@@ -1,7 +1,7 @@
 # Timekeeper Work
 ## Product Requirements Document (PRD)
 
-Version: 1.23
+Version: 1.24
 Product: Timekeeper Work
 Owner: Onki
 Status: Requirements Specification (pre-development review + CTO review + stakeholder decisions applied)
@@ -97,7 +97,7 @@ Permissions:
 - Create Manager users
 - Configure working hours
 - Configure holidays
-- Configure attendance rules (grace, no-show cut-off, minimum geofence stay) **[NEW]**
+- Configure attendance rules (grace, minimum geofence stay) **[NEW]**
 - View all reports
 - View audit log **[NEW]**
 - Manage shift templates and patterns (see 23) **[v1.3]**
@@ -189,11 +189,11 @@ Employee has:
 - No attendance record
 AND
 - No active reason assignment
-AND the no-show cut-off has passed (see 6.3).
+AND the employee's duty for the day is over (see 6.3).
 
 ## Байршил идэвхгүй **[NEW]**
 Employee's active device has not reported a valid location (location services off, permission revoked, or no heartbeat). See 6.5.
-This is an informational/diagnostic state shown to HR; it does not by itself count as Ирээгүй until the no-show cut-off passes.
+This is an informational/diagnostic state shown to HR; it does not by itself count as Ирээгүй until the duty is over.
 
 ## 6.1 Expected Attendance (Who must attend, and where) **[NEW]**
 
@@ -205,7 +205,7 @@ The system determines whether an employee is expected on a given **work date**, 
 4. Active **Temporary Location Assignment** covering the date → **expected at the temporary location** (using the shift/standard times unless the assignment specifies its own).
 5. Otherwise → **expected at the employee's Primary Location**.
 
-The result is always `{expected, location, shift_start, shift_end, grace, cutoff, early_window}` computed by one function (see 23.5), so Sections 6.2–6.4 apply identically to standard days and shifts. For shifts, "Work Start Time" below means the **shift start** and the work date is the **shift start date**.
+The result is always `{expected, location, shift_start, shift_end, grace, cutoff, early_window}` computed by one function (see 23.5); since v1.24 `cutoff` is the end of the duty (6.3) and `early_window` is fixed, not a setting (23.2), so Sections 6.2–6.4 apply identically to standard days and shifts. For shifts, "Work Start Time" below means the **shift start** and the work date is the **shift start date**.
 
 Rules:
 - Every employee MUST have exactly one Primary Location (mandatory field; Excel import rejects rows without it).
@@ -224,19 +224,19 @@ Rule (evaluated on the first valid geofence entry of the day, in the tenant's lo
 - Arrival ≤ Start Time + Grace (08:00 – 08:15:59) → **Цагтаа**
 - Arrival ≥ Start Time + Grace + 1 minute (08:16:00 and later) → **Хоцорсон**
 
-Employees who arrive before Start Time are Цагтаа.
+Employees who arrive before Start Time are Цагтаа, however early they arrive **[v1.24]**: there is no early-arrival limit, and the other employees' hours do not matter (an employee whose own day starts at 06:30 is judged against 06:30).
 Late minutes (shown in reports) = Arrival − Start Time (the grace period does not reduce it).
 
-## 6.3 No-show (Ирээгүй) Cut-off Rule **[NEW]**
+## 6.3 No-show (Ирээгүй) Rule **[CHANGED v1.24]**
 
-An employee becomes **Ирээгүй** only after the no-show cut-off time has passed.
+There is **no no-show cut-off** any more. Whoever arrives on the day attended, however late.
 
-- Default cut-off: **Work Start Time + 2 hours** (e.g. 08:00 → 10:00).
-- Configurable per location (hours after start time).
-- Before the cut-off, an employee with no record and no reason is shown as **Хүлээгдэж байна (Pending)**, not Ирээгүй, and is not counted as No Show.
-- An employee who arrives after the start time but before the cut-off is **Хоцорсон**.
-- An employee who first arrives **after** the cut-off is still recorded as attended (**Хоцорсон**); the system updates the day's status from Ирээгүй to Хоцорсон and keeps the original no-show evaluation in the audit trail.
+- An employee with no record and no reason is **Хүлээгдэж байна (Pending)** for the whole duty, not Ирээгүй, and is not counted as No Show.
+- Only when the employee's **duty is over** (the end of the working day, or of the shift, in the location time zone) with no confirmed arrival and no reason does the day become **Ирээгүй**.
+- An employee who arrives after the start time plus grace is **Хоцорсон**, even 4 hours late; the late minutes are shown (6.2). A late arrival is never Ирээгүй.
+- An arrival after the duty is over does not count for that day; HR corrects it manually (6.9).
 - For past dates, any employee with no record and no reason is Ирээгүй.
+- Each employee is judged against their **own** hours: the working week of their location, a day exception, or their shift (23). A bakery team starting at 06:30 and leaving at 14:00 is a shift template of its own.
 
 ## 6.4 Minimum Geofence Stay (Anti-bounce) Rule **[NEW]**
 
@@ -266,7 +266,7 @@ If the employee disables GPS, revokes location permission, or the app stops repo
 - The app reports a **location-disabled event** (when possible) and the backend tracks last heartbeat.
 - Status shown to HR: **Байршил идэвхгүй**, with last known time.
 - Tracked in a "Location inactive" list on the Daily Attendance screen (filterable) so HR can follow up.
-- The status does **not** mark the employee as present. If no valid arrival is recorded by the no-show cut-off, the employee becomes **Ирээгүй** (HR can then assign a reason or apply a manual correction, see 6.9).
+- The status does **not** mark the employee as present. If no valid arrival is recorded by the end of the duty, the employee becomes **Ирээгүй** (HR can then assign a reason or apply a manual correction, see 6.9).
 - Repeated disabling is logged in the audit log.
 - The employee app shows a persistent warning prompting the employee to re-enable location.
 
@@ -276,7 +276,7 @@ When multiple conditions apply on one day:
 
 1. Active reason assignment → **Шалтгаантай** (arrival time, if any, is still recorded and shown).
 2. Else a confirmed arrival → **Цагтаа** / **Хоцорсон**.
-3. Else cut-off passed → **Ирээгүй**.
+3. Else the duty is over (6.3) → **Ирээгүй**.
 4. Else → **Хүлээгдэж байна**.
 
 ## 6.7 Attendance Integrity (Anti-spoofing) **[v1.2]**
@@ -643,7 +643,6 @@ Fields:
 - Geofence Radius
 - **Working schedule: inherit the tenant Working Week (14.1) or override** (optional, effective-dated) **[CHANGED v1.6]**
 - Grace Minutes
-- **No-show Cut-off (hours after start, default 2)** **[NEW]**
 - **Minimum Geofence Stay (minutes, default 3)** **[NEW]**
 
 Geofence Radius:
@@ -679,7 +678,7 @@ A weekly table with one row per weekday:
 
 (Example for tenant 310; any day can have different hours, e.g. Friday ends earlier, or Saturday works 09:00–13:00.)
 
-- **Grace** and **No-show cut-off** stay as location attendance rules (13): e.g. start 08:30 + grace 15 → on time until 08:45:59, late from 08:46; no-show after 10:30 (start + 2 h).
+- **Grace** stays a location attendance rule (13): e.g. start 08:30 + grace 15 → on time until 08:45:59, late from 08:46; there is no no-show cut-off (6.3): no arrival means Ирээгүй only after 17:30.
 - **Work End** is stored for the standard schedule and used for departure recording and V2 presence analytics (6.2, 23.2); in V1 it does not itself change the status.
 - **Location override (optional):** a location may use its own weekly table (e.g. ЭМАА 09:00–18:00). Locations without an override inherit the tenant Working Week. Each employee resolves to their expected location's table (6.1).
 - **Employees on shifts** (23) ignore the Working Week; it applies only to the standard schedule.
@@ -699,7 +698,7 @@ Org Admin manages a **Holiday Calendar** per tenant:
 ## 14.3 Example for tenant 310
 
 - Working Week: Mon–Fri 08:30–17:30; Sat, Sun off.
-- Grace 15 min → on time up to 08:45:59; late from 08:46; no-show from 10:30 (default start + 2 h).
+- Grace 15 min → on time up to 08:45:59; late from 08:46; no-show only after the day ends (17:30, 6.3).
 - Holiday Calendar: entered by Org Admin (Khongor) each year.
 - Guards (Хамгаалалт) are on 24 h shift patterns (23) and are not governed by this table.
 
@@ -729,7 +728,7 @@ Events recorded:
 - Temporary location assigned / changed / deleted
 - Employee created / edited / disabled / re-activated / archived
 - Location and department changes
-- Attendance rule configuration changes (grace, cut-off, minimum stay)
+- Attendance rule configuration changes (grace, minimum stay)
 - Report exports
 - Attendance updates
 - Location-disabled events (summarized)
@@ -1034,14 +1033,14 @@ The 310 organization prepares compliant phones for employees before the pilot. R
 
 ## 22.1 Effective-dated Rules (versioning)
 
-- Attendance rules (Work Start Time, Grace, No-show Cut-off, Minimum Stay, accuracy threshold) and **shift templates, patterns and assignments** (23) are stored as **effective-dated versions** (`valid_from`, `valid_to`).
+- Attendance rules (Work Start Time, Grace, Minimum Stay, accuracy threshold) and **shift templates, patterns and assignments** (23) are stored as **effective-dated versions** (`valid_from`, `valid_to`).
 - Status for a given date is always computed with the rule version in force on **that date**; changing a rule never rewrites history.
 - Likewise for Primary Location, Department, Temporary Location, **Rank (цол) and Job Position (албан тушаал)** assignments (rank and position are stored separately because a rank changes only by promotion, while a position changes with a transfer or new role — **[v1.10]**): store history with effective dates; reports show the value as of the report date.
 - Holidays and non-working days are versioned by date and can be added retroactively only with an audit entry and an explicit "recompute" action.
 
 ## 22.2 Time Zones
 
-- All timestamps are stored in **UTC**; each tenant has an IANA time zone (default **Asia/Ulaanbaatar**) used for day boundaries, Work Start Time, cut-offs, holidays and reports.
+- All timestamps are stored in **UTC**; each tenant has an IANA time zone (default **Asia/Ulaanbaatar**) used for day boundaries, Work Start Time, the end of the duty, holidays and reports.
 - A "work day" is evaluated in the **location's** time zone (defaults to the tenant's), supporting tenants with locations in different zones in future.
 - Daylight-saving changes are handled by the time zone database, not by fixed offsets.
 
@@ -1060,7 +1059,7 @@ The 310 organization prepares compliant phones for employees before the pilot. R
 
 ## 23.1 Concepts
 
-- **Shift Template:** name, start time, end time or duration (up to 24 h; may cross midnight), grace minutes, no-show cut-off (hours after start), early-arrival window, location default (optional), flag "observes public holidays".
+- **Shift Template:** name, start time, end time or duration (up to 24 h; may cross midnight), grace minutes, location default (optional), flag "observes public holidays".
   Examples: `Өдрийн 08:00–17:00`, `Шөнийн 20:00–08:00`, `24 цаг 08:00–08:00`.
 - **Shift Pattern (rotation):** a repeating sequence of days, each day mapped to a template or OFF. Examples: `24 цаг ажил / 48 цаг амралт` (cycle of 3 days: Shift, Off, Off), `2 өдөр / 2 шөнө / 4 амралт` (cycle of 8 days).
 - **Shift Assignment:** employee ↔ pattern (or single fixed template) with `from_date`, optional `to_date`, and **cycle start date** (which day of the cycle the employee is on at `from_date`). Several guards on a team share a pattern with different cycle offsets.
@@ -1071,9 +1070,8 @@ The 310 organization prepares compliant phones for employees before the pilot. R
 
 - The **work date** of a shift is the **date its shift starts** in the location time zone. A `20:00–08:00` shift starting 2026-10-06 belongs to 2026-10-06 and is shown under that date on the dashboard and reports, even though it ends on 2026-10-07.
 - **Late (6.2):** Arrival ≤ shift start + grace → Цагтаа; later → Хоцорсон.
-- **No-show (6.3):** after shift start + cut-off (default 2 h; per template) with no valid arrival and no reason → Ирээгүй. For 24 h shifts the same 2 h default applies unless the template sets another value.
-- **Early-arrival window:** an entry counts for the shift only from `shift start − early window` (default 2 h; per template). Earlier entries are stored but are attributed to the previous shift or ignored.
-- **Handover / already on site:** if the device is **already inside the geofence** at the start of the early window (e.g. the guard stayed after the previous duty), the arrival time is the window start and the status is Цагтаа, provided the heartbeat/presence check (6.8) confirms the device was inside at shift start. If presence cannot be confirmed (no heartbeat), the system falls back to the first confirmed entry.
+- **No-show (6.3) [CHANGED v1.24]:** no valid arrival and no reason by the **shift end** → Ирээгүй (for a 24 h shift, by 08:00 the next day). Before that the employee is Хүлээгдэж байна.
+- **Early arrival [CHANGED v1.24]:** there is no early-arrival window setting. For a standard day an entry counts from local midnight of the work date; for a shift from 12 h before its start (a duty lasts at most 24 h, so the same person's previous shift is over by then). Earlier entries are stored but belong to the previous work date. Anything before the start is Цагтаа.
 - **Back-to-back shifts and 24 h shifts:** a day's arrival is matched to the **nearest shift start** within its window; one arrival can never satisfy two shifts. For a 24 h shift (08:00 → 08:00 next day) the arrival is judged only at the start; the shift end (08:00 next day) is recorded as the departure when the device leaves the geofence after the shift end (or after the min-stay rule, 6.4).
 - **Departure and leaving early:** in V1 departure time is recorded and shown. Automatic "left early / absent mid-shift" detection and overtime calculation are **V2** (presence analytics), but the raw enter/exit events are kept (6.4) so it can be added without change.
 - **Minimum geofence stay (6.4)** applies unchanged to shift arrivals.
@@ -1167,7 +1165,7 @@ The 310 organization prepares compliant phones for employees before the pilot. R
 # 26. Open Questions for Confirmation
 
 1. **Status precedence (6.6):** a reason assignment overrides arrival status — confirm.
-2. **No-show cut-off default of 2 hours** — confirm, or set per location.
+2. ~~**No-show cut-off default of 2 hours**~~ **Resolved v1.24:** no cut-off; Ирээгүй only when the duty is over (6.3).
 3. **Time zone:** single tenant time zone (Asia/Ulaanbaatar) assumed.
 4. ~~**Weekends / shifts**~~ **Resolved v1.3:** 24 h shifts exist and are in the MVP (23).
 5. **Manager export permission** default.
@@ -1216,6 +1214,7 @@ Added in v1.2 **[v1.2]**:
 | 1.21    | Alerts are pushed to the Org Admin (6.7, 6.9): device alerts (attestation streak, device conflict) and "more than 10 corrections by one user in a day" are announced to every active Org Admin in the in-app inbox and by Web Push to subscribed browsers, with retry. Push texts contain no personal data (they pass through the browser vendor's push service, 15.3). Native mobile push and per-user preferences are not built. |
 | 1.22    | Daily attendance (9) specified as built: filters by status, branch, department and name/code search; the expected branch with a «Түр» badge; arrival, late minutes and the reason with its explanation; Excel/CSV/PDF export of the same list. **Байршил идэвхгүй** (6.5) = expected, no arrival yet, phone silent for over 60 minutes of the current duty; an indicator, not a status. The predefined reasons (11) become 16: **«Бусад»** (Other) is added and must be explained in words. Assigning or ending a reason updates the affected days immediately. |
 | 1.23    | Employee bulk import specified as built (12.3): dry run first with a per-row report, "valid rows only" or "abort on any error", .xlsx or CSV up to 2,000 rows, text-only cells, all rows in one transaction, audited. Because the employee code is assigned by the system, rows **without a code create** employees and rows **with a code update** them (with a diff); a row whose name and department already exist is skipped, so a repeated upload creates nothing. No password is imported: each new employee can get a login with a one-time password, returned once as a sheet and never stored (the invite link / activation code flow of 12.3 is still open). |
+| 1.24    | **No-show cut-off and early-arrival window removed** (6.2, 6.3, 13, 14.1, 23.1, 23.2, 26): there is no "Ирээгүй after N minutes" setting; whoever arrives on the day attended and is Хоцорсон however late. An employee with no arrival and no reason is Хүлээгдэж байна until their own duty ends (the end of their working day or shift) and only then Ирээгүй; arrivals before the start are always Цагтаа (a standard day counts entries from local midnight, a shift from 12 h before its start). Everyone is judged against their own hours, so early-start teams (e.g. a bakery 06:30–14:00) use their own shift template. Leaving early is still not detected (V2, 23.2). `cutoffMinutes` / `earlyWindowMinutes` are removed from the rules and shift-template APIs. |
 
 ---
 

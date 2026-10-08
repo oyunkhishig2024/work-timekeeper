@@ -69,6 +69,18 @@ describe.skipIf(!hasDb)("attendance core: events, deriveStatus, daily results (P
     });
   });
 
+  it("arriving hours before the start is on time, with no early-arrival limit (6.2)", async () => {
+    const w = await world();
+    setClock("05:10");
+    await send(await emp(w), [ev(w)]);
+    setClock("06:00");
+    await tick(w.tenant.id);
+    expect(await resultOf(w.tenant.id, w.employee.id)).toMatchObject({
+      status: "ON_TIME",
+      late_minutes: 0,
+    });
+  });
+
   it("a retried upload is accepted once (idempotent client event id, 6.8)", async () => {
     const w = await world();
     setClock("08:05");
@@ -115,12 +127,15 @@ describe.skipIf(!hasDb)("attendance core: events, deriveStatus, daily results (P
     expect((await resultOf(w.tenant.id, w.employee.id)).status).toBe("PENDING");
   });
 
-  it("no arrival becomes NO_SHOW at the cut-off; a reason then makes it EXCUSED (6.3, 6.6)", async () => {
+  it("no arrival stays PENDING all day and becomes NO_SHOW only when the day ends; a reason then makes it EXCUSED (6.3, 6.6)", async () => {
     const w = await world();
-    setClock("09:59");
+    setClock("12:00");
     await tick(w.tenant.id);
     expect((await resultOf(w.tenant.id, w.employee.id)).status).toBe("PENDING");
-    setClock("10:00");
+    setClock("16:59");
+    await tick(w.tenant.id);
+    expect((await resultOf(w.tenant.id, w.employee.id)).status).toBe("PENDING");
+    setClock("17:00");
     await tick(w.tenant.id);
     expect((await resultOf(w.tenant.id, w.employee.id)).status).toBe("NO_SHOW");
 
@@ -150,7 +165,7 @@ describe.skipIf(!hasDb)("attendance core: events, deriveStatus, daily results (P
     await send(await emp(w), [ev(w)]);
     setClock("08:30");
     await send(await second(w), [ev(w)]);
-    setClock("10:00");
+    setClock("17:00");
     await tick(w.tenant.id);
     expect(third.id).toBeTruthy();
 
@@ -201,7 +216,7 @@ describe.skipIf(!hasDb)("attendance core: events, deriveStatus, daily results (P
 
   it("a Manager sees only their scope; with no scope assigned they see nothing (4)", async () => {
     const w = await world();
-    setClock("10:00");
+    setClock("17:00");
     await tick(w.tenant.id);
     const mgrUser = await createUser(h, w.tenant, { username: "mgr", role: "MANAGER" });
     const mgr = (await signIn(h, mgrUser)).accessToken;

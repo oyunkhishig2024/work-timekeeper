@@ -23,9 +23,10 @@ simply replaced by a new one.
 
 `GET /attendance-rules?locationId&asOf`, `GET /attendance-rules/versions?locationId`, `PUT /attendance-rules` (Org Admin),
 `POST /attendance-rules/inherit` — effective-dated like the working week (same timeline helper, `version-timeline.ts`).
-Fields: `graceMinutes` (0–240; late after start + grace), `cutoffMinutes` (0–1440; Ирээгүй after start + cutoff with no arrival and no reason),
-`minStayMinutes` (1–15), `earlyWindowMinutes` (0–720). A location may have its own version (`source: LOCATION`), else the tenant version
-(`TENANT`), else the **PRD defaults 15 / 120 / 3 / 120** (`DEFAULT`, `id: null`) until the first version is saved. New rules apply from today or
+Fields: `graceMinutes` (0–240; late after start + grace) and `minStayMinutes` (1–15). There is no no-show cut-off and no early-arrival
+window (PRD 6.3, 23.2, v1.24): Ирээгүй comes only when the employee's duty is over, and `cutoffMinutes` / `earlyWindowMinutes` are refused
+(`400`). A location may have its own version (`source: LOCATION`), else the tenant version
+(`TENANT`), else the **PRD defaults 15 / 3** (`DEFAULT`, `id: null`) until the first version is saved. New rules apply from today or
 later only; a version that has not started is replaced.
 
 ## Holidays (PRD 14.2)
@@ -48,7 +49,7 @@ re-uploading is safe; today/past dates are errors unless `confirmRecompute=true`
 
 ## Shift templates and patterns (PRD 23.1)
 
-- `/shift-templates` — `POST {name, startTime, endTime | durationMinutes, graceMinutes?, cutoffMinutes?, earlyWindowMinutes?, observesHolidays?}`.
+- `/shift-templates` — `POST {name, startTime, endTime | durationMinutes, graceMinutes?, observesHolidays?}`.
   `endTime` at or before the start means the next day, equal means 24 h. Responses carry `endTime`, `endsNextDay`, `inUse`.
   `PATCH` changes name / active any time and timing only while unused (`409 SHIFT_TEMPLATE_IN_USE`, database rule TK005).
   **`POST /shift-templates/:id/new-version`** retires a used template and creates its successor (`supersedesId`).

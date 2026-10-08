@@ -43,32 +43,21 @@ describe.skipIf(!hasDb)("working week, holidays and shifts (PRD 14, 23, 22.1)", 
     ) =>
       client.query(
         `INSERT INTO attendance_rule_version
-           (tenant_id, location_id, valid_from, valid_to, grace_minutes, cutoff_minutes, min_stay_minutes, early_window_minutes)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
-        [
-          f.tenantId,
-          loc,
-          from,
-          to,
-          extra.grace ?? 15,
-          extra.cutoff ?? 120,
-          extra.minStay ?? 3,
-          extra.early ?? 120,
-        ],
+           (tenant_id, location_id, valid_from, valid_to, grace_minutes, min_stay_minutes)
+         VALUES ($1, $2, $3, $4, $5, $6)`,
+        [f.tenantId, loc, from, to, extra.grace ?? 15, extra.minStay ?? 3],
       );
 
     it("stores the PRD defaults and forbids overlapping versions of the same scope", async () => {
       const f = await setup();
       await rule(f, "2026-01-01", null);
       const stored = await client.query(
-        "SELECT grace_minutes, cutoff_minutes, min_stay_minutes, early_window_minutes FROM attendance_rule_version WHERE tenant_id = $1",
+        "SELECT grace_minutes, min_stay_minutes FROM attendance_rule_version WHERE tenant_id = $1",
         [f.tenantId],
       );
       expect(stored.rows[0]).toEqual({
         grace_minutes: 15,
-        cutoff_minutes: 120,
         min_stay_minutes: 3,
-        early_window_minutes: 120,
       });
 
       await expect(rule(f, "2026-06-01", null)).rejects.toMatchObject({ code: EXCLUSION });
@@ -92,10 +81,8 @@ describe.skipIf(!hasDb)("working week, holidays and shifts (PRD 14, 23, 22.1)", 
 
     it.each([
       ["grace 241", { grace: 241 }],
-      ["cutoff 1441", { cutoff: 1441 }],
       ["min stay 0", { minStay: 0 }],
       ["min stay 16", { minStay: 16 }],
-      ["early window 721", { early: 721 }],
     ])("rejects out-of-range values (%s)", async (_label, extra) => {
       const f = await setup();
       await expect(rule(f, "2026-01-01", null, null, extra)).rejects.toMatchObject({ code: CHECK });
@@ -407,13 +394,11 @@ describe.skipIf(!hasDb)("working week, holidays and shifts (PRD 14, 23, 22.1)", 
         code: CHECK,
       });
       const row = await client.query(
-        "SELECT grace_minutes, cutoff_minutes, early_window_minutes, observes_holidays FROM shift_template WHERE tenant_id = $1 LIMIT 1",
+        "SELECT grace_minutes, observes_holidays FROM shift_template WHERE tenant_id = $1 LIMIT 1",
         [f.tenantId],
       );
       expect(row.rows[0]).toEqual({
         grace_minutes: 15,
-        cutoff_minutes: 120,
-        early_window_minutes: 120,
         observes_holidays: false,
       });
     });

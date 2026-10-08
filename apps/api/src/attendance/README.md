@@ -12,7 +12,7 @@ this module only loads data, persists and serves it.
    - Response per event: `ACCEPTED` (with flags), `DUPLICATE`, or `REJECTED` (`UNKNOWN_LOCATION`).
 2. The affected employee/work dates are re-evaluated in the same transaction (`candidateWorkDates`: local date and the day before).
 3. The worker (`worker.ts` → `AttendanceTicker`) runs `AttendanceService.tick()` every minute: yesterday and today for every
-   tenant, so `PENDING → NO_SHOW` happens at the cut-off with no event arriving.
+   tenant, so `PENDING → NO_SHOW` happens when the duty ends (PRD 6.3) with no event arriving.
 4. `attendance_result` holds one row per employee and work date (never for `NOT_EXPECTED`); `attendance_result_log` every status change.
 
 ## Endpoints

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { classifyArrival, findConfirmedArrival, isPastCutoff, noShowCutoff } from "../src";
+import { classifyArrival, findConfirmedArrival, isPastCutoff } from "../src";
 
 const t = (hhmmss: string) => new Date(`2026-10-06T${hhmmss}Z`);
 const start = t("08:00:00");
@@ -63,13 +63,10 @@ describe("findConfirmedArrival (PRD 6.4: minimum stay 3 min)", () => {
   });
 });
 
-describe("no-show cut-off (PRD 6.3: start + 2 h)", () => {
-  const cutoff = noShowCutoff(start, 2);
-  it("is two hours after the start", () => {
-    expect(cutoff).toEqual(t("10:00:00"));
-  });
-  it("is reached at, not before, the cut-off", () => {
-    expect(isPastCutoff(t("09:59:59"), cutoff)).toBe(false);
-    expect(isPastCutoff(t("10:00:00"), cutoff)).toBe(true);
+describe("no-show cut-off (PRD 6.3: the end of the duty)", () => {
+  const end = t("17:00:00");
+  it("is reached at, not before, the end", () => {
+    expect(isPastCutoff(t("16:59:59"), end)).toBe(false);
+    expect(isPastCutoff(t("17:00:00"), end)).toBe(true);
   });
 });

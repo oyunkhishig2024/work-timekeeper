@@ -30,9 +30,7 @@ describe.skipIf(!hasDb)("attendance rule versions (PRD 6.2–6.4, 13, 22.1)", ()
   const get = (token: string, url: string) => h.http().get(url).set(bearer(token));
   const rules = (o: Partial<Record<string, number | string | null>> = {}) => ({
     graceMinutes: 15,
-    cutoffMinutes: 120,
     minStayMinutes: 3,
-    earlyWindowMinutes: 120,
     ...o,
   });
 
@@ -62,9 +60,7 @@ describe.skipIf(!hasDb)("attendance rule versions (PRD 6.2–6.4, 13, 22.1)", ()
     expect(none.body).toMatchObject({
       source: "DEFAULT",
       graceMinutes: 15,
-      cutoffMinutes: 120,
       minStayMinutes: 3,
-      earlyWindowMinutes: 120,
       id: null,
     });
     expect((await put(w.hr, "/v1/attendance-rules", rules())).status).toBe(403);
@@ -74,7 +70,7 @@ describe.skipIf(!hasDb)("attendance rule versions (PRD 6.2–6.4, 13, 22.1)", ()
     const saved = await put(
       w.admin,
       "/v1/attendance-rules",
-      rules({ graceMinutes: 10, cutoffMinutes: 90 }),
+      rules({ graceMinutes: 10, minStayMinutes: 5 }),
     );
     expect(saved.status).toBe(200);
     expect(saved.body).toMatchObject({
@@ -82,10 +78,10 @@ describe.skipIf(!hasDb)("attendance rule versions (PRD 6.2–6.4, 13, 22.1)", ()
       validFrom: today(),
       validTo: null,
       graceMinutes: 10,
-      cutoffMinutes: 90,
+      minStayMinutes: 5,
     });
     const read = await get(w.hr, "/v1/attendance-rules");
-    expect(read.body).toMatchObject({ source: "TENANT", graceMinutes: 10, cutoffMinutes: 90 });
+    expect(read.body).toMatchObject({ source: "TENANT", graceMinutes: 10, minStayMinutes: 5 });
     expect(await auditActions(h, w.tenant.id)).toContain("attendance_rules.changed");
   });
 
@@ -94,17 +90,16 @@ describe.skipIf(!hasDb)("attendance rule versions (PRD 6.2–6.4, 13, 22.1)", ()
     const bad = async (o: object) => (await put(w.admin, "/v1/attendance-rules", rules(o))).status;
     expect(await bad({ graceMinutes: -1 })).toBe(400);
     expect(await bad({ graceMinutes: 241 })).toBe(400);
-    expect(await bad({ cutoffMinutes: 1441 })).toBe(400);
+    // PRD 6.3 / 23.2 (v1.24): the no-show cut-off and the early window no longer exist
+    expect(await bad({ cutoffMinutes: 120 })).toBe(400);
+    expect(await bad({ earlyWindowMinutes: 120 })).toBe(400);
     expect(await bad({ minStayMinutes: 0 })).toBe(400);
     expect(await bad({ minStayMinutes: 16 })).toBe(400);
-    expect(await bad({ earlyWindowMinutes: 721 })).toBe(400);
     expect(await bad({ graceMinutes: 1.5 })).toBe(400);
     expect(await bad({ effectiveFrom: "2026-02-30" })).toBe(400);
     expect(await bad({ bogus: 1 })).toBe(400);
     expect((await put(w.admin, "/v1/attendance-rules", { graceMinutes: 15 })).status).toBe(400);
-    expect(
-      await bad({ graceMinutes: 0, cutoffMinutes: 0, minStayMinutes: 1, earlyWindowMinutes: 0 }),
-    ).toBe(200);
+    expect(await bad({ graceMinutes: 0, minStayMinutes: 1 })).toBe(200);
   });
 
   it("new rules apply from their date; the past is not rewritten; unstarted versions are replaced", async () => {
@@ -160,13 +155,13 @@ describe.skipIf(!hasDb)("attendance rule versions (PRD 6.2–6.4, 13, 22.1)", ()
     const own = await put(
       w.admin,
       "/v1/attendance-rules",
-      rules({ locationId: w.emma, graceMinutes: 5, cutoffMinutes: 60 }),
+      rules({ locationId: w.emma, graceMinutes: 5, minStayMinutes: 2 }),
     );
     expect(own.status).toBe(200);
     expect((await get(w.hr, `/v1/attendance-rules?locationId=${w.emma}`)).body).toMatchObject({
       source: "LOCATION",
       graceMinutes: 5,
-      cutoffMinutes: 60,
+      minStayMinutes: 2,
     });
     expect((await get(w.hr, `/v1/attendance-rules?locationId=${w.central}`)).body.source).toBe(
       "TENANT",

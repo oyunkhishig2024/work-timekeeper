@@ -127,8 +127,7 @@ export class ExpectationLoader {
     const ruleRows = (
       await tx.query<AttendanceRules>(
         `SELECT location_id AS "locationId", valid_from::text AS "validFrom", valid_to::text AS "validTo",
-                grace_minutes AS "graceMinutes", cutoff_minutes AS "cutoffMinutes",
-                min_stay_minutes AS "minStayMinutes", early_window_minutes AS "earlyWindowMinutes"
+                grace_minutes AS "graceMinutes", min_stay_minutes AS "minStayMinutes"
            FROM attendance_rule_version`,
       )
     ).rows;
@@ -145,7 +144,6 @@ export class ExpectationLoader {
         `SELECT id, name, to_char(start_time, 'HH24:MI') AS "startTime",
                 to_char(start_time + make_interval(mins => duration_minutes), 'HH24:MI') AS "endTime",
                 duration_minutes AS "durationMinutes", grace_minutes AS "graceMinutes",
-                cutoff_minutes AS "cutoffMinutes", early_window_minutes AS "earlyWindowMinutes",
                 observes_holidays AS "observesHolidays"
            FROM shift_template`,
       )

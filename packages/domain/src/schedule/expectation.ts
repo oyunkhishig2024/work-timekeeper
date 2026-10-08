@@ -184,6 +184,9 @@ function pickException(
   );
 }
 
+/** How long before a shift starts an entry still counts for it. */
+const SHIFT_EARLY_LIMIT_MINUTES = 12 * 60;
+
 function buildExpectation(
   duty: Duty,
   rules: AttendanceRules,
@@ -198,8 +201,14 @@ function buildExpectation(
     duty.kind === "SHIFT"
       ? new Date(start.getTime() + duty.template.durationMinutes * MS_PER_MINUTE)
       : zonedTimeToInstant(workDate, duty.endTime, timeZone);
-  // Grace, cut-off and early window belong to the shift template for shifts and to the rule version otherwise.
+  // Grace belongs to the shift template for shifts and to the rule version otherwise.
   const timing = duty.kind === "SHIFT" ? duty.template : rules;
+  // Arriving earlier is never a problem (PRD 6.2): a standard day counts entries from local midnight, a shift from 12 h
+  // before it starts (a duty lasts at most 24 h, so the previous shift of the same person is over by then).
+  const earlyWindowStart =
+    duty.kind === "SHIFT"
+      ? new Date(start.getTime() - SHIFT_EARLY_LIMIT_MINUTES * MS_PER_MINUTE)
+      : zonedTimeToInstant(workDate, "00:00", timeZone);
   return {
     expected: true,
     source: duty.kind,
@@ -210,8 +219,8 @@ function buildExpectation(
     start,
     end,
     graceMinutes: timing.graceMinutes,
-    cutoff: new Date(start.getTime() + timing.cutoffMinutes * MS_PER_MINUTE),
-    earlyWindowStart: new Date(start.getTime() - timing.earlyWindowMinutes * MS_PER_MINUTE),
+    cutoff: end, // PRD 6.3: nobody is a no-show before the duty is over
+    earlyWindowStart,
     minStayMinutes: rules.minStayMinutes,
   };
 }

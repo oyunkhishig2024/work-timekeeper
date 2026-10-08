@@ -13,8 +13,6 @@ export interface TemplateInput {
   startTime: string;
   durationMinutes: number;
   graceMinutes?: number;
-  cutoffMinutes?: number;
-  earlyWindowMinutes?: number;
   observesHolidays?: boolean;
 }
 
@@ -34,8 +32,7 @@ const TEMPLATE_SELECT = `
   to_char(t.start_time + make_interval(mins => t.duration_minutes), 'HH24:MI') AS "endTime",
   (t.start_time + make_interval(mins => t.duration_minutes)) < t.start_time
     OR t.duration_minutes = 1440 AS "endsNextDay",
-  t.grace_minutes AS "graceMinutes", t.cutoff_minutes AS "cutoffMinutes",
-  t.early_window_minutes AS "earlyWindowMinutes", t.observes_holidays AS "observesHolidays",
+  t.grace_minutes AS "graceMinutes", t.observes_holidays AS "observesHolidays",
   t.active, t.supersedes_id AS "supersedesId", t.created_at AS "createdAt",
   (EXISTS (SELECT 1 FROM shift_pattern_day d WHERE d.tenant_id = t.tenant_id AND d.template_id = t.id)
    OR EXISTS (SELECT 1 FROM shift_assignment a WHERE a.tenant_id = t.tenant_id AND a.template_id = t.id)
@@ -121,9 +118,6 @@ export class ShiftsService {
       if (input.startTime !== undefined) set("start_time", input.startTime);
       if (input.durationMinutes !== undefined) set("duration_minutes", input.durationMinutes);
       if (input.graceMinutes !== undefined) set("grace_minutes", input.graceMinutes);
-      if (input.cutoffMinutes !== undefined) set("cutoff_minutes", input.cutoffMinutes);
-      if (input.earlyWindowMinutes !== undefined)
-        set("early_window_minutes", input.earlyWindowMinutes);
       if (input.observesHolidays !== undefined) set("observes_holidays", input.observesHolidays);
       try {
         await tx.query(`UPDATE shift_template SET ${sets.join(", ")} WHERE id = $1`, params);
@@ -166,8 +160,6 @@ export class ShiftsService {
         startTime: input.startTime ?? old.startTime,
         durationMinutes: input.durationMinutes ?? old.durationMinutes,
         graceMinutes: input.graceMinutes ?? old.graceMinutes,
-        cutoffMinutes: input.cutoffMinutes ?? old.cutoffMinutes,
-        earlyWindowMinutes: input.earlyWindowMinutes ?? old.earlyWindowMinutes,
         observesHolidays: input.observesHolidays ?? old.observesHolidays,
       };
       const newId = await this.insertTemplate(tx, auth, merged, id);
@@ -195,9 +187,8 @@ export class ShiftsService {
     try {
       const { rows } = await tx.query<{ id: string }>(
         `INSERT INTO shift_template
-           (tenant_id, name, start_time, duration_minutes, grace_minutes, cutoff_minutes, early_window_minutes,
-            observes_holidays, supersedes_id, created_by)
-         VALUES ($1, $2, $3, $4, COALESCE($5, 15), COALESCE($6, 120), COALESCE($7, 120), COALESCE($8, false), $9, $10)
+           (tenant_id, name, start_time, duration_minutes, grace_minutes, observes_holidays, supersedes_id, created_by)
+         VALUES ($1, $2, $3, $4, COALESCE($5, 15), COALESCE($6, false), $7, $8)
          RETURNING id`,
         [
           auth.tenantId,
@@ -205,8 +196,6 @@ export class ShiftsService {
           t.startTime,
           t.durationMinutes,
           t.graceMinutes ?? null,
-          t.cutoffMinutes ?? null,
-          t.earlyWindowMinutes ?? null,
           t.observesHolidays ?? null,
           supersedes,
           auth.userId,

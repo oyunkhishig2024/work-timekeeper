@@ -310,7 +310,7 @@ describe.skipIf(!hasDb)(
         k.setClock("08:05");
         await k.send(await k.emp(w), [mock(w)]);
         await k.send(await k.second(w), [mock(w)]);
-        k.setClock("10:00");
+        k.setClock("17:00");
         await k.tick(w.tenant.id);
         const hr = await signIn(h, w.hr).then((t) => t.accessToken);
         const items = (await queue(hr)).body.items as Array<{ id: string; employeeId: string }>;
