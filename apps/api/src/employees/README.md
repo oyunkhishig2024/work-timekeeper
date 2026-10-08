@@ -68,9 +68,28 @@ A Manager sees employees whose **primary location** is in `locationIds` **or** w
 `departmentIds`. A Manager with no rows sees nothing; HR with no rows sees everything (PRD 4). Only HR and Manager
 accounts have a scope.
 
+## Bulk import (PRD 12.3)
+
+`GET /employees/import/template?format=xlsx|csv` and `POST /employees/import` (Org Admin, HR; the file is the raw request body, `.xlsx` or CSV, max 5 MB and
+2,000 rows, type decided from the content). Query: `dryRun` (default **true**: nothing is written, the per-row report comes back), `mode`
+(`VALID_ONLY` default | `ABORT_ON_ERROR`: any error and nothing is imported, `409 IMPORT_HAS_ERRORS` with the report), `onDuplicate` (`SKIP` default | `CREATE`),
+`createAccounts` (default false), `fileName` (for the audit).
+
+Columns (Mongolian or English headers): **Код**, **Овог**, **Нэр**, **Нэгж**, **Салбар**, Цол, Албан тушаал, Ажилд орсон, Хуваарь (Энгийн | Ээлжийн), Гараар ирц (тийм | үгүй).
+Required: Овог, Нэр, Нэгж, Салбар (the department and location are matched by name and must exist, be active and inside the caller's scope).
+
+- **No code** = a new employee; the system assigns the 16-digit code. A row whose name and department already exist is skipped as `ALREADY_EXISTS` (so re-uploading the
+  same file creates nothing) unless `onDuplicate=CREATE`; the same name twice in one file is `DUPLICATE_IN_FILE`.
+- **A code** = update that employee. The report lists the differences (`changes`); no difference is the warning `NO_CHANGES`; blank optional cells (rank, position, start
+  date, schedule, manual) leave the value alone; an unknown, repeated, disabled or archived code is an error. A rank or position that differs takes effect today, as in `PATCH`.
+- Cells are text only (`=`, `+`, `-`, `@` are never evaluated). Every row is checked first; the commit writes all valid rows in **one transaction** (all or nothing), through the same code as
+  `POST` and `PATCH /employees`, and is audited as `employee.imported` (file name and counts only).
+- **No password is imported.** With `createAccounts=true` each new employee gets a login (username = the code) with a random one-time password, returned once in `credentials`
+  (never stored, never audited). At most 400 new employees per import with logins (hashing takes time); more: import first, create logins afterwards.
+
 ## Known gaps (deliberate)
 
 - **No effective-dated history** of department / primary-location changes (PRD 22.1): a change applies from now on and
   is recorded in the audit log. A history table is needed before attendance reports are built on past dates.
-- Scheduled disabling on a future date; Excel bulk import (PRD 12.3) and import dry-run; Device Readiness report.
+- Scheduled disabling on a future date; Device Readiness report; the import has no invite link / activation code flow yet (one-time passwords instead), and no "download the sheet again".
 - Concurrency control (`If-Match`) on edits; scope applies to employees only (not yet to attendance data, which does not exist yet).

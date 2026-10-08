@@ -83,7 +83,8 @@ Open to Org Admin, HR and Manager (a Manager sees only their data scope, read-on
   password is shown once), **device history**, **Утас солих QR** (single-use replacement QR drawn in the browser with `qrcode`; shown once; an Org Admin
   may add a consent override reason), disable the phone (lost / stolen / other), consent state, and lifecycle: **disable** (effective date, reason),
   **reactivate** (department and branch re-confirmed, a new one-time password if there is a login), **archive**.
-- Not here yet: Excel bulk import (not in the API either), consent printing and "mark signed", temporary location assignments, the shared
+- **Excel-ээр оруулах** (`/employees/import`, PRD 12.3): template download, file check, **Шалгах (dry run)** with a per-row report (valid / warning / error, the diff for updates, Mongolian messages, only-problems filter), then **Оруулах**. Options: valid rows only or stop on any error, allow namesakes, create logins. After importing: a **result sheet with the new codes** (upload it later to update the same people) and, with logins, the **one-time passwords sheet** (shown once, the server keeps no copy). CSV sheets are formula-safe and open correctly in Excel.
+- Not here yet: consent printing and "mark signed", temporary location assignments, the shared
   registration QR screen, scope settings.
 
 ## Web Push (`public/sw.js`, `src/lib/push.ts`, `src/components/push-card.tsx`)

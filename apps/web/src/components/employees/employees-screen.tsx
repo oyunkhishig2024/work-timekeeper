@@ -102,13 +102,21 @@ export function EmployeesScreen({ user }: { user: SessionUser }) {
       <div className="flex flex-wrap items-center justify-between gap-2">
         <h1 className="text-2xl font-semibold">Ажилтнууд</h1>
         {canEdit && (
-          <button
-            type="button"
-            className="min-h-11 rounded-md bg-teal-700 px-4 font-semibold text-white hover:bg-teal-800"
-            onClick={() => setAdding(true)}
-          >
-            + Ажилтан нэмэх
-          </button>
+          <div className="flex flex-wrap gap-2">
+            <Link
+              href="/employees/import"
+              className={`${secondaryButton} inline-flex items-center`}
+            >
+              Excel-ээр оруулах
+            </Link>
+            <button
+              type="button"
+              className="min-h-11 rounded-md bg-teal-700 px-4 font-semibold text-white hover:bg-teal-800"
+              onClick={() => setAdding(true)}
+            >
+              + Ажилтан нэмэх
+            </button>
+          </div>
         )}
       </div>
 

@@ -1,11 +1,11 @@
 import { Injectable } from "@nestjs/common";
 import { ApiError } from "../common/api-error";
 import { Clock } from "../common/clock";
-import { isValidIsoDate } from "../common/dates";
 import { tenantToday } from "../common/tenant-today";
 import { DatabaseService } from "../database/database.service";
 import { AuditService } from "../audit/audit.service";
 import type { AuthContext, RequestMeta } from "../auth/auth.types";
+import { NO, parseDate, YES } from "../tabular/parse";
 import { readTable } from "../tabular/read";
 import type { Table } from "../tabular/table";
 import { HolidaysService, type HolidayInput, type HolidayKind } from "./holidays.service";
@@ -52,8 +52,6 @@ const KINDS: Record<string, HolidayKind> = {
   "шилжүүлсэн амралт": "TRANSFERRED_DAY_OFF",
 };
 const ALL_WORDS = new Set(["", "all", "бүгд", "бүх салбар", "*"]);
-const YES = new Set(["yes", "y", "true", "1", "тийм", "x"]);
-const NO = new Set(["no", "n", "false", "0", "үгүй", ""]);
 
 const dayMs = 86_400_000;
 
@@ -274,11 +272,4 @@ export class HolidayImportService {
     }
     return out;
   }
-}
-
-function parseDate(value: string): string | null {
-  const m = /^(\d{4})[-./](\d{1,2})[-./](\d{1,2})$/u.exec(value.trim());
-  if (!m) return null;
-  const iso = `${m[1]}-${m[2]!.padStart(2, "0")}-${m[3]!.padStart(2, "0")}`;
-  return isValidIsoDate(iso) ? iso : null;
 }

@@ -1,7 +1,7 @@
 # Timekeeper Work
 ## Product Requirements Document (PRD)
 
-Version: 1.22
+Version: 1.23
 Product: Timekeeper Work
 Owner: Onki
 Status: Requirements Specification (pre-development review + CTO review + stakeholder decisions applied)
@@ -1215,6 +1215,7 @@ Added in v1.2 **[v1.2]**:
 | 1.20    | Batch attestation and DEVICE_CONFLICT built (6.7): one verdict per event batch (FAILED is flagged and queued, UNAVAILABLE is only noted so an outage never blocks attendance, five in a row alert HR); DEVICE_CONFLICT when a batch is signed by another install key or when another employee's device reports the same places at the same times at least three times at two or more places. Alerts for HR in `device-alerts`. The Google Play Integrity and Apple App Attest verifiers themselves are still to be built (Spike 2); until then enforce mode treats a token as unavailable. |
 | 1.21    | Alerts are pushed to the Org Admin (6.7, 6.9): device alerts (attestation streak, device conflict) and "more than 10 corrections by one user in a day" are announced to every active Org Admin in the in-app inbox and by Web Push to subscribed browsers, with retry. Push texts contain no personal data (they pass through the browser vendor's push service, 15.3). Native mobile push and per-user preferences are not built. |
 | 1.22    | Daily attendance (9) specified as built: filters by status, branch, department and name/code search; the expected branch with a «Түр» badge; arrival, late minutes and the reason with its explanation; Excel/CSV/PDF export of the same list. **Байршил идэвхгүй** (6.5) = expected, no arrival yet, phone silent for over 60 minutes of the current duty; an indicator, not a status. The predefined reasons (11) become 16: **«Бусад»** (Other) is added and must be explained in words. Assigning or ending a reason updates the affected days immediately. |
+| 1.23    | Employee bulk import specified as built (12.3): dry run first with a per-row report, "valid rows only" or "abort on any error", .xlsx or CSV up to 2,000 rows, text-only cells, all rows in one transaction, audited. Because the employee code is assigned by the system, rows **without a code create** employees and rows **with a code update** them (with a diff); a row whose name and department already exist is skipped, so a repeated upload creates nothing. No password is imported: each new employee can get a login with a one-time password, returned once as a sheet and never stored (the invite link / activation code flow of 12.3 is still open). |
 
 ---
 

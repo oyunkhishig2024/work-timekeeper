@@ -170,6 +170,19 @@ export class EmployeesService {
   async create(auth: AuthContext, input: EmployeeFields, meta: RequestMeta) {
     return this.db.withTenant(auth.tenantId, async (tx) => {
       const scope = await this.scopes.forUser(tx, auth);
+      return this.createIn(tx, auth, scope, input, meta);
+    });
+  }
+
+  /** Creates an employee inside the caller's transaction (the bulk import commits all rows together). */
+  async createIn(
+    tx: Db,
+    auth: AuthContext,
+    scope: DataScope,
+    input: EmployeeFields,
+    meta: RequestMeta,
+  ) {
+    {
       this.assertInScope(scope, input.departmentId, input.primaryLocationId);
       await this.assertActiveReferences(tx, input.departmentId, input.primaryLocationId);
       const today = await this.tenantToday(tx, auth.tenantId);
@@ -232,7 +245,7 @@ export class EmployeesService {
         ...meta,
       });
       return this.loadVisible(tx, scope, id);
-    });
+    }
   }
 
   /**
@@ -241,9 +254,23 @@ export class EmployeesService {
    * effective-dated history (PRD 22.1) is a separate, later piece of work.
    */
   async update(auth: AuthContext, id: string, input: Partial<EmployeeFields>, meta: RequestMeta) {
-    const { rank, position, ...fields } = input;
     return this.db.withTenant(auth.tenantId, async (tx) => {
       const scope = await this.scopes.forUser(tx, auth);
+      return this.updateIn(tx, auth, scope, id, input, meta);
+    });
+  }
+
+  /** Changes an employee inside the caller's transaction (the bulk import commits all rows together). */
+  async updateIn(
+    tx: Db,
+    auth: AuthContext,
+    scope: DataScope,
+    id: string,
+    input: Partial<EmployeeFields>,
+    meta: RequestMeta,
+  ) {
+    const { rank, position, ...fields } = input;
+    {
       const current = await this.loadVisible(tx, scope, id);
       if (current.status === "ARCHIVED") {
         throw new ApiError(
@@ -304,7 +331,7 @@ export class EmployeesService {
         await this.jobs.assign(tx, auth, kind, employee, { title: wanted }, today, meta);
       }
       return this.loadVisible(tx, scope, id);
-    });
+    }
   }
 
   // ------------------------------------------------------------------ rank / position history (PRD 12, 22.1)
@@ -571,6 +598,30 @@ export class EmployeesService {
     const passwordHash = await this.passwords.hash(temporaryPassword);
     return this.db.withTenant(auth.tenantId, async (tx) => {
       const scope = await this.scopes.forUser(tx, auth);
+      return this.createAccountIn(
+        tx,
+        auth,
+        scope,
+        id,
+        input,
+        { temporaryPassword, passwordHash },
+        meta,
+      );
+    });
+  }
+
+  /** Creates the login inside the caller's transaction; the one-time password is generated and hashed by the caller. */
+  async createAccountIn(
+    tx: Db,
+    auth: AuthContext,
+    scope: DataScope,
+    id: string,
+    input: { username?: string },
+    secret: { temporaryPassword: string; passwordHash: string },
+    meta: RequestMeta,
+  ) {
+    const { temporaryPassword, passwordHash } = secret;
+    {
       const employee = await this.loadVisible(tx, scope, id);
       if (employee.status !== "ACTIVE")
         throw new ApiError(409, "EMPLOYEE_NOT_ACTIVE", "The employee is not active.");
@@ -603,7 +654,7 @@ export class EmployeesService {
         ...meta,
       });
       return { userId, username, temporaryPassword };
-    });
+    }
   }
 
   // ------------------------------------------------------------------ helpers

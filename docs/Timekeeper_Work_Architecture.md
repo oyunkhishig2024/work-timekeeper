@@ -1,7 +1,7 @@
 # Timekeeper Work
 ## Technical Architecture Document
 
-Version: 0.24 (draft for review)
+Version: 0.25 (draft for review)
 Status: Draft — based on PRD v1.9 (`docs/Timekeeper_Work_PRD.md`)
 Audience: engineering lead, backend / mobile / web developers, QA
 Scope: the **pilot tier** (1–2 tenants, ~4 months, ~640 employees), built by **one full-stack developer** (decision v0.2, see Section 14). The production tier is covered only where a decision now would be expensive to undo later.
@@ -865,3 +865,8 @@ Migrations `0010_time_rules` and `0011_shifts` add the storage for attendance ru
 
 - `apps/web` `/employees` and `/employees/:id` on the existing employee, device and consent APIs. New dependency: `qrcode` (QR drawn in the browser; the token never leaves the page).
 - Open: bulk import (PRD 12.3, no API yet), consent printing and signing screens, temporary location assignments, the shared registration QR screen, settings (working week, holidays, shifts, reasons, users and scope).
+
+# 40. Implementation Status (employee import)
+
+- API: `EmployeeImportService` (`POST /employees/import`, template), `EmployeesService.createIn / updateIn / createAccountIn` (the same code as the single-employee routes, inside the import's one transaction). Web: `/employees/import`.
+- Open: invite link / activation code instead of one-time passwords (PRD 12.3), re-downloading the logins sheet, imports above 2,000 rows (background jobs), importing consent or device state.

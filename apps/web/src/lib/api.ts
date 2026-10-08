@@ -5,6 +5,8 @@ export class ApiRequestError extends Error {
     readonly status: number,
     readonly code: string,
     message: string,
+    /** Extra data of the problem (an import's report when it was refused). */
+    readonly extra?: unknown,
   ) {
     super(message);
   }
@@ -91,4 +93,34 @@ export async function download(path: string): Promise<{ blob: Blob; fileName: st
   const disposition = res.headers.get("Content-Disposition") ?? "";
   const match = /filename\*?=(?:UTF-8'')?"?([^";]+)"?/iu.exec(disposition);
   return { blob: await res.blob(), fileName: match ? decodeURIComponent(match[1]!) : "export" };
+}
+
+/** Sends a file as the raw request body (imports); the API reads .xlsx or CSV from the content, not from the name. */
+export async function uploadFile<T>(path: string, file: File): Promise<T> {
+  const send = () => {
+    const token = provider?.accessToken() ?? null;
+    return fetch(path, {
+      method: "POST",
+      headers: {
+        "Content-Type": file.type || "application/octet-stream",
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      body: file,
+      cache: "no-store",
+    });
+  };
+  let res = await send();
+  if (res.status === 401 && provider && (await provider.refresh())) res = await send();
+  const text = await res.text();
+  const data: unknown = text ? safeJson(text) : null;
+  if (!res.ok) {
+    const problem = (data ?? {}) as { code?: string; detail?: string; report?: unknown };
+    throw new ApiRequestError(
+      res.status,
+      problem.code ?? "REQUEST_FAILED",
+      problem.detail ?? `Request failed (${res.status})`,
+      problem.report,
+    );
+  }
+  return data as T;
 }
