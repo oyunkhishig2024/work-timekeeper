@@ -55,8 +55,20 @@ get the actions and the export (a Manager's export depends on a tenant setting, 
 - **Excel / CSV / PDF**: `GET /v1/exports/daily-attendance` with the same filters (token sent in the header, file saved from a blob).
 - Today's list refreshes every minute.
 
-Not here yet: ending or changing a reason from this screen (use the reason assignments API), the anomaly review queue, the device
-alerts list, bulk reason assignment.
+Not here yet: ending or changing a reason from this screen (use the reason assignments API), bulk reason assignment.
+
+## Review (`/review`, `/device-alerts`; PRD 6.7)
+
+Org Admin and HR (the menu entry **Хяналт**, two tabs with the number of open items).
+
+- **Сэжигтэй event** (`/review`): events that were accepted and flagged (mock location, poor accuracy, clock skew, impossible speed, failed
+  attestation, device conflict). Each card: person, enter/exit, branch, time (organization zone), every flag with a plain explanation,
+  whether it counts towards attendance, accuracy, the phone's clock, a map link for the coordinates (opened only on click). Actions:
+  **Баталгаажуулах** (clears the flag), **Няцаах** (reason required; the event stops counting and the day is rebuilt),
+  **Дахин шалгахыг хүсэх** (once). Filters: Нээлттэй / Бүгд / Баталсан / Няцаасан, and per employee. A yellow box lists employees with
+  3 or more flagged events in 7 days.
+- **Төхөөрөмжийн сэрэмжлүүлэг** (`/device-alerts`): attestation silent for five batches, device conflict; **Шийдсэн болгох** with a note.
+  These are the pages the push notifications link to.
 
 ## Web Push (`public/sw.js`, `src/lib/push.ts`, `src/components/push-card.tsx`)
 

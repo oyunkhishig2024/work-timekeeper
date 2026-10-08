@@ -6,6 +6,10 @@ import { useEffect, type ReactNode } from "react";
 import { logout, type SessionUser } from "@/lib/session";
 import { useSession } from "./use-session";
 
+/** The review lists share one menu entry. */
+const active = (pathname: string, href: string) =>
+  href === "/review" ? pathname === "/review" || pathname === "/device-alerts" : pathname === href;
+
 /** Page frame for signed-in pages: sends visitors without a session to the sign-in page. */
 export function AppShell({ children }: { children: (user: SessionUser) => ReactNode }) {
   const session = useSession();
@@ -42,12 +46,13 @@ export function AppShell({ children }: { children: (user: SessionUser) => ReactN
           {[
             ["/dashboard", "Хянах самбар"],
             ["/daily", "Өдрийн ирц"],
+            ["/review", "Хяналт"],
             ["/notifications", "Мэдэгдэл"],
           ].map(([href, label]) => (
             <li key={href}>
               <Link
                 href={href!}
-                aria-current={pathname === href ? "page" : undefined}
+                aria-current={active(pathname, href!) ? "page" : undefined}
                 className={`inline-flex min-h-11 items-center border-b-2 px-3 text-sm font-medium ${
                   pathname === href
                     ? "border-teal-700 text-teal-800"
