@@ -41,6 +41,7 @@ export function AppShell({ children }: { children: (user: SessionUser) => ReactN
         <ul className="mx-auto flex max-w-5xl gap-1 px-4">
           {[
             ["/dashboard", "Хянах самбар"],
+            ["/daily", "Өдрийн ирц"],
             ["/notifications", "Мэдэгдэл"],
           ].map(([href, label]) => (
             <li key={href}>

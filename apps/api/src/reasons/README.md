@@ -1,6 +1,6 @@
 # Reasons API (PRD 11, 6.6)
 
-The **15 predefined reasons** (Албан ажилтай … Тасалсан; `seed_default_reasons(tenant)` creates them) and dated **reason assignments**:
+The **16 predefined reasons** (Албан ажилтай … Тасалсан, then «Бусад»; `seed_default_reasons(tenant)` creates them) and dated **reason assignments**:
 while an assignment covers a date the employee is **Шалтгаантай** instead of Ирээгүй (the status rule belongs to the attendance engine
 and `packages/domain`, not here). All routes are under `/v1`; every change is audited.
 
@@ -13,6 +13,10 @@ and `packages/domain`, not here). All routes are under `/v1`; every change is au
 | `POST /reason-assignments/:id/end` `{endDate}`                                                      | HR, Org Admin                         | Ends it early (inclusive); the row stays as history (`endedAt`)                                                                                              |
 | `DELETE /reason-assignments/:id`                                                                    | HR, Org Admin                         | Only before it starts (`409 REASON_STARTED`)                                                                                                                 |
 | `GET /reason-report?from&to&locationId&departmentId`                                                | Org Admin, HR, Manager (inside scope) | Per reason: distinct `employees` and `employeeDays` inside the period (clipped to it; period ≤ 367 days). Drill-down: `reason-assignments?reasonId&from&to`  |
+
+**«Бусад» (Other)** has `requiresDescription: true`: assigning it without a written description (at least 3 characters) is `400 DESCRIPTION_REQUIRED`.
+The description is shown next to the excused day (`reasonNote` in the daily list). Assigning or ending a reason **rebuilds the affected daily results at
+once** (from the start date up to today, at most 62 days back; older days: `POST /attendance/recompute`), so the screens change without waiting for the worker.
 
 Rules: an employee has **one reason at a time** (`409 REASON_OVERLAP` with `conflicts[]`: the clashing assignments); only **active** employees
 get reasons; **disabling** an employee ends their open reasons on the effective date and removes later ones (PRD 12.2).

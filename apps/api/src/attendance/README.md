@@ -106,3 +106,17 @@ the event, its geofence location and flags stay. Coordinates are shown only in t
 
 Alerts: `GET /v1/device-alerts?status=OPEN|ALL&kind=` and `POST /v1/device-alerts/:id/resolve {note?}` (ORG_ADMIN, HR; data
 scope applies; resolving is audited as `device.alert_resolved`). A resolved alert can open again if the problem returns.
+
+## Daily list (PRD 9) - `GET /v1/attendance/daily`
+
+`date` (required), `status` (`ON_TIME | LATE | EXCUSED | NO_SHOW | PENDING | EXPECTED | INACTIVE`), `locationId`, `departmentId`, `q`
+(name or employee code, wildcards are literal), `limit` (≤ 500), `offset`. Rows carry rank and position (valid on that date), department,
+primary and expected branch with `temporary` (expected branch differs from the primary one, PRD 12.1), status, arrival, `lateMinutes`,
+`reasonName`, `reasonNote` (the written explanation, «Бусад»), `reasonAssignmentId`, `source`/`systemStatus`/`correctionId`, `flaggedEvents`,
+`lastSeenAt`, `hasDevice`, `locationInactive`. `counts` has every status chip for the other filters (ignoring `status`), plus `INACTIVE`.
+
+**Байршил идэвхгүй** (`INACTIVE`, PRD 6.5, 6.8) is not a status: `isLocationInactive` (packages/domain) flags an employee with a registered device
+who is expected, has no arrival yet (Хүлээгдэж байна / Ирээгүй) and whose device has not reported (event or heartbeat) for over 60 minutes of the
+current duty. The day's status is unchanged. The INACTIVE list loads candidates first and pages afterwards (cap 2000).
+
+Export: `GET /v1/exports/daily-attendance?format=xlsx|csv|pdf&date=&status=&locationId=&departmentId=&q=` (same filters, Ulaanbaatar-time arrivals, audited).

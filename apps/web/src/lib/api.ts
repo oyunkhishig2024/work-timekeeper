@@ -68,3 +68,27 @@ function safeJson(text: string): unknown {
     return null;
   }
 }
+
+/** Downloads a file the API generates (exports). The token goes in the header, so a plain link cannot be used. */
+export async function download(path: string): Promise<{ blob: Blob; fileName: string }> {
+  const send = () => {
+    const token = provider?.accessToken() ?? null;
+    return fetch(path, {
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+      cache: "no-store",
+    });
+  };
+  let res = await send();
+  if (res.status === 401 && provider && (await provider.refresh())) res = await send();
+  if (!res.ok) {
+    const problem = (safeJson(await res.text()) ?? {}) as { code?: string; detail?: string };
+    throw new ApiRequestError(
+      res.status,
+      problem.code ?? "REQUEST_FAILED",
+      problem.detail ?? `Request failed (${res.status})`,
+    );
+  }
+  const disposition = res.headers.get("Content-Disposition") ?? "";
+  const match = /filename\*?=(?:UTF-8'')?"?([^";]+)"?/iu.exec(disposition);
+  return { blob: await res.blob(), fileName: match ? decodeURIComponent(match[1]!) : "export" };
+}

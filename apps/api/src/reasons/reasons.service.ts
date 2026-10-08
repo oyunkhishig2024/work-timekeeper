@@ -1,10 +1,12 @@
 import { Injectable } from "@nestjs/common";
+import { addDays } from "@timekeeper/domain";
 import { ApiError } from "../common/api-error";
 import { Clock } from "../common/clock";
 import { updateColumns } from "../common/sql";
 import { tenantToday } from "../common/tenant-today";
 import { DatabaseService, type Db } from "../database/database.service";
 import { AuditService } from "../audit/audit.service";
+import { AttendanceService } from "../attendance/attendance.service";
 import { ScopeService } from "../access/scope.service";
 import type { AuthContext, RequestMeta } from "../auth/auth.types";
 
@@ -42,7 +44,28 @@ export class ReasonsService {
     private readonly db: DatabaseService,
     private readonly audit: AuditService,
     private readonly scopes: ScopeService,
+    private readonly attendance: AttendanceService,
   ) {}
+
+  /**
+   * A reason changes what the days it covers show (Ирээгүй becomes Шалтгаантай), so the results from `from` to today are rebuilt
+   * at once instead of waiting for the next worker tick, which only looks at yesterday and today. Looks back at most 62 days;
+   * older days are rebuilt with POST /attendance/recompute.
+   */
+  private async refreshDays(
+    tx: Db,
+    tenantId: string,
+    employeeIds: string[],
+    from: string,
+    to: string | null,
+  ): Promise<void> {
+    const today = await tenantToday(tx, this.clock, tenantId);
+    const start = from < addDays(today, -62) ? addDays(today, -62) : from;
+    const end = to !== null && to < today ? to : today;
+    if (start <= end) {
+      await this.attendance.recompute(tx, tenantId, employeeIds, start, end, this.clock.now());
+    }
+  }
 
   // ------------------------------------------------------------------ the list of reasons (Org Admin)
 
@@ -64,7 +87,7 @@ export class ReasonsService {
   private async select(tx: Db, auth: AuthContext, f: { id?: string; active?: boolean }) {
     const withCounts = auth.role !== "MANAGER";
     const { rows } = await tx.query(
-      `SELECT r.id, r.name, r.sort_order AS "sortOrder", r.active,
+      `SELECT r.id, r.name, r.sort_order AS "sortOrder", r.active, r.requires_description AS "requiresDescription",
               ${
                 withCounts
                   ? `(SELECT count(*)::int FROM reason_assignment a WHERE a.tenant_id = r.tenant_id AND a.reason_id = r.id)`
@@ -247,14 +270,26 @@ export class ReasonsService {
   async assign(auth: AuthContext, input: AssignInput, meta: RequestMeta) {
     return this.db.withTenant(auth.tenantId, async (tx) => {
       const scope = await this.scopes.forUser(tx, auth);
-      const reason = await tx.query<{ name: string; active: boolean }>(
-        "SELECT name, active FROM absence_reason WHERE id = $1",
+      const reason = await tx.query<{
+        name: string;
+        active: boolean;
+        requiresDescription: boolean;
+      }>(
+        `SELECT name, active, requires_description AS "requiresDescription" FROM absence_reason WHERE id = $1`,
         [input.reasonId],
       );
       if (!reason.rows[0])
         throw new ApiError(400, "REASON_NOT_FOUND", "The reason does not exist.");
       if (!reason.rows[0].active)
         throw new ApiError(400, "REASON_INACTIVE", "The reason is inactive.");
+      // «Бусад» (Other) must say what it is (PRD 11).
+      if (reason.rows[0].requiresDescription && (input.description ?? "").trim().length < 3) {
+        throw new ApiError(
+          400,
+          "DESCRIPTION_REQUIRED",
+          "This reason needs a written explanation (at least 3 characters).",
+        );
+      }
 
       const params: unknown[] = [input.employeeIds];
       const condition = this.scopes.employeeCondition(scope, "e", params);
@@ -318,6 +353,13 @@ export class ReasonsService {
         }
         throw error;
       }
+      await this.refreshDays(
+        tx,
+        auth.tenantId,
+        input.employeeIds,
+        input.fromDate,
+        input.toDate ?? null,
+      );
       await this.audit.record(tx, {
         tenantId: auth.tenantId,
         action: "reason_assignment.created",
@@ -353,6 +395,13 @@ export class ReasonsService {
       await tx.query(
         "UPDATE reason_assignment SET to_date = $2, ended_at = $3, ended_by = $4 WHERE id = $1",
         [id, endDate, this.clock.now(), auth.userId],
+      );
+      await this.refreshDays(
+        tx,
+        auth.tenantId,
+        [current.employeeId],
+        addDays(endDate, 1),
+        current.toDate,
       );
       await this.audit.record(tx, {
         tenantId: auth.tenantId,

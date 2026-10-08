@@ -1,7 +1,7 @@
 # Admin web app (Next.js)
 
-Early build: sign-in, the dashboard (Хянах самбар) and the Org Admin notifications page. Daily attendance, employees, roster,
-reports, QR and settings screens are still to come (the clickable prototype shows the intended design).
+Early build: sign-in, the dashboard (Хянах самбар), the daily attendance screen (Өдрийн ирц) and the Org Admin notifications page.
+Employees, roster, reports, QR and settings screens are still to come (the clickable prototype shows the intended design).
 
 ## Run
 
@@ -38,6 +38,25 @@ Open to Org Admin, HR and Manager (the API limits the numbers to the caller's da
 - Today's numbers refresh every minute (the worker moves people from "not yet due" to "no show" at the cut-off).
 - Numbers come from `GET /v1/attendance/summary`, lists from `GET /v1/attendance/daily` (`status=EXPECTED` = the total). The web only
   formats; no attendance rule is repeated here.
+
+## Daily attendance (`/daily`, PRD 9)
+
+Same URL-state idea as the dashboard (`?date=&status=&location=&department=&q=`). Open to Org Admin, HR and Manager; only Org Admin and HR
+get the actions and the export (a Manager's export depends on a tenant setting, so it is not offered in the UI).
+
+- Chips with counts: **Бүгд** (everyone expected), Цагтаа, Хоцорсон, Шалтгаантай, Ирээгүй, **Байршил идэвхгүй** (PRD 6.5: expected, no
+  arrival, phone silent for over an hour; shown with "last heard" time; a phone that never reported says so). Branch and department
+  selects, a search box (name or code, debounced). Counts follow the other filters.
+- Columns: employee (rank, position or code), department, primary branch, **expected branch with a «Түр» badge** when it differs,
+  status (+ "Засварласан", "⚑ шалгах"), arrival time, minutes late, reason (+ its written explanation).
+- **Шалтгаан**: assign a reason for the date, optionally until a later date. «Бусад» needs a written explanation. The day changes at once.
+- **Засах**: correction (PRD 6.9): Цагтаа / Хоцорсон / Ирээгүй, optional arrival time typed in the organization's time zone
+  (`src/lib/time.ts`), mandatory correction reason, note (required for «Бусад»); **Засварыг цуцлах** goes back to the system value.
+- **Excel / CSV / PDF**: `GET /v1/exports/daily-attendance` with the same filters (token sent in the header, file saved from a blob).
+- Today's list refreshes every minute.
+
+Not here yet: ending or changing a reason from this screen (use the reason assignments API), the anomaly review queue, the device
+alerts list, bulk reason assignment.
 
 ## Web Push (`public/sw.js`, `src/lib/push.ts`, `src/components/push-card.tsx`)
 

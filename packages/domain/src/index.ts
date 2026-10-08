@@ -8,3 +8,4 @@ export * from "./attendance/correction";
 export * from "./attendance/plausibility";
 export * from "./attendance/attestation";
 export * from "./attendance/conflict";
+export * from "./attendance/inactive";

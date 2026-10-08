@@ -62,6 +62,14 @@ const SCHEMAS: Record<ReportName, z.ZodTypeAny> = {
     from: isoDate.optional(),
     to: isoDate.optional(),
   }),
+  "daily-attendance": z.object({
+    format,
+    date: isoDate,
+    status: z.enum(["EXPECTED", "ON_TIME", "LATE", "EXCUSED", "NO_SHOW", "PENDING"]).optional(),
+    locationId: id.optional(),
+    departmentId: id.optional(),
+    q: z.string().trim().min(1).max(100).optional(),
+  }),
   "shift-roster": z
     .object({
       format,

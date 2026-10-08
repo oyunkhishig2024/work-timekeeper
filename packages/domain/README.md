@@ -98,6 +98,11 @@ accuracy radii so GPS jitter is not a teleport; the same instant at two places i
 `attestationFlag`, `nextUnavailableStreak` and `reachesEscalation` (five unavailable verdicts in a row); `matchedFixes` and
 `isTraceConflict` (three coincidences at two or more places within 2 minutes and about 1 m). PRD 6.7.
 
+## Location inactive (attendance/inactive.ts)
+
+`isLocationInactive` (PRD 6.5, 6.8): expected, device registered, no arrival yet (PENDING / NO_SHOW), current duty (first 24 h), device silent for
+more than 60 minutes counted from the later of its last report and the duty start. An indicator for HR, never a status.
+
 ## Not here yet
 
 Teleport-without-movement and zero-jitter checks; the location time zone column (the field exists in

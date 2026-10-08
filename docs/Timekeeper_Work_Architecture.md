@@ -1,7 +1,7 @@
 # Timekeeper Work
 ## Technical Architecture Document
 
-Version: 0.21 (draft for review)
+Version: 0.22 (draft for review)
 Status: Draft — based on PRD v1.9 (`docs/Timekeeper_Work_PRD.md`)
 Audience: engineering lead, backend / mobile / web developers, QA
 Scope: the **pilot tier** (1–2 tenants, ~4 months, ~640 employees), built by **one full-stack developer** (decision v0.2, see Section 14). The production tier is covered only where a decision now would be expensive to undo later.
@@ -851,3 +851,7 @@ Migrations `0010_time_rules` and `0011_shifts` add the storage for attendance ru
 - `apps/web` `/dashboard`: totals, quick cards, branch / department breakdown with status pills and the people lists (`apps/web/README.md`). API additions: `GET /v1/auth/me` returns `organization` (name, code, time zone, today); `GET /v1/attendance/daily?status=EXPECTED`.
 - Open: the daily attendance screen with reasons and corrections, employees, roster, reports and settings screens; a phone-width layout of the list (it scrolls sideways now); the tenant time zone is shown but the dashboard does not yet use per-location zones.
 
+# 37. Implementation Status (admin web: daily attendance)
+
+- `apps/web` `/daily`: filters, search, reason and correction dialogs, export. API: `DailyAttendanceService` (`GET /attendance/daily`), `daily-attendance` export, migration `0021` («Бусад», `requires_description`, `attendance_result.reason_note`), reason assignments refresh the affected results at once (`ReasonsService.refreshDays` calls the attendance engine).
+- Open: holiday, shift and working-week changes still rely on the worker tick (yesterday and today) or `POST /attendance/recompute` for older days; ending a reason is not on the screen; the review queue and device alerts have no screens yet.

@@ -39,7 +39,7 @@ describe.skipIf(!hasDb)("reasons and reason assignments (PRD 11)", () => {
 
   async function world() {
     const tenant = await createTenant(h);
-    // the 15 predefined reasons (PRD 11), as a new tenant gets them
+    // the 16 predefined reasons (PRD 11), as a new tenant gets them
     await h.owner.query("SELECT seed_default_reasons($1)", [tenant.id]);
     const admin = (
       await signIn(
@@ -77,11 +77,11 @@ describe.skipIf(!hasDb)("reasons and reason assignments (PRD 11)", () => {
   }
 
   describe("the list of reasons", () => {
-    it("a tenant starts with the 15 predefined reasons in their order; Org Admin manages them", async () => {
+    it("a tenant starts with the 16 predefined reasons in their order; Org Admin manages them", async () => {
       const w = await world();
       const list = await get(w.hr, "/v1/reasons");
       expect(list.status).toBe(200);
-      expect(list.body).toHaveLength(15);
+      expect(list.body).toHaveLength(16);
       expect(list.body[0]).toMatchObject({
         name: "Албан ажилтай",
         sortOrder: 1,
@@ -89,15 +89,18 @@ describe.skipIf(!hasDb)("reasons and reason assignments (PRD 11)", () => {
         assignments: 0,
       });
       expect(list.body[14].name).toBe("Тасалсан");
+      // «Бусад» comes last and must be explained in words
+      expect(list.body[15]).toMatchObject({ name: "Бусад", requiresDescription: true });
+      expect(list.body[0].requiresDescription).toBe(false);
       expect((await get(w.mgr, "/v1/reasons")).body[0].assignments).toBeNull();
       // repeating the seed changes nothing
       await h.owner.query("SELECT seed_default_reasons($1)", [w.tenant.id]);
-      expect((await get(w.hr, "/v1/reasons")).body).toHaveLength(15);
+      expect((await get(w.hr, "/v1/reasons")).body).toHaveLength(16);
 
       expect((await post(w.hr, "/v1/reasons", { name: "Шинэ" })).status).toBe(403);
       const created = await post(w.admin, "/v1/reasons", { name: "Гадаад томилолт" });
       expect(created.status).toBe(201);
-      expect(created.body).toMatchObject({ sortOrder: 16, active: true });
+      expect(created.body).toMatchObject({ sortOrder: 17, active: true });
       const dup = await post(w.admin, "/v1/reasons", { name: "Гадаад томилолт" });
       expect(dup.status).toBe(409);
       expect(dup.body.code).toBe("REASON_NAME_TAKEN");
@@ -146,6 +149,29 @@ describe.skipIf(!hasDb)("reasons and reason assignments (PRD 11)", () => {
   });
 
   describe("assignments", () => {
+    it("«Бусад» (Other) must be explained in words; other reasons need no description", async () => {
+      const w = await world();
+      const emp = await w.employee("E-1");
+      const other = await w.reasonId("Бусад");
+      const base = { employeeIds: [emp], reasonId: other, fromDate: today() };
+      for (const description of [undefined, "", "  ", "ab"]) {
+        const res = await post(w.hr, "/v1/reason-assignments", { ...base, description });
+        expect(res.status, String(description)).toBe(400);
+        expect(res.body.code).toBe("DESCRIPTION_REQUIRED");
+      }
+      const ok = await post(w.hr, "/v1/reason-assignments", {
+        ...base,
+        description: "Хурлын өрөөнд ажилласан",
+      });
+      expect(ok.status).toBe(201);
+      const sick = await post(w.hr, "/v1/reason-assignments", {
+        employeeIds: [await w.employee("E-2")],
+        reasonId: await w.reasonId("Өвчтэй"),
+        fromDate: today(),
+      });
+      expect(sick.status).toBe(201);
+    });
+
     it("HR gives one reason to many employees for a date range, with a description", async () => {
       const w = await world();
       const [a, b] = [await w.employee("E-1"), await w.employee("E-2")];
@@ -455,7 +481,7 @@ describe.skipIf(!hasDb)("reasons and reason assignments (PRD 11)", () => {
       expect(row(all, "Сургалттай")).toMatchObject({ employees: 3, employeeDays: 10 + 7 + 7 });
       expect(row(all, "Өвчтэй")).toMatchObject({ employees: 1, employeeDays: 2 });
       expect(row(all, "Тасалсан")).toMatchObject({ employees: 0, employeeDays: 0 });
-      expect(all.items).toHaveLength(15);
+      expect(all.items).toHaveLength(16);
       // the period clips the days: Oct 14–16 only
       const clipped = (await get(w.hr, "/v1/reason-report?from=2026-10-14&to=2026-10-16")).body;
       expect(row(clipped, "Сургалттай")).toMatchObject({ employees: 3, employeeDays: 2 + 3 + 3 });

@@ -188,13 +188,27 @@ export class ExpectationLoader {
       )
     ).rows;
     const reasons = (
-      await tx.query<{ employeeId: string; name: string; fromDate: string; toDate: string | null }>(
-        `SELECT a.employee_id AS "employeeId", r.name, a.from_date::text AS "fromDate", a.to_date::text AS "toDate"
+      await tx.query<{
+        employeeId: string;
+        name: string;
+        description: string | null;
+        fromDate: string;
+        toDate: string | null;
+      }>(
+        `SELECT a.employee_id AS "employeeId", r.name, a.description, a.from_date::text AS "fromDate", a.to_date::text AS "toDate"
            FROM reason_assignment a JOIN absence_reason r ON r.tenant_id = a.tenant_id AND r.id = a.reason_id
           WHERE a.employee_id = ANY($1::uuid[]) AND a.from_date <= $3 AND (a.to_date IS NULL OR a.to_date >= $2)`,
         [employeeIds, from, to],
       )
     ).rows;
+
+    const coveringReason = (employeeId: string, date: string) =>
+      reasons.find(
+        (r) =>
+          r.employeeId === employeeId &&
+          r.fromDate <= date &&
+          (r.toDate === null || r.toDate >= date),
+      );
 
     return {
       timeZone,
@@ -217,12 +231,10 @@ export class ExpectationLoader {
       }),
       tempFor: (employeeId: string) => temps.filter((t) => t.employeeId === employeeId),
       reasonOn: (employeeId: string, date: string): string | null =>
-        reasons.find(
-          (r) =>
-            r.employeeId === employeeId &&
-            r.fromDate <= date &&
-            (r.toDate === null || r.toDate >= date),
-        )?.name ?? null,
+        coveringReason(employeeId, date)?.name ?? null,
+      /** The written explanation of that reason («Бусад» needs one), if any. */
+      reasonNoteOn: (employeeId: string, date: string): string | null =>
+        coveringReason(employeeId, date)?.description ?? null,
     };
   }
 }

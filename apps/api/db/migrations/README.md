@@ -25,6 +25,7 @@ SQL-first migrations run by [`node-pg-migrate`](https://github.com/salsita/node-
 | `0018_event_coordinates`              | `device_event.lat` / `lng` (both or neither) for the IMPOSSIBLE_SPEED check; erased after 30 days (PRD 15.3)                                                                |
 | `0019_device_alerts`                  | per-device attestation verdict / unavailable run length; `device_alert` (attestation streak, device conflict; one open per device, kind and counterpart)                    |
 | `0020_notifications_push`             | `push_subscription` (Web Push), `notification` (inbox + push outbox with retry state, one per user and event)                                                               |
+| `0021_reason_other_and_daily`         | `absence_reason.requires_description` + the 16th predefined reason «Бусад»; `attendance_result.reason_note`                                                                 |
 
 Still to come (in this order of need): export jobs.
 

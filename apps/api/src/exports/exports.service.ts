@@ -4,6 +4,7 @@ import { Clock } from "../common/clock";
 import { DatabaseService } from "../database/database.service";
 import { AuditService } from "../audit/audit.service";
 import type { AuthContext, RequestMeta } from "../auth/auth.types";
+import { DailyAttendanceService } from "../attendance/daily.service";
 import { EmployeesService, type EmployeeFilter } from "../employees/employees.service";
 import { ReasonsService } from "../reasons/reasons.service";
 import { HolidaysService } from "../schedule/holidays.service";
@@ -21,7 +22,8 @@ export type ReportName =
   | "employees"
   | "holidays"
   | "shift-roster"
-  | "shift-assignments";
+  | "shift-assignments"
+  | "daily-attendance";
 
 export interface ExportResult {
   body: Buffer;
@@ -40,6 +42,24 @@ const STATUS_TEXT: Record<string, string> = {
   ARCHIVED: "Архивласан",
 };
 const yesNo = (v: unknown) => (v ? "Тийм" : "Үгүй");
+const ATTENDANCE_TEXT: Record<string, string> = {
+  ON_TIME: "Цагтаа",
+  LATE: "Хоцорсон",
+  EXCUSED: "Шалтгаантай",
+  NO_SHOW: "Ирээгүй",
+  PENDING: "Цаг болоогүй",
+  WORKED_OFF_DAY: "Амралтын өдөр ажилласан",
+  NOT_CONFIGURED: "Тохиргоо дутуу",
+};
+const localTime = (value: Date | string | null, timeZone: string): string =>
+  value
+    ? new Intl.DateTimeFormat("en-GB", {
+        timeZone,
+        hour: "2-digit",
+        minute: "2-digit",
+        hourCycle: "h23",
+      }).format(new Date(value))
+    : "";
 
 /**
  * Report export (PRD 20): the same data and filters as on screen, as Excel (flat, for pivoting), CSV or print-ready
@@ -58,6 +78,7 @@ export class ExportsService {
     private readonly holidays: HolidaysService,
     private readonly shifts: ShiftsService,
     private readonly roster: RosterService,
+    private readonly daily: DailyAttendanceService,
   ) {}
 
   async export(
@@ -173,6 +194,66 @@ export class ExportsService {
             { key: "employeeDays", header: "Ажилтан-өдөр", width: 1.5 },
           ],
           rows: data.items,
+        };
+      }
+      case "daily-attendance": {
+        const date = str("date")!;
+        const tz = await this.db.withTenant(
+          auth.tenantId,
+          async (tx) =>
+            (
+              await tx.query<{ time_zone: string }>("SELECT time_zone FROM tenant WHERE id = $1", [
+                auth.tenantId,
+              ])
+            ).rows[0]?.time_zone ?? "Asia/Ulaanbaatar",
+        );
+        const data = await this.daily.daily(auth, {
+          date,
+          status: str("status") as "EXPECTED" | undefined,
+          locationId: str("locationId"),
+          departmentId: str("departmentId"),
+          q: str("q"),
+          limit: MAX_EXPORT_ROWS + 1,
+          offset: 0,
+        });
+        return {
+          title: "Өдрийн ирц",
+          subtitle: [
+            org,
+            `Огноо: ${date}`,
+            ...(await this.names(auth, f)),
+            ...(str("status")
+              ? [`Төлөв: ${ATTENDANCE_TEXT[str("status")!] ?? str("status")!}`]
+              : []),
+          ],
+          columns: [
+            { key: "employeeNo", header: "Код", width: 1 },
+            { key: "fullName", header: "Овог нэр", width: 2 },
+            { key: "rank", header: "Цол", width: 1 },
+            { key: "position", header: "Албан тушаал", width: 2 },
+            { key: "departmentName", header: "Нэгж", width: 1 },
+            { key: "primaryLocationName", header: "Үндсэн салбар", width: 1 },
+            { key: "locationName", header: "Ажиллах салбар", width: 1 },
+            { key: "statusText", header: "Төлөв", width: 1 },
+            { key: "arrival", header: "Ирсэн цаг", width: 1 },
+            { key: "lateMinutes", header: "Хоцорсон (мин)", width: 1 },
+            { key: "reason", header: "Шалтгаан", width: 2 },
+            { key: "source", header: "Эх сурвалж", width: 1 },
+          ],
+          rows: (data.items as Array<Record<string, unknown>>).map((r) => ({
+            employeeNo: String(r.employeeNo),
+            fullName: String(r.fullName),
+            rank: (r.rank as string | null) ?? "",
+            position: (r.position as string | null) ?? "",
+            departmentName: (r.departmentName as string | null) ?? "",
+            primaryLocationName: (r.primaryLocationName as string | null) ?? "",
+            locationName: `${(r.locationName as string | null) ?? ""}${r.temporary ? " (түр)" : ""}`,
+            statusText: ATTENDANCE_TEXT[String(r.status)] ?? String(r.status),
+            arrival: localTime(r.arrivalAt as Date | null, tz),
+            lateMinutes: r.status === "LATE" ? Number(r.lateMinutes) : "",
+            reason: [r.reasonName, r.reasonNote].filter(Boolean).join(": "),
+            source: r.source === "CORRECTED" ? "Засварласан" : "Автомат",
+          })),
         };
       }
       case "reason-assignments": {

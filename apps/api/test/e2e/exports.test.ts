@@ -224,7 +224,7 @@ describe.skipIf(!hasDb)("report export (PRD 20)", () => {
     const rows = await sheetRows(report.body as Buffer);
     expect(rows[0]).toEqual(["Шалтгаан", "Ажилтан (давхцалгүй)", "Ажилтан-өдөр"]);
     expect(rows.find((r) => r[0] === "Сургалттай")).toEqual(["Сургалттай", "2", "20"]);
-    expect(rows).toHaveLength(16); // header + 15 reasons
+    expect(rows).toHaveLength(17); // header + 16 reasons
     const list = await h
       .http()
       .get("/v1/exports/reason-assignments?format=csv&from=2026-10-01&to=2026-10-31")

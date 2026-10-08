@@ -99,15 +99,6 @@ interface ExistingRow {
   status: AttendanceStatus;
 }
 
-export interface DailyFilter {
-  date: string;
-  status?: AttendanceStatus | "EXPECTED";
-  locationId?: string;
-  departmentId?: string;
-  limit: number;
-  offset: number;
-}
-
 const rate = (n: number, total: number): number =>
   total === 0 ? 0 : Math.round((n / total) * 1000) / 10;
 
@@ -610,6 +601,7 @@ export class AttendanceService {
       for (const date of dates) {
         const expectation = getExpectation(this.loader.inputFor(data, e, date));
         const reasonName = data.reasonOn(e.id, date);
+        const reasonNote = data.reasonNoteOn(e.id, date);
         const system = this.derive(
           expectation,
           mine.filter((r) => r.counted),
@@ -647,15 +639,16 @@ export class AttendanceService {
         await tx.query(
           `INSERT INTO attendance_result (tenant_id, employee_id, work_date, status, location_id, expected_start,
                                           expected_cutoff, arrival_at, late_minutes, reason_name, missing, computed_at,
-                                          source, system_status, system_arrival_at, flagged_events, correction_id)
-           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
+                                          source, system_status, system_arrival_at, flagged_events, correction_id, reason_note)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)
            ON CONFLICT (tenant_id, employee_id, work_date) DO UPDATE SET
              status = EXCLUDED.status, location_id = EXCLUDED.location_id, expected_start = EXCLUDED.expected_start,
              expected_cutoff = EXCLUDED.expected_cutoff, arrival_at = EXCLUDED.arrival_at,
              late_minutes = EXCLUDED.late_minutes, reason_name = EXCLUDED.reason_name,
              missing = EXCLUDED.missing, computed_at = EXCLUDED.computed_at, source = EXCLUDED.source,
              system_status = EXCLUDED.system_status, system_arrival_at = EXCLUDED.system_arrival_at,
-             flagged_events = EXCLUDED.flagged_events, correction_id = EXCLUDED.correction_id`,
+             flagged_events = EXCLUDED.flagged_events, correction_id = EXCLUDED.correction_id,
+             reason_note = EXCLUDED.reason_note`,
           [
             tenantId,
             e.id,
@@ -676,6 +669,7 @@ export class AttendanceService {
             system.arrivalAt,
             flagged,
             correction?.id ?? null,
+            derived.status === "EXCUSED" ? reasonNote : null,
           ],
         );
         if (before !== derived.status) {
@@ -730,60 +724,6 @@ export class AttendanceService {
   }
 
   // ------------------------------------------------------------------ reading (PRD 7, 8)
-
-  async daily(auth: AuthContext, f: DailyFilter) {
-    return this.db.withTenant(auth.tenantId, async (tx) => {
-      const scope = await this.scopes.forUser(tx, auth);
-      const params: unknown[] = [f.date];
-      const where: string[] = [
-        "r.work_date = $1",
-        this.scopes.employeeCondition(scope, "e", params),
-      ];
-      const add = (sql: string, value: unknown) => {
-        params.push(value);
-        where.push(sql.replace("?", `$${params.length}`));
-      };
-      if (f.status === "EXPECTED") {
-        where.push("r.status IN ('ON_TIME', 'LATE', 'EXCUSED', 'NO_SHOW', 'PENDING')");
-      } else if (f.status) add("r.status = ?", f.status);
-      if (f.locationId) add("COALESCE(r.location_id, e.primary_location_id) = ?", f.locationId);
-      if (f.departmentId) add("e.department_id = ?", f.departmentId);
-      const total = await tx.query<{ n: number }>(
-        `SELECT count(*)::int AS n FROM attendance_result r JOIN employee e ON e.id = r.employee_id WHERE ${where.join(" AND ")}`,
-        params,
-      );
-      params.push(f.limit, f.offset);
-      const { rows } = await tx.query(
-        `SELECT e.id AS "employeeId", e.employee_no AS "employeeNo", e.last_name AS "lastName", e.first_name AS "firstName",
-                e.full_name AS "fullName",
-                (SELECT a.title FROM employee_rank_assignment a WHERE a.employee_id = e.id
-                    AND a.valid_from <= $1::date AND (a.valid_to IS NULL OR a.valid_to > $1::date) LIMIT 1) AS rank,
-                (SELECT a.title FROM employee_position_assignment a WHERE a.employee_id = e.id
-                    AND a.valid_from <= $1::date AND (a.valid_to IS NULL OR a.valid_to > $1::date) LIMIT 1) AS position,
-                d.id AS "departmentId", d.name AS "departmentName",
-                l.id AS "locationId", l.name AS "locationName",
-                r.status, r.arrival_at AS "arrivalAt", r.late_minutes AS "lateMinutes",
-                r.reason_name AS "reasonName", r.missing, r.expected_start AS "expectedStart",
-                r.source, r.system_status AS "systemStatus", r.flagged_events AS "flaggedEvents",
-                r.correction_id AS "correctionId"
-           FROM attendance_result r
-           JOIN employee e ON e.id = r.employee_id
-           LEFT JOIN department d ON d.id = e.department_id
-           LEFT JOIN location l ON l.id = COALESCE(r.location_id, e.primary_location_id)
-          WHERE ${where.join(" AND ")}
-          ORDER BY e.employee_no
-          LIMIT $${params.length - 1} OFFSET $${params.length}`,
-        params,
-      );
-      return {
-        date: f.date,
-        total: total.rows[0]!.n,
-        limit: f.limit,
-        offset: f.offset,
-        items: rows,
-      };
-    });
-  }
 
   /**
    * Dashboard numbers for one date (PRD 7–8). "Total" is everyone expected that day (Ажиллах ёстой): on time + late

@@ -132,9 +132,10 @@ describe.skipIf(!hasDb)("attendance core: events, deriveStatus, daily results (P
       fromDate: WORK_DATE,
       toDate: WORK_DATE,
     });
+    // The assignment already rebuilt the day; a recompute afterwards changes nothing (it is idempotent).
     const rc = await post(hr, "/v1/attendance/recompute", { from: WORK_DATE, to: WORK_DATE });
     expect(rc.status).toBe(200);
-    expect(rc.body.changed).toBeGreaterThanOrEqual(1);
+    expect(rc.body.changed).toBe(0);
     expect(await resultOf(w.tenant.id, w.employee.id)).toMatchObject({
       status: "EXCUSED",
       reason_name: reasons[0]!.name,

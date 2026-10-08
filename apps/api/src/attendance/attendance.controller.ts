@@ -6,6 +6,7 @@ import { CurrentAuth, Meta, Roles } from "../auth/decorators";
 import { AnomaliesService } from "./anomalies.service";
 import { DeviceAlertsService } from "./device-alerts.service";
 import { AttendanceService } from "./attendance.service";
+import { DailyAttendanceService } from "./daily.service";
 import { CORRECTION_REASONS, CorrectionsService } from "./corrections.service";
 
 const id = z.string().uuid();
@@ -52,7 +53,8 @@ const ingestSchema = z
 const dailyQuery = z.object({
   date: isoDate,
   /** EXPECTED = everyone expected that day (on time, late, excused, no show, still pending): the dashboard's total. */
-  status: z.enum([...STATUSES, "EXPECTED"]).optional(),
+  status: z.enum([...STATUSES, "EXPECTED", "INACTIVE"]).optional(),
+  q: z.string().trim().min(1).max(100).optional(),
   locationId: id.optional(),
   departmentId: id.optional(),
   limit: z.coerce.number().int().min(1).max(500).default(100),
@@ -97,12 +99,15 @@ export class DeviceEventsController {
 /** Daily attendance and dashboard numbers, limited to the caller's data scope (PRD 4, 7, 8). */
 @Controller("attendance")
 export class AttendanceController {
-  constructor(private readonly attendance: AttendanceService) {}
+  constructor(
+    private readonly attendance: AttendanceService,
+    private readonly dailyList: DailyAttendanceService,
+  ) {}
 
   @Roles("ORG_ADMIN", "HR", "MANAGER")
   @Get("daily")
   daily(@CurrentAuth() auth: AuthContext, @Query() query: unknown) {
-    return this.attendance.daily(auth, dailyQuery.parse(query));
+    return this.dailyList.daily(auth, dailyQuery.parse(query));
   }
 
   @Roles("ORG_ADMIN", "HR", "MANAGER")
