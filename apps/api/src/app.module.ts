@@ -11,6 +11,7 @@ import { DevicesModule } from "./devices/devices.module";
 import { ExportsModule } from "./exports/exports.module";
 import { EmployeesModule } from "./employees/employees.module";
 import { HealthModule } from "./modules/health/health.module";
+import { NotificationsModule } from "./notifications/notifications.module";
 import { OrgModule } from "./org/org.module";
 import { ReasonsModule } from "./reasons/reasons.module";
 import { ScheduleModule } from "./schedule/schedule.module";
@@ -39,6 +40,7 @@ import { UsersModule } from "./users/users.module";
     ScheduleModule,
     ReasonsModule,
     AttendanceModule,
+    NotificationsModule,
     ExportsModule,
     HealthModule,
   ],

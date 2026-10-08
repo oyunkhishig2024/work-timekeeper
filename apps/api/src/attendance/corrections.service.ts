@@ -7,6 +7,7 @@ import { ApiError } from "../common/api-error";
 import { Clock } from "../common/clock";
 import { tenantToday } from "../common/tenant-today";
 import { DatabaseService, type Db } from "../database/database.service";
+import { notifyOrgAdmins } from "../notifications/enqueue";
 import { AttendanceService } from "./attendance.service";
 
 /** PRD 6.9 defaults: corrections only for the last 31 days; more than 10 by one user in a day is reported. */
@@ -181,8 +182,33 @@ export class CorrectionsService {
         },
         ...meta,
       });
+      await this.alertOnVolume(tx, auth, now);
       return this.one(tx, id);
     });
+  }
+
+  /** PRD 6.9: more than 10 corrections by one user in a day goes to the Org Admin (once per user and day). */
+  private async alertOnVolume(tx: Db, auth: AuthContext, now: Date) {
+    const tz =
+      (
+        await tx.query<{ time_zone: string }>("SELECT time_zone FROM tenant WHERE id = $1", [
+          auth.tenantId,
+        ])
+      ).rows[0]?.time_zone ?? "Asia/Ulaanbaatar";
+    const { rows } = await tx.query<{ n: number; day: string }>(
+      `SELECT count(*)::int AS n, ($2::timestamptz AT TIME ZONE $3)::date::text AS day FROM attendance_correction
+        WHERE created_by = $1 AND (created_at AT TIME ZONE $3)::date = ($2::timestamptz AT TIME ZONE $3)::date`,
+      [auth.userId, now, tz],
+    );
+    if (rows[0]!.n > CORRECTION_ALERT_PER_DAY) {
+      await notifyOrgAdmins(tx, auth.tenantId, {
+        kind: "CORRECTION_VOLUME",
+        title: "Ирцийн засвар ихээр хийгдлээ",
+        body: `Нэг хэрэглэгч өнөөдөр ${CORRECTION_ALERT_PER_DAY}-аас олон ирцийн засвар хийлээ. Засварын тайланг шалгана уу.`,
+        link: "/corrections/report",
+        dedupeKey: `correction-volume:${auth.userId}:${rows[0]!.day}`,
+      });
+    }
   }
 
   async revoke(auth: AuthContext, id: string, note: string | undefined, meta: RequestMeta) {

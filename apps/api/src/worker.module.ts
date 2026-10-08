@@ -3,6 +3,9 @@ import { AccessModule } from "./access/access.module";
 import { AttendanceService } from "./attendance/attendance.service";
 import { AttendanceTicker } from "./attendance/attendance.ticker";
 import { AttestationVerifier, ConfiguredAttestationVerifier } from "./devices/attestation";
+import { NotificationTicker } from "./notifications/notification.ticker";
+import { NotificationsService } from "./notifications/notifications.service";
+import { PushSender, WebPushSender } from "./notifications/push-sender";
 import { DatabaseModule } from "./database/database.module";
 import { ExpectationLoader } from "./schedule/expectation-loader.service";
 
@@ -16,6 +19,9 @@ import { ExpectationLoader } from "./schedule/expectation-loader.service";
     ExpectationLoader,
     AttendanceService,
     AttendanceTicker,
+    NotificationsService,
+    NotificationTicker,
+    { provide: PushSender, useClass: WebPushSender },
     { provide: AttestationVerifier, useClass: ConfiguredAttestationVerifier },
   ],
 })

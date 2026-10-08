@@ -81,6 +81,23 @@ const envSchema = z.object({
   ABUSE_REDIS_TIMEOUT_MS: z.coerce.number().int().min(20).max(5000).default(200),
   ABUSE_REDIS_BREAKER_FAILURES: z.coerce.number().int().min(1).default(3),
   ABUSE_REDIS_BREAKER_COOLDOWN_SECONDS: z.coerce.number().min(0.05).default(15),
+  /**
+   * Web Push (VAPID) for Org Admin notifications. Generate keys once with `npx web-push generate-vapid-keys`. Without
+   * the keys nothing is pushed; notifications still appear in the in-app inbox.
+   */
+  VAPID_PUBLIC_KEY: z.string().trim().optional(),
+  VAPID_PRIVATE_KEY: z.string().trim().optional(),
+  /** Contact for the push services: `mailto:ops@example.com` or an https URL. */
+  VAPID_SUBJECT: z.string().trim().default("mailto:admin@localhost.invalid"),
+  /**
+   * Hosts (or `*.suffix` patterns) a push subscription may point to. The server posts to the subscription's URL, so only
+   * the known browser push services are accepted (prevents using the API to reach internal addresses).
+   */
+  PUSH_ENDPOINT_HOSTS: z
+    .string()
+    .default(
+      "fcm.googleapis.com,updates.push.services.mozilla.com,*.push.apple.com,*.notify.windows.com",
+    ),
   QR_REPLACEMENT_HOURS: z.coerce.number().int().min(1).max(720).default(24),
 });
 

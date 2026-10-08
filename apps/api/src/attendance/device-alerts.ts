@@ -1,4 +1,5 @@
 import type { Db } from "../database/database.service";
+import { notifyOrgAdmins } from "../notifications/enqueue";
 
 export type DeviceAlertKind = "ATTESTATION_UNAVAILABLE_STREAK" | "DEVICE_CONFLICT";
 
@@ -27,7 +28,7 @@ export async function raiseDeviceAlert(
   }
   const res = await tx.query(
     `INSERT INTO device_alert (tenant_id, kind, device_id, employee_id, related_employee_id, detail)
-     VALUES ($1, $2, $3, $4, $5, $6) ON CONFLICT DO NOTHING`,
+     VALUES ($1, $2, $3, $4, $5, $6) ON CONFLICT DO NOTHING RETURNING id`,
     [
       alert.tenantId,
       alert.kind,
@@ -37,5 +38,21 @@ export async function raiseDeviceAlert(
       alert.detail ?? null,
     ],
   );
-  return (res.rowCount ?? 0) > 0;
+  const created = res.rows[0] as { id: string } | undefined;
+  if (!created) return false;
+  // The Org Admin hears about it at once (PRD 6.7); the text is generic, the details are in the admin app.
+  await notifyOrgAdmins(tx, alert.tenantId, {
+    kind: alert.kind === "DEVICE_CONFLICT" ? "DEVICE_ALERT_CONFLICT" : "DEVICE_ALERT_ATTESTATION",
+    title:
+      alert.kind === "DEVICE_CONFLICT"
+        ? "Төхөөрөмжийн зөрчил илэрлээ"
+        : "Төхөөрөмжийн баталгаажуулалт тасарлаа",
+    body:
+      alert.kind === "DEVICE_CONFLICT"
+        ? "Нэг төхөөрөмж эсвэл ижил хөдөлгөөн хоёр ажилтны нэрээр илэрлээ. Админ самбараас шалгана уу."
+        : "Нэг төхөөрөмж дараалан 5 удаа баталгаажаагүй байна. Админ самбараас шалгана уу.",
+    link: "/device-alerts",
+    dedupeKey: `device-alert:${created.id}`,
+  });
+  return true;
 }
