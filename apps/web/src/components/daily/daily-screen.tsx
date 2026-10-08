@@ -42,6 +42,7 @@ const CHIPS: DailyFilterStatus[] = [
   "LATE",
   "EXCUSED",
   "NO_SHOW",
+  "EARLY_LEAVE",
   "INACTIVE",
 ];
 const REFRESH_MS = 60_000;
@@ -490,7 +491,14 @@ function Row({
         )}
       </td>
       <td className="px-3 py-2">{formatTime(r.arrivalAt, timeZone) ?? "—"}</td>
-      <td className="px-3 py-2">{departureText(r, (iso) => formatTime(iso, timeZone))}</td>
+      <td className="px-3 py-2">
+        {departureText(r, (iso) => formatTime(iso, timeZone))}
+        {r.earlyLeaveMinutes > 0 && (
+          <div className="mt-1 text-xs font-medium text-orange-800">
+            Эрт гарсан · {r.earlyLeaveMinutes} мин
+          </div>
+        )}
+      </td>
       <td className="px-3 py-2">
         {r.status === "LATE" && r.lateMinutes > 0 ? `${r.lateMinutes} мин` : "—"}
       </td>

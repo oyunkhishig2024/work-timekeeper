@@ -10,3 +10,4 @@ export * from "./attendance/attestation";
 export * from "./attendance/conflict";
 export * from "./attendance/inactive";
 export * from "./attendance/departure";
+export * from "./attendance/early-leave";

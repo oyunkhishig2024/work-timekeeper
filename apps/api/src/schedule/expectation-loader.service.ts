@@ -129,7 +129,8 @@ export class ExpectationLoader {
     const ruleRows = (
       await tx.query<AttendanceRules>(
         `SELECT location_id AS "locationId", valid_from::text AS "validFrom", valid_to::text AS "validTo",
-                grace_minutes AS "graceMinutes", min_stay_minutes AS "minStayMinutes"
+                grace_minutes AS "graceMinutes", min_stay_minutes AS "minStayMinutes",
+                early_leave_tolerance_minutes AS "earlyLeaveToleranceMinutes"
            FROM attendance_rule_version`,
       )
     ).rows;

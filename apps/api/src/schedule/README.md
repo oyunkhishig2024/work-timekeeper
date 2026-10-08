@@ -23,10 +23,10 @@ simply replaced by a new one.
 
 `GET /attendance-rules?locationId&asOf`, `GET /attendance-rules/versions?locationId`, `PUT /attendance-rules` (Org Admin),
 `POST /attendance-rules/inherit` — effective-dated like the working week (same timeline helper, `version-timeline.ts`).
-Fields: `graceMinutes` (0–240; late after start + grace) and `minStayMinutes` (1–15). There is no no-show cut-off and no early-arrival
+Fields: `graceMinutes` (0–240; late after start + grace), `minStayMinutes` (1–15) and `earlyLeaveToleranceMinutes` (0–240; leaving more than this before the end of the duty is leaving early, PRD 23.2). There is no no-show cut-off and no early-arrival
 window (PRD 6.3, 23.2, v1.24): Ирээгүй comes only when the employee's duty is over, and `cutoffMinutes` / `earlyWindowMinutes` are refused
 (`400`). A location may have its own version (`source: LOCATION`), else the tenant version
-(`TENANT`), else the **PRD defaults 15 / 3** (`DEFAULT`, `id: null`) until the first version is saved. New rules apply from today or
+(`TENANT`), else the **PRD defaults 15 / 3 / 15** (`DEFAULT`, `id: null`) until the first version is saved. New rules apply from today or
 later only; a version that has not started is replaced.
 
 ## Holidays (PRD 14.2)

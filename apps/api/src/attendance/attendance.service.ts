@@ -18,6 +18,7 @@ import {
   type Fix,
   applyCorrection,
   deriveDeparture,
+  earlyLeaveMinutes,
   type AttendanceStatus,
   type Correction,
   type DerivedAttendance,
@@ -25,6 +26,7 @@ import {
   type GeofenceEvent,
 } from "@timekeeper/domain";
 import { ScopeService } from "../access/scope.service";
+import { notifyOrgAdmins } from "../notifications/enqueue";
 import type { AuthContext } from "../auth/auth.types";
 import { ApiError } from "../common/api-error";
 import { Clock } from "../common/clock";
@@ -631,6 +633,26 @@ export class AttendanceService {
           correction,
           expectation.expected ? expectation.start : null,
         );
+        // Leaving early (PRD 23.2): only a day that counts as attended, with no reason covering it.
+        const leftEarly =
+          expectation.expected && (derived.status === "ON_TIME" || derived.status === "LATE")
+            ? earlyLeaveMinutes({ expectation, departure })
+            : 0;
+        if (
+          leftEarly > 0 &&
+          expectation.expected &&
+          now.getTime() >= expectation.end.getTime() &&
+          date >= addDays(instantToLocalDate(now, data.timeZone), -1)
+        ) {
+          // One generic notice per day, not one per person: the names are in the daily list (PRD 15.3).
+          await notifyOrgAdmins(tx, tenantId, {
+            kind: "EARLY_LEAVE",
+            title: "Эрт гарсан ажилтан байна",
+            body: "Өдрийн ирцийн жагсаалтаас шалгана уу.",
+            link: `/daily?date=${date}&status=EARLY_LEAVE`,
+            dedupeKey: `EARLY_LEAVE:${date}`,
+          });
+        }
         const flagged = expectation.expected
           ? mine.filter(
               (r) =>
@@ -656,8 +678,8 @@ export class AttendanceService {
           `INSERT INTO attendance_result (tenant_id, employee_id, work_date, status, location_id, expected_start,
                                           expected_cutoff, arrival_at, late_minutes, reason_name, missing, computed_at,
                                           source, system_status, system_arrival_at, flagged_events, correction_id, reason_note,
-                                          departure_at, departure_state)
-           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20)
+                                          departure_at, departure_state, early_leave_minutes)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21)
            ON CONFLICT (tenant_id, employee_id, work_date) DO UPDATE SET
              status = EXCLUDED.status, location_id = EXCLUDED.location_id, expected_start = EXCLUDED.expected_start,
              expected_cutoff = EXCLUDED.expected_cutoff, arrival_at = EXCLUDED.arrival_at,
@@ -666,7 +688,7 @@ export class AttendanceService {
              system_status = EXCLUDED.system_status, system_arrival_at = EXCLUDED.system_arrival_at,
              flagged_events = EXCLUDED.flagged_events, correction_id = EXCLUDED.correction_id,
              reason_note = EXCLUDED.reason_note, departure_at = EXCLUDED.departure_at,
-             departure_state = EXCLUDED.departure_state`,
+             departure_state = EXCLUDED.departure_state, early_leave_minutes = EXCLUDED.early_leave_minutes`,
           [
             tenantId,
             e.id,
@@ -690,6 +712,7 @@ export class AttendanceService {
             derived.status === "EXCUSED" ? reasonNote : null,
             departure.departureAt,
             departure.state,
+            leftEarly,
           ],
         );
         if (before !== derived.status) {

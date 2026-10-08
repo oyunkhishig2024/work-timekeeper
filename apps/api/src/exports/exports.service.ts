@@ -48,6 +48,7 @@ const ATTENDANCE_TEXT: Record<string, string> = {
   EXCUSED: "Шалтгаантай",
   NO_SHOW: "Ирээгүй",
   PENDING: "Цаг болоогүй",
+  EARLY_LEAVE: "Эрт гарсан",
   WORKED_OFF_DAY: "Амралтын өдөр ажилласан",
   NOT_CONFIGURED: "Тохиргоо дутуу",
 };
@@ -237,6 +238,7 @@ export class ExportsService {
             { key: "statusText", header: "Төлөв", width: 1 },
             { key: "arrival", header: "Ирсэн цаг", width: 1 },
             { key: "departure", header: "Гарсан цаг", width: 1 },
+            { key: "earlyLeave", header: "Эрт гарсан (мин)", width: 1 },
             { key: "lateMinutes", header: "Хоцорсон (мин)", width: 1 },
             { key: "reason", header: "Шалтгаан", width: 2 },
             { key: "source", header: "Эх сурвалж", width: 1 },
@@ -259,6 +261,7 @@ export class ExportsService {
                   : r.departureState === "UNKNOWN"
                     ? "Тодорхойгүй"
                     : "",
+            earlyLeave: Number(r.earlyLeaveMinutes) > 0 ? Number(r.earlyLeaveMinutes) : "",
             lateMinutes: r.status === "LATE" ? Number(r.lateMinutes) : "",
             reason: [r.reasonName, r.reasonNote].filter(Boolean).join(": "),
             source: r.source === "CORRECTED" ? "Засварласан" : "Автомат",

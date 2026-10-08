@@ -234,6 +234,7 @@ function buildExpectation(
     start,
     end,
     graceMinutes: timing.graceMinutes,
+    earlyLeaveToleranceMinutes: rules.earlyLeaveToleranceMinutes,
     cutoff: end, // PRD 6.3: nobody is a no-show before the duty is over
     earlyWindowStart,
     minStayMinutes: rules.minStayMinutes,

@@ -58,6 +58,8 @@ export interface WorkingDayException {
 export interface AttendanceRules extends Versioned {
   graceMinutes: number;
   minStayMinutes: number;
+  /** Leaving more than this long before the end of the duty is leaving early (PRD 23.2, v1.27). */
+  earlyLeaveToleranceMinutes: number;
 }
 
 export interface ShiftTemplate {
@@ -163,6 +165,8 @@ export type Expectation =
       start: Date;
       end: Date;
       graceMinutes: number;
+      /** Copied from the rules in force: how early before the end of the duty an exit counts as leaving early. */
+      earlyLeaveToleranceMinutes: number;
       /** The end of the duty: no arrival and no reason by this instant means no-show (PRD 6.3). */
       cutoff: Date;
       /** Entries before this instant do not count for this duty; any earlier arrival is on time (PRD 6.2, 23.2). */

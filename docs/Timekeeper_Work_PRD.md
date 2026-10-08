@@ -1,7 +1,7 @@
 # Timekeeper Work
 ## Product Requirements Document (PRD)
 
-Version: 1.26
+Version: 1.27
 Product: Timekeeper Work
 Owner: Onki
 Status: Requirements Specification (pre-development review + CTO review + stakeholder decisions applied)
@@ -645,6 +645,7 @@ Fields:
 - **Working schedule: inherit the tenant Working Week (14.1) or override** (optional, effective-dated) **[CHANGED v1.6]**
 - Grace Minutes
 - **Minimum Geofence Stay (minutes, default 3)** **[NEW]**
+- **Early-leave tolerance (minutes, 0–240, default 15)** **[v1.27]**: leaving more than this long before the end of the duty is leaving early (23.2)
 
 Geofence Radius:
 - Minimum: 100m
@@ -934,7 +935,7 @@ Version 2:
 - Push notifications (using the notification engine above)
 - Overtime analytics
 - Full attendance correction workflow (employee-initiated requests, manager approval chains, bulk corrections) – the basic HR correction flow is already in the MVP (6.9) **[CHANGED v1.2]**
-- Presence analytics for shifts (left-early detection, overtime, on-site duration) building on the raw events kept in V1
+- Presence analytics for shifts (overtime, on-site duration, short-hours reports; left-early detection was built in v1.27) building on the raw events kept in V1
 
 Version 3:
 - Payroll integration
@@ -1085,7 +1086,8 @@ The 310 organization prepares compliant phones for employees before the pilot. R
 - **No-show (6.3) [CHANGED v1.24]:** no valid arrival and no reason by the **shift end** → Ирээгүй (for a 24 h shift, by 08:00 the next day). Before that the employee is Хүлээгдэж байна.
 - **Early arrival [CHANGED v1.24]:** there is no early-arrival window setting. For a standard day an entry counts from local midnight of the work date; for a shift from 12 h before its start (a duty lasts at most 24 h, so the same person's previous shift is over by then). Earlier entries are stored but belong to the previous work date. Anything before the start is Цагтаа.
 - **Back-to-back shifts and 24 h shifts:** a day's arrival is matched to the **nearest shift start** within its window; one arrival can never satisfy two shifts. For a 24 h shift (08:00 → 08:00 next day) the arrival is judged only at the start; the shift end (08:00 next day) is recorded as the departure when the device leaves the geofence after the shift end (or after the min-stay rule, 6.4).
-- **Departure and leaving early [CHANGED v1.25]:** the daily list shows a **departure time** (Гарсан цаг) next to the arrival: the last EXIT of the duty place after the confirmed arrival. A short walk out and back (lunch) changes nothing, because the later ENTER makes the person "Байгаа" (still there) again. When the duty ended more than an hour ago and the phone never reported leaving (battery, location off) it shows **Тодорхойгүй**: the system never guesses a departure. The same two columns are in the Excel / CSV / PDF export. Automatic "left early / short hours" detection and overtime stay **V2** (presence analytics). Showing the departure to HR widens the purpose of the location data, so the employee consent text (Appendix A, item 4) must say so before this is used with real employees.
+- **Departure and leaving early [CHANGED v1.27]:** the daily list shows a **departure time** (Гарсан цаг) next to the arrival: the last EXIT of the duty place after the confirmed arrival. A short walk out and back (lunch) changes nothing, because the later ENTER makes the person "Байгаа" (still there) again. When the duty ended more than an hour ago and the phone never reported leaving (battery, location off) it shows **Тодорхойгүй**: the system never guesses a departure. The same two columns are in the Excel / CSV / PDF export.
+- **Left early (Эрт гарсан) [v1.27]:** an employee counted as attended (Цагтаа or Хоцорсон, no reason covering the day) whose last event is an EXIT more than the **early-leave tolerance** (13, default 15 min) before the end of the duty (the end of the working day, the shift, or the personal hours, 14.4) is **Эрт гарсан**, with the minutes missing: end of duty − departure. It is an indicator next to the status, not a status: the day stays Цагтаа / Хоцорсон. It is never set for someone still inside, whose departure is Тодорхойгүй, or who has a reason; it disappears if the person comes back. The daily list has an **Эрт гарсан** chip (with its count), a minutes note in the departure column and a column in the export. The Org Admin gets **one generic notice per day** ("Эрт гарсан ажилтан байна", no names) once a duty has ended with someone who left early; the names are in the daily list. Overtime and a weekly/monthly short-hours report stay **V2**. Using the departure to judge people widens the purpose of the location data: the employee consent text (Appendix A, item 4) must say so and be approved before real use.
 - **Minimum geofence stay (6.4)** applies unchanged to shift arrivals.
 - **Reasons and shifts (11):** a reason applies per calendar date range; a reason covering the shift's work date makes the shift **Шалтгаантай** (6.6). A reason ending the day before the shift start does not affect it.
 - **Public holidays:** a template with "observes public holidays" off (default for 24 h guard templates) means the employee works and is counted on holidays; with it on, the employee is not expected on holidays.
@@ -1229,6 +1231,7 @@ Added in v1.2 **[v1.2]**:
 | 1.24    | **No-show cut-off and early-arrival window removed** (6.2, 6.3, 13, 14.1, 23.1, 23.2, 26): there is no "Ирээгүй after N minutes" setting; whoever arrives on the day attended and is Хоцорсон however late. An employee with no arrival and no reason is Хүлээгдэж байна until their own duty ends (the end of their working day or shift) and only then Ирээгүй; arrivals before the start are always Цагтаа (a standard day counts entries from local midnight, a shift from 12 h before its start). Everyone is judged against their own hours, so early-start teams (e.g. a bakery 06:30–14:00) use their own shift template. Leaving early is still not detected (V2, 23.2). `cutoffMinutes` / `earlyWindowMinutes` are removed from the rules and shift-template APIs. |
 | 1.25    | Departure time shown to HR (6.4, 9, 23.2): the daily list and its export have an arrival and a departure column. Departure = the last EXIT of the duty place after the arrival; "Байгаа" while inside; "Тодорхойгүй" when the phone never reported leaving after the duty ended. Left-early detection stays V2. Appendix A, item 4 (purpose) must be reworded and approved before real use. |
 | 1.26    | Personal Hours (14.4, 6.1): HR fixes the hours, and optionally several places, of chosen employees for up to 31 days, replacing the week, a holiday or a shift for those dates; with several places one day at different branches is one full day. Built as `/v1/personal-hours`, a dialog on the daily list and `getExpectation` in the domain package. |
+| 1.27    | Left-early detection (23.2, 13, 9): an attended employee whose last exit is more than the early-leave tolerance (rule, default 15 min) before the end of their duty is flagged Эрт гарсан with the minutes missing; daily-list chip, column and export; one generic Org Admin notice per day. Departure Тодорхойгүй or still inside is never flagged. Overtime and short-hours reports stay V2. |
 
 ---
 

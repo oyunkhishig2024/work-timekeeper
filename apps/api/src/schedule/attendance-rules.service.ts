@@ -11,16 +11,19 @@ import { makeRoomFrom } from "./version-timeline";
 export interface RulesInput {
   graceMinutes: number;
   minStayMinutes: number;
+  earlyLeaveToleranceMinutes: number;
 }
 
 /** The PRD defaults (6.2, 6.4), used until the Org Admin saves the first version. */
 export const DEFAULT_RULES: RulesInput = {
   graceMinutes: 15,
   minStayMinutes: 3,
+  earlyLeaveToleranceMinutes: 15,
 };
 
 const COLUMNS = `id, valid_from::text AS "validFrom", valid_to::text AS "validTo",
-  grace_minutes AS "graceMinutes", min_stay_minutes AS "minStayMinutes"`;
+  grace_minutes AS "graceMinutes", min_stay_minutes AS "minStayMinutes",
+  early_leave_tolerance_minutes AS "earlyLeaveToleranceMinutes"`;
 
 /**
  * Attendance rule versions (PRD 6.2–6.4, 13, 22.1): grace (late after start + grace), no-show cut-off (Ирээгүй after
@@ -92,14 +95,15 @@ export class AttendanceRulesService {
         await makeRoomFrom(tx, "attendance_rule_version", locationId, effective, today);
         const { rows } = await tx.query<{ id: string }>(
           `INSERT INTO attendance_rule_version
-             (tenant_id, location_id, valid_from, grace_minutes, min_stay_minutes, created_by)
-           VALUES ($1, $2, $3, $4, $5, $6) RETURNING id`,
+             (tenant_id, location_id, valid_from, grace_minutes, min_stay_minutes, early_leave_tolerance_minutes, created_by)
+           VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id`,
           [
             auth.tenantId,
             locationId,
             effective,
             input.graceMinutes,
             input.minStayMinutes,
+            input.earlyLeaveToleranceMinutes,
             auth.userId,
           ],
         );
@@ -180,4 +184,5 @@ export class AttendanceRulesService {
 const pick = (r: RulesInput): RulesInput => ({
   graceMinutes: r.graceMinutes,
   minStayMinutes: r.minStayMinutes,
+  earlyLeaveToleranceMinutes: r.earlyLeaveToleranceMinutes,
 });

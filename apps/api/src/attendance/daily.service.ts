@@ -7,8 +7,8 @@ import { DatabaseService } from "../database/database.service";
 
 export interface DailyFilter {
   date: string;
-  /** EXPECTED = everyone expected that day; INACTIVE = expected, no arrival, phone silent (PRD 6.5). */
-  status?: AttendanceStatus | "EXPECTED" | "INACTIVE";
+  /** EXPECTED = everyone expected that day; EARLY_LEAVE = left more than the tolerance before the end of the duty (PRD 23.2); INACTIVE = expected, no arrival, phone silent (PRD 6.5). */
+  status?: AttendanceStatus | "EXPECTED" | "INACTIVE" | "EARLY_LEAVE";
   locationId?: string;
   departmentId?: string;
   /** Name or employee code. */
@@ -76,6 +76,7 @@ export class DailyAttendanceService {
                (r.location_id IS NOT NULL AND r.location_id <> e.primary_location_id) AS temporary,
                r.status, r.arrival_at AS "arrivalAt", r.late_minutes AS "lateMinutes",
                r.departure_at AS "departureAt", r.departure_state AS "departureState",
+               r.early_leave_minutes AS "earlyLeaveMinutes",
                r.reason_name AS "reasonName", r.reason_note AS "reasonNote", r.missing,
                r.expected_start AS "expectedStart",
                r.source, r.system_status AS "systemStatus", r.flagged_events AS "flaggedEvents",
@@ -116,6 +117,12 @@ export class DailyAttendanceService {
         NO_SHOW: byStatus.get("NO_SHOW") ?? 0,
         PENDING: byStatus.get("PENDING") ?? 0,
       };
+      const early = await tx.query<{ n: number }>(
+        `SELECT count(*)::int AS n FROM attendance_result r JOIN employee e ON e.id = r.employee_id
+          WHERE ${base} AND r.early_leave_minutes > 0`,
+        params,
+      );
+      counts.EARLY_LEAVE = early.rows[0]!.n;
       const silent = await tx.query<Row>(
         `${select} WHERE ${base} AND r.status IN ('PENDING', 'NO_SHOW') LIMIT ${INACTIVE_CAP}`,
         params,
@@ -139,6 +146,7 @@ export class DailyAttendanceService {
       }
       const rowWhere = [base];
       if (f.status === "EXPECTED") rowWhere.push(`r.status IN ${EXPECTED_STATUSES}`);
+      else if (f.status === "EARLY_LEAVE") rowWhere.push("r.early_leave_minutes > 0");
       else if (f.status) {
         params.push(f.status);
         rowWhere.push(`r.status = $${params.length}`);

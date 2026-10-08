@@ -1,7 +1,7 @@
 import { api } from "./api";
 import { isIsoDate, type Status } from "./attendance";
 
-export type DailyFilterStatus = Status | "EXPECTED" | "INACTIVE";
+export type DailyFilterStatus = Status | "EXPECTED" | "INACTIVE" | "EARLY_LEAVE";
 
 export interface DailyItem {
   employeeId: string;
@@ -21,6 +21,8 @@ export interface DailyItem {
   /** The last time the phone left the duty place after arriving (LEFT); INSIDE while there; UNKNOWN when it never reported leaving. */
   departureAt: string | null;
   departureState: "LEFT" | "INSIDE" | "UNKNOWN" | null;
+  /** Minutes the employee left before the end of the duty, beyond the tolerance (PRD 23.2); 0 = not early. */
+  earlyLeaveMinutes: number;
   lateMinutes: number;
   reasonName: string | null;
   reasonNote: string | null;
@@ -67,6 +69,7 @@ const STATUSES: DailyFilterStatus[] = [
   "NO_SHOW",
   "PENDING",
   "INACTIVE",
+  "EARLY_LEAVE",
 ];
 
 export function parseDailyState(params: { get(name: string): string | null }): DailyState {
@@ -118,6 +121,7 @@ export const FILTER_LABEL: Record<DailyFilterStatus, string> = {
   NO_SHOW: "Ирээгүй",
   PENDING: "Цаг болоогүй",
   INACTIVE: "Байршил идэвхгүй",
+  EARLY_LEAVE: "Эрт гарсан",
 };
 
 export const CORRECTION_REASONS: Array<[string, string]> = [

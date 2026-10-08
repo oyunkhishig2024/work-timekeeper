@@ -13,6 +13,7 @@ const expected: Expectation = {
   start: t("08:00"),
   end: t("17:00"),
   graceMinutes: 15,
+  earlyLeaveToleranceMinutes: 15,
   cutoff: t("17:00"), // the end of the duty (PRD 6.3)
   earlyWindowStart: t("06:00"),
   minStayMinutes: 3,

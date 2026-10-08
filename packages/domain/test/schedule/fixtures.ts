@@ -48,6 +48,7 @@ export const defaultRules = (over: Partial<AttendanceRules> = {}): AttendanceRul
   validTo: null,
   graceMinutes: 15,
   minStayMinutes: 3,
+  earlyLeaveToleranceMinutes: 15,
   ...over,
 });
 

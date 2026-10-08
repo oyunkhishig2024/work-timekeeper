@@ -622,6 +622,8 @@ const rulesFields = {
   // Late after start + grace (PRD 6.2), minimum stay (6.4). There is no no-show cut-off or early window (6.3, 23.2).
   graceMinutes: z.number().int().min(0).max(240),
   minStayMinutes: z.number().int().min(1).max(15),
+  // Leaving more than this long before the end of the duty is leaving early (PRD 23.2, v1.27).
+  earlyLeaveToleranceMinutes: z.number().int().min(0).max(240),
 };
 const putRules = z
   .object({

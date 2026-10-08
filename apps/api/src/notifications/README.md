@@ -4,12 +4,13 @@ Alerts reach the Org Admin in two ways: an in-app **inbox** (always) and **Web P
 
 ## What is announced
 
-| Event                                                               | Kind                       | Link                  |
-| ------------------------------------------------------------------- | -------------------------- | --------------------- |
-| Device alert: five unavailable attestation verdicts in a row (6.7)  | `DEVICE_ALERT_ATTESTATION` | `/device-alerts`      |
-| Device alert: DEVICE_CONFLICT (6.7)                                 | `DEVICE_ALERT_CONFLICT`    | `/device-alerts`      |
-| One user made more than 10 corrections in a day (6.9), once per day | `CORRECTION_VOLUME`        | `/corrections/report` |
-| Test button                                                         | `TEST`                     | -                     |
+| Event                                                               | Kind                       | Link                              |
+| ------------------------------------------------------------------- | -------------------------- | --------------------------------- |
+| Device alert: five unavailable attestation verdicts in a row (6.7)  | `DEVICE_ALERT_ATTESTATION` | `/device-alerts`                  |
+| Device alert: DEVICE_CONFLICT (6.7)                                 | `DEVICE_ALERT_CONFLICT`    | `/device-alerts`                  |
+| Someone left early (23.2), once per day, no names                   | `EARLY_LEAVE`              | `/daily?date=&status=EARLY_LEAVE` |
+| One user made more than 10 corrections in a day (6.9), once per day | `CORRECTION_VOLUME`        | `/corrections/report`             |
+| Test button                                                         | `TEST`                     | -                                 |
 
 Every active user with role `ORG_ADMIN` of the tenant receives it (HR and Manager do not). The notification row is written in
 the **same transaction** as the alert (`notifyOrgAdmins`, `enqueue.ts`), so it cannot be lost or describe a rolled-back change.

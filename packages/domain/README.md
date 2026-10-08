@@ -105,6 +105,12 @@ accuracy radii so GPS jitter is not a teleport; the same instant at two places i
 confirmed arrival the last event of the duty place decides: an EXIT is the departure, an ENTER (back from lunch) means still inside.
 Events count until 4 h after the end of the duty; an hour after the end without an EXIT the state is `UNKNOWN`, never a guess.
 
+## Left early (attendance/early-leave.ts)
+
+`earlyLeaveMinutes({expectation, departure})` (PRD 23.2): minutes before the end of the duty when the state is `LEFT` and the exit was more than
+`expectation.earlyLeaveToleranceMinutes` (a rule, default 15) early; 0 otherwise, and always 0 for `INSIDE`, `UNKNOWN` and a day nobody is expected.
+The engine only asks for days that count as attended with no reason.
+
 ## Location inactive (attendance/inactive.ts)
 
 `isLocationInactive` (PRD 6.5, 6.8): expected, device registered, no arrival yet (PENDING / NO_SHOW), current duty (first 24 h), device silent for

@@ -269,4 +269,44 @@ describe.skipIf(!hasDb)("daily attendance list (PRD 9, 6.5, 11)", () => {
     expect(csv.text).toContain("16:30");
     expect(csv.text).toContain("Тодорхойгүй");
   });
+
+  it("flags leaving early after the tolerance, once, with one generic notice a day (23.2)", async () => {
+    const w = await k.world();
+    const rows = async (query = "") =>
+      (await list(w, query)) as {
+        counts: Record<string, number>;
+        items: Array<Record<string, unknown>>;
+      };
+    k.setClock("08:05");
+    await k.send(await k.emp(w), [k.ev(w)]);
+    await k.send(await k.second(w), [k.ev(w)]);
+    k.setClock("14:10");
+    await k.send(await k.emp(w), [k.ev(w, { type: "EXIT" })]); // 170 min early
+    k.setClock("16:50");
+    await k.send(await k.second(w), [k.ev(w, { type: "EXIT" })]); // 10 min: within the 15 min tolerance
+    k.setClock("17:30");
+    await k.tick(w.tenant.id);
+    const day = await rows();
+    const mine = day.items.find((r) => r.employeeId === w.employee.id)!;
+    const other = day.items.find((r) => r.employeeId === w.second.employee.id)!;
+    expect(mine).toMatchObject({ status: "ON_TIME", earlyLeaveMinutes: 170 });
+    expect(other).toMatchObject({ status: "ON_TIME", earlyLeaveMinutes: 0 });
+    expect(day.counts.EARLY_LEAVE).toBe(1);
+    const only = await rows("&status=EARLY_LEAVE");
+    expect(only.items.map((r) => r.employeeId)).toEqual([w.employee.id]);
+
+    // returning cancels it: the last event decides (a walk out and back is not leaving early)
+    k.setClock("17:40");
+    await k.send(await k.emp(w), [k.ev(w)]);
+    expect((await rows()).counts.EARLY_LEAVE).toBe(0);
+
+    // one generic notice for the day, no names
+    const notes = await h.owner.query(
+      "SELECT title, body, link FROM notification WHERE tenant_id = $1 AND kind = 'EARLY_LEAVE'",
+      [w.tenant.id],
+    );
+    expect(notes.rows).toHaveLength(1);
+    expect(JSON.stringify(notes.rows[0])).not.toMatch(/Бадам|Дорж/);
+    expect(notes.rows[0].link).toContain(`status=EARLY_LEAVE`);
+  });
 });

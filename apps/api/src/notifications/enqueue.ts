@@ -1,7 +1,11 @@
 import type { Db } from "../database/database.service";
 
 export type NotificationKind =
-  "DEVICE_ALERT_ATTESTATION" | "DEVICE_ALERT_CONFLICT" | "CORRECTION_VOLUME" | "TEST";
+  | "DEVICE_ALERT_ATTESTATION"
+  | "DEVICE_ALERT_CONFLICT"
+  | "CORRECTION_VOLUME"
+  | "EARLY_LEAVE"
+  | "TEST";
 
 export interface NotificationInput {
   kind: NotificationKind;

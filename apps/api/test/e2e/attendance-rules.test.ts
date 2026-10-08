@@ -31,6 +31,7 @@ describe.skipIf(!hasDb)("attendance rule versions (PRD 6.2–6.4, 13, 22.1)", ()
   const rules = (o: Partial<Record<string, number | string | null>> = {}) => ({
     graceMinutes: 15,
     minStayMinutes: 3,
+    earlyLeaveToleranceMinutes: 15,
     ...o,
   });
 
@@ -61,6 +62,7 @@ describe.skipIf(!hasDb)("attendance rule versions (PRD 6.2–6.4, 13, 22.1)", ()
       source: "DEFAULT",
       graceMinutes: 15,
       minStayMinutes: 3,
+      earlyLeaveToleranceMinutes: 15,
       id: null,
     });
     expect((await put(w.hr, "/v1/attendance-rules", rules())).status).toBe(403);
@@ -93,6 +95,8 @@ describe.skipIf(!hasDb)("attendance rule versions (PRD 6.2–6.4, 13, 22.1)", ()
     // PRD 6.3 / 23.2 (v1.24): the no-show cut-off and the early window no longer exist
     expect(await bad({ cutoffMinutes: 120 })).toBe(400);
     expect(await bad({ earlyWindowMinutes: 120 })).toBe(400);
+    expect(await bad({ earlyLeaveToleranceMinutes: -1 })).toBe(400);
+    expect(await bad({ earlyLeaveToleranceMinutes: 241 })).toBe(400);
     expect(await bad({ minStayMinutes: 0 })).toBe(400);
     expect(await bad({ minStayMinutes: 16 })).toBe(400);
     expect(await bad({ graceMinutes: 1.5 })).toBe(400);
