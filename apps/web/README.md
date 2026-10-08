@@ -55,7 +55,13 @@ get the actions and the export (a Manager's export depends on a tenant setting, 
 - **Excel / CSV / PDF**: `GET /v1/exports/daily-attendance` with the same filters (token sent in the header, file saved from a blob).
 - Today's list refreshes every minute.
 
-Not here yet: ending or changing a reason from this screen (use the reason assignments API), bulk reason assignment.
+- **Bulk reason assignment** (Org Admin / HR): tick employees in the first column (the header box ticks every row that can still get a
+  reason). A strip under the title shows **Шалтгаан оноох (N)**, **Бүгдийг болиулах** and one chip per ticked employee with a × to remove
+  them, so the selection stays visible whatever the filters or search show. The selection is kept as whole rows, belongs to one date, is
+  cleared after saving and holds at most 500 people (the API limit). One call to `POST /v1/reason-assignments`, all or nothing; when
+  someone already has a reason in the period (`REASON_OVERLAP`) the dialog names them so they can be unticked.
+
+Not here yet: ending or changing a reason from this screen (use the reason assignments API).
 
 ## Review (`/review`, `/device-alerts`; PRD 6.7)
 

@@ -58,6 +58,7 @@ export async function api<T>(path: string, opts: RequestOptions = {}): Promise<T
       res.status,
       problem.code ?? "REQUEST_FAILED",
       problem.detail ?? `Request failed (${res.status})`,
+      data,
     );
   }
   return data as T;

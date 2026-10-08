@@ -2,18 +2,18 @@
 
 import { useState, type FormEvent } from "react";
 import { api, ApiRequestError } from "@/lib/api";
-import { reasonFormProblem, type DailyItem, type Reason } from "@/lib/daily";
+import { overlapNames, reasonFormProblem, type DailyItem, type Reason } from "@/lib/daily";
 import { fieldClass, Modal, primaryButton, secondaryButton } from "../modal";
 
-/** Give the employee a reason for this date (PRD 11): they become Шалтгаантай instead of Ирээгүй. «Бусад» needs words. */
+/** Give one or more employees a reason from this date (PRD 11): they become Шалтгаантай instead of Ирээгүй. «Бусад» needs words. All or nothing. */
 export function AssignReasonDialog({
-  row,
+  rows,
   date,
   reasons,
   onClose,
   onSaved,
 }: {
-  row: DailyItem;
+  rows: DailyItem[];
   date: string;
   reasons: Reason[];
   onClose: () => void;
@@ -37,7 +37,7 @@ export function AssignReasonDialog({
       await api("/v1/reason-assignments", {
         method: "POST",
         body: {
-          employeeIds: [row.employeeId],
+          employeeIds: rows.map((r) => r.employeeId),
           reasonId,
           fromDate: date,
           toDate,
@@ -46,7 +46,17 @@ export function AssignReasonDialog({
       });
       onSaved();
     } catch (e) {
-      setError(e instanceof ApiRequestError ? e.message : "Хадгалж чадсангүй.");
+      const clash =
+        e instanceof ApiRequestError && e.code === "REASON_OVERLAP"
+          ? overlapNames(e.extra, rows)
+          : [];
+      setError(
+        clash.length > 0
+          ? `Дараах ажилтанд энэ хугацаанд шалтгаан оноогдсон байна: ${clash.join(", ")}. Сонголтоос хасаад дахин оролдоно уу.`
+          : e instanceof ApiRequestError
+            ? e.message
+            : "Хадгалж чадсангүй.",
+      );
       setBusy(false);
     }
   }
@@ -54,8 +64,20 @@ export function AssignReasonDialog({
   return (
     <Modal title="Шалтгаан оноох" onClose={onClose}>
       <p className="mt-1 text-sm text-slate-700">
-        {row.fullName} · {date}
+        {rows.length === 1 ? rows[0]!.fullName : `${rows.length} ажилтан`} · {date}
       </p>
+      {rows.length > 1 && (
+        <ul
+          aria-label="Сонгосон ажилтнууд"
+          className="mt-2 flex max-h-28 flex-wrap gap-1 overflow-y-auto text-xs"
+        >
+          {rows.map((r) => (
+            <li key={r.employeeId} className="rounded-full bg-teal-50 px-2 py-0.5 text-teal-900">
+              {r.fullName}
+            </li>
+          ))}
+        </ul>
+      )}
       <form onSubmit={submit} className="mt-4 space-y-4">
         <label className="block text-sm font-medium">
           Шалтгаан

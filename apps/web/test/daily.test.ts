@@ -3,6 +3,8 @@ import {
   correctionFormProblem,
   dailyHref,
   dailyQuery,
+  isReasonAssignable,
+  overlapNames,
   parseDailyState,
   reasonFormProblem,
   type Reason,
@@ -90,5 +92,25 @@ describe("form checks", () => {
     expect(correctionFormProblem({ ...ok, status: "NO_SHOW", arrival: "" })).toBeNull();
     expect(correctionFormProblem({ ...ok, reasonCode: "OTHER" })).toMatch(/тайлбар/u);
     expect(correctionFormProblem({ ...ok, reasonCode: "OTHER", note: "Утас эвдэрсэн" })).toBeNull();
+  });
+});
+
+describe("bulk reason assignment helpers", () => {
+  it("offers a reason only to expected employees who have none", () => {
+    expect(isReasonAssignable({ status: "NO_SHOW", reasonName: null })).toBe(true);
+    expect(isReasonAssignable({ status: "LATE", reasonName: null })).toBe(true);
+    expect(isReasonAssignable({ status: "EXCUSED", reasonName: "Өвчтэй" })).toBe(false);
+    expect(isReasonAssignable({ status: "WORKED_OFF_DAY", reasonName: null })).toBe(false);
+    expect(isReasonAssignable({ status: "NOT_CONFIGURED", reasonName: null })).toBe(false);
+  });
+
+  it("names the selected employees that clash, from the API problem", () => {
+    const rows = [
+      { employeeId: "a", fullName: "Бат Болд" },
+      { employeeId: "b", fullName: "Дорж Сараа" },
+    ];
+    expect(overlapNames({ conflicts: [{ employeeId: "b" }] }, rows)).toEqual(["Дорж Сараа"]);
+    expect(overlapNames(null, rows)).toEqual([]);
+    expect(overlapNames({ conflicts: "x" }, rows)).toEqual([]);
   });
 });

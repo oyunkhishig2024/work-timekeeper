@@ -146,3 +146,22 @@ export function correctionFormProblem(input: {
     return "«Бусад» үед тайлбар бичнэ үү.";
   return null;
 }
+
+/** The most employees one reason assignment may cover (the API limit). */
+export const MAX_BULK_ASSIGN = 500;
+
+/** A reason can be given to someone who is expected that day and has none yet (PRD 11). */
+export function isReasonAssignable(r: Pick<DailyItem, "status" | "reasonName">): boolean {
+  return r.status !== "WORKED_OFF_DAY" && r.status !== "NOT_CONFIGURED" && !r.reasonName;
+}
+
+/** Names of the selected employees that already have a reason in the period, from a REASON_OVERLAP problem. */
+export function overlapNames(
+  extra: unknown,
+  rows: Array<Pick<DailyItem, "employeeId" | "fullName">>,
+): string[] {
+  const conflicts = (extra as { conflicts?: Array<{ employeeId?: string }> } | null)?.conflicts;
+  if (!Array.isArray(conflicts)) return [];
+  const ids = new Set(conflicts.map((c) => c.employeeId));
+  return rows.filter((r) => ids.has(r.employeeId)).map((r) => r.fullName);
+}

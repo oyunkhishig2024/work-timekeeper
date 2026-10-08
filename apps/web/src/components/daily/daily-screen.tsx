@@ -18,6 +18,8 @@ import {
   fetchDepartments,
   fetchLocations,
   fetchReasons,
+  isReasonAssignable,
+  MAX_BULK_ASSIGN,
   parseDailyState,
   type DailyFilterStatus,
   type DailyItem,
@@ -28,7 +30,7 @@ import {
 import type { SessionUser } from "@/lib/session";
 import { DateNav } from "../dashboard/date-nav";
 import { STATUS_STYLE } from "../dashboard/status-ui";
-import { fieldClass, secondaryButton } from "../modal";
+import { fieldClass, primaryButton, secondaryButton } from "../modal";
 import { AssignReasonDialog } from "./assign-reason-dialog";
 import { CorrectionDialog } from "./correction-dialog";
 
@@ -63,7 +65,9 @@ export function DailyScreen({ user }: { user: SessionUser }) {
   const [reasons, setReasons] = useState<Reason[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
-  const [assign, setAssign] = useState<DailyItem | null>(null);
+  const [assign, setAssign] = useState<DailyItem[] | null>(null);
+  // Ticked employees are kept as whole rows so they stay visible (and selected) while the filters change.
+  const [selected, setSelected] = useState<Map<string, DailyItem>>(new Map());
   const [correct, setCorrect] = useState<DailyItem | null>(null);
   const [search, setSearch] = useState(state.q);
   const request = useRef(0);
@@ -136,7 +140,29 @@ export function DailyScreen({ user }: { user: SessionUser }) {
     }
   }
 
+  // A selection belongs to one date.
+  useEffect(() => setSelected(new Map()), [date]);
+  const toggle = (r: DailyItem) =>
+    setSelected((prev) => {
+      const next = new Map(prev);
+      if (next.has(r.employeeId)) next.delete(r.employeeId);
+      else if (next.size < MAX_BULK_ASSIGN) next.set(r.employeeId, r);
+      return next;
+    });
+  const assignable = data?.items.filter(isReasonAssignable) ?? [];
+  const allTicked = assignable.length > 0 && assignable.every((r) => selected.has(r.employeeId));
+  const toggleAll = () =>
+    setSelected((prev) => {
+      const next = new Map(prev);
+      for (const r of assignable) {
+        if (allTicked) next.delete(r.employeeId);
+        else if (next.size < MAX_BULK_ASSIGN) next.set(r.employeeId, r);
+      }
+      return next;
+    });
+
   const after = () => {
+    setSelected(new Map());
     setAssign(null);
     setCorrect(null);
     setMessage("Хадгаллаа.");
@@ -247,6 +273,53 @@ export function DailyScreen({ user }: { user: SessionUser }) {
         </p>
       )}
 
+      {canEdit && selected.size > 0 && (
+        <section
+          aria-label="Сонгосон ажилтнууд"
+          className="mt-3 rounded-lg border border-slate-200 bg-white p-3"
+        >
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              className={`${primaryButton} text-sm`}
+              onClick={() => setAssign([...selected.values()])}
+            >
+              Шалтгаан оноох ({selected.size})
+            </button>
+            <button
+              type="button"
+              className={`${secondaryButton} text-sm`}
+              onClick={() => setSelected(new Map())}
+            >
+              Бүгдийг болиулах
+            </button>
+            {selected.size >= MAX_BULK_ASSIGN && (
+              <span className="text-xs text-slate-600">
+                Нэг дор дээд тал нь {MAX_BULK_ASSIGN} хүн.
+              </span>
+            )}
+          </div>
+          <ul className="mt-2 flex max-h-32 flex-wrap gap-2 overflow-y-auto">
+            {[...selected.values()].map((r) => (
+              <li
+                key={r.employeeId}
+                className="inline-flex items-center gap-1 rounded-full border border-teal-200 bg-teal-50 py-0.5 pl-3 pr-1 text-sm"
+              >
+                {r.fullName}
+                <button
+                  type="button"
+                  aria-label={`${r.fullName} — сонголтоос хасах`}
+                  className="h-8 w-8 rounded-full hover:bg-teal-100"
+                  onClick={() => toggle(r)}
+                >
+                  ×
+                </button>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+
       {data && data.items.length === 0 && (
         <p className="mt-4 text-slate-600">Жагсаалт хоосон байна.</p>
       )}
@@ -255,6 +328,18 @@ export function DailyScreen({ user }: { user: SessionUser }) {
           <table className="w-full min-w-[980px] text-left text-sm">
             <thead className="bg-slate-50 text-slate-700">
               <tr>
+                {canEdit && (
+                  <th scope="col" className="w-10 px-3 py-2">
+                    <input
+                      type="checkbox"
+                      aria-label="Бүгдийг сонгох"
+                      className="h-5 w-5"
+                      checked={allTicked}
+                      disabled={assignable.length === 0}
+                      onChange={toggleAll}
+                    />
+                  </th>
+                )}
                 {[
                   "Ажилтан",
                   "Нэгж",
@@ -279,7 +364,9 @@ export function DailyScreen({ user }: { user: SessionUser }) {
                   row={r}
                   timeZone={org.timeZone}
                   canEdit={canEdit}
-                  onAssign={setAssign}
+                  onAssign={(r) => setAssign([r])}
+                  ticked={selected.has(r.employeeId)}
+                  onTick={toggle}
                   onCorrect={setCorrect}
                 />
               ))}
@@ -290,7 +377,7 @@ export function DailyScreen({ user }: { user: SessionUser }) {
 
       {assign && date && (
         <AssignReasonDialog
-          row={assign}
+          rows={assign}
           date={date}
           reasons={reasons}
           onClose={() => setAssign(null)}
@@ -316,12 +403,16 @@ function Row({
   canEdit,
   onAssign,
   onCorrect,
+  ticked,
+  onTick,
 }: {
   row: DailyItem;
   timeZone: string;
   canEdit: boolean;
   onAssign: (r: DailyItem) => void;
   onCorrect: (r: DailyItem) => void;
+  ticked: boolean;
+  onTick: (r: DailyItem) => void;
 }) {
   const expected = r.status !== "WORKED_OFF_DAY" && r.status !== "NOT_CONFIGURED";
   const label = expected
@@ -331,7 +422,20 @@ function Row({
       : "Тохиргоо дутуу";
   const lastSeen = formatTime(r.lastSeenAt, timeZone);
   return (
-    <tr className="border-t border-slate-100 align-top">
+    <tr className={`border-t border-slate-100 align-top ${ticked ? "bg-teal-50" : ""}`}>
+      {canEdit && (
+        <td className="px-3 py-2">
+          {isReasonAssignable(r) && (
+            <input
+              type="checkbox"
+              aria-label={`${r.fullName} сонгох`}
+              className="h-5 w-5"
+              checked={ticked}
+              onChange={() => onTick(r)}
+            />
+          )}
+        </td>
+      )}
       <td className="px-3 py-2">
         <div className="font-medium">{r.fullName}</div>
         <div className="text-xs text-slate-500">
