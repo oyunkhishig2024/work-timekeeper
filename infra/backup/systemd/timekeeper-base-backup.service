@@ -1,0 +1,18 @@
+[Unit]
+Description=Timekeeper PostgreSQL base backup (encrypted, off-site)
+After=postgresql.service network-online.target
+Wants=network-online.target
+OnFailure=timekeeper-backup-alert@%n.service
+
+[Service]
+Type=oneshot
+User=postgres
+Group=postgres
+ExecStart=/opt/timekeeper/infra/backup/bin/base-backup.sh
+Nice=10
+IOSchedulingClass=idle
+TimeoutStartSec=6h
+# hardening
+PrivateTmp=true
+ProtectHome=true
+NoNewPrivileges=true

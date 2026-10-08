@@ -1,0 +1,9 @@
+[Unit]
+Description=Timekeeper backup retention (7 daily + 4 weekly + 3 monthly bases, matching WAL)
+OnFailure=timekeeper-backup-alert@%n.service
+
+[Service]
+Type=oneshot
+User=postgres
+Group=postgres
+ExecStart=/opt/timekeeper/infra/backup/bin/retention.sh

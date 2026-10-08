@@ -1,0 +1,10 @@
+[Unit]
+Description=Daily deep verification of the newest base backup (after the 02:30 backup)
+
+[Timer]
+OnCalendar=*-*-* 04:30:00 Asia/Ulaanbaatar
+Persistent=true
+Unit=timekeeper-backup-deep-verify.service
+
+[Install]
+WantedBy=timers.target

@@ -1,0 +1,4 @@
+source-path=SCRIPTDIR
+external-sources=true
+# the rehearsal deliberately uses ls|grep on plain ASCII names it created itself
+disable=SC2010

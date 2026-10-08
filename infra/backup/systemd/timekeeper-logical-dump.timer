@@ -1,0 +1,10 @@
+[Unit]
+Description=Weekly Timekeeper logical dump (Sunday 03:30 Ulaanbaatar)
+
+[Timer]
+OnCalendar=Sun *-*-* 03:30:00 Asia/Ulaanbaatar
+Persistent=true
+Unit=timekeeper-logical-dump.service
+
+[Install]
+WantedBy=timers.target

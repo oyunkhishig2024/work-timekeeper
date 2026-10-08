@@ -1,0 +1,10 @@
+[Unit]
+Description=Daily Timekeeper base backup at 02:30 Ulaanbaatar time
+
+[Timer]
+OnCalendar=*-*-* 02:30:00 Asia/Ulaanbaatar
+Persistent=true
+Unit=timekeeper-base-backup.service
+
+[Install]
+WantedBy=timers.target

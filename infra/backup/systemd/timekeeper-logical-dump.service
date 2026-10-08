@@ -1,0 +1,13 @@
+[Unit]
+Description=Timekeeper weekly logical dump (pg_dump -Fc, encrypted, off-site)
+After=postgresql.service network-online.target
+OnFailure=timekeeper-backup-alert@%n.service
+
+[Service]
+Type=oneshot
+User=postgres
+Group=postgres
+ExecStart=/opt/timekeeper/infra/backup/bin/logical-dump.sh
+Nice=10
+IOSchedulingClass=idle
+TimeoutStartSec=4h
