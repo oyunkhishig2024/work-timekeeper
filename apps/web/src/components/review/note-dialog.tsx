@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, type FormEvent } from "react";
+import { useState, type FormEvent, type ReactNode } from "react";
 import { fieldClass, Modal, primaryButton, secondaryButton } from "../modal";
 
 /** Asks for a note and hands it to `onSubmit`; a failure is shown here and keeps the dialog open. */
@@ -13,6 +13,7 @@ export function NoteDialog({
   validate,
   onSubmit,
   onClose,
+  extra,
 }: {
   title: string;
   intro: string;
@@ -22,6 +23,8 @@ export function NoteDialog({
   validate?: (note: string) => string | null;
   onSubmit: (note: string) => Promise<void>;
   onClose: () => void;
+  /** More fields above the note (a date, a choice). */
+  extra?: ReactNode;
 }) {
   const [note, setNote] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -45,6 +48,7 @@ export function NoteDialog({
     <Modal title={title} onClose={onClose}>
       <p className="mt-1 text-sm text-slate-700">{intro}</p>
       <form onSubmit={submit} className="mt-4 space-y-4">
+        {extra}
         <label className="block text-sm font-medium">
           {label}
           {required ? " (заавал)" : " (заавал биш)"}

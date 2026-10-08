@@ -1,7 +1,7 @@
 # Timekeeper Work
 ## Technical Architecture Document
 
-Version: 0.23 (draft for review)
+Version: 0.24 (draft for review)
 Status: Draft — based on PRD v1.9 (`docs/Timekeeper_Work_PRD.md`)
 Audience: engineering lead, backend / mobile / web developers, QA
 Scope: the **pilot tier** (1–2 tenants, ~4 months, ~640 employees), built by **one full-stack developer** (decision v0.2, see Section 14). The production tier is covered only where a decision now would be expensive to undo later.
@@ -860,3 +860,8 @@ Migrations `0010_time_rules` and `0011_shifts` add the storage for attendance ru
 
 - `apps/web` `/review` (Anomaly Review Queue, PRD 6.7) and `/device-alerts`, on the existing APIs; notification links (`/device-alerts`) now land on a real page. No API change.
 - Open: the optional "hold until reviewed" policy, bulk decisions, a date-range filter on the queue, translating the alert texts on the server (the web maps the four known ones).
+
+# 39. Implementation Status (admin web: employees)
+
+- `apps/web` `/employees` and `/employees/:id` on the existing employee, device and consent APIs. New dependency: `qrcode` (QR drawn in the browser; the token never leaves the page).
+- Open: bulk import (PRD 12.3, no API yet), consent printing and signing screens, temporary location assignments, the shared registration QR screen, settings (working week, holidays, shifts, reasons, users and scope).

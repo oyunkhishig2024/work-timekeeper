@@ -1,7 +1,7 @@
 # Admin web app (Next.js)
 
-Early build: sign-in, the dashboard (Хянах самбар), the daily attendance screen (Өдрийн ирц) and the Org Admin notifications page.
-Employees, roster, reports, QR and settings screens are still to come (the clickable prototype shows the intended design).
+Early build: sign-in, the dashboard (Хянах самбар), the daily attendance screen (Өдрийн ирц), the review lists (Хяналт), the employee register (Ажилтнууд) and the Org Admin notifications page.
+Roster, reports, QR and settings screens are still to come (the clickable prototype shows the intended design).
 
 ## Run
 
@@ -69,6 +69,22 @@ Org Admin and HR (the menu entry **Хяналт**, two tabs with the number of o
   3 or more flagged events in 7 days.
 - **Төхөөрөмжийн сэрэмжлүүлэг** (`/device-alerts`): attestation silent for five batches, device conflict; **Шийдсэн болгох** with a note.
   These are the pages the push notifications link to.
+
+## Employees (`/employees`, `/employees/:id`; PRD 12)
+
+Open to Org Admin, HR and Manager (a Manager sees only their data scope, read-only); Org Admin and HR change things.
+
+- **List**: code, name, rank, position, department, branch, consent, phone, status; filters Идэвхтэй / Идэвхгүй / Архивласан / Бүгд, department,
+  branch, search by name or code (debounced); 50 per page; Excel / CSV / PDF export of the filtered list (`/v1/exports/employees`).
+- **+ Ажилтан нэмэх**: Овог and Нэр as separate fields, rank and position as free text with suggestions from what the organization already uses,
+  department, branch, start date, schedule mode, manual attendance. The **16-digit code is assigned by the system** and shown after saving.
+- **Detail**: basic data (edit sends only what changed; an emptied rank or position removes it), **rank history and position history** each with
+  its own "change" dialog (effective date and an order number note; dates are the organization's, not the browser's), login (create: the one-time
+  password is shown once), **device history**, **Утас солих QR** (single-use replacement QR drawn in the browser with `qrcode`; shown once; an Org Admin
+  may add a consent override reason), disable the phone (lost / stolen / other), consent state, and lifecycle: **disable** (effective date, reason),
+  **reactivate** (department and branch re-confirmed, a new one-time password if there is a login), **archive**.
+- Not here yet: Excel bulk import (not in the API either), consent printing and "mark signed", temporary location assignments, the shared
+  registration QR screen, scope settings.
 
 ## Web Push (`public/sw.js`, `src/lib/push.ts`, `src/components/push-card.tsx`)
 
