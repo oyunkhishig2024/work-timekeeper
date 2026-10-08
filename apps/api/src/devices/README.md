@@ -7,12 +7,13 @@ under `/v1`. Rules that must never be bypassed are also enforced by database tri
 
 ## QR codes
 
-| Route                                                                            | Who           |                                                                                                                                            |
-| -------------------------------------------------------------------------------- | ------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
-| `POST /qr/onboarding` `{label?, expiresInHours?, maxUses?}`                      | HR, Org Admin | General QR, many employees (default 72 h). Returns `token` and `qrPayload` **once**                                                        |
-| `POST /employees/:id/replacement-qr` `{expiresInHours?, consentOverrideReason?}` | HR, Org Admin | Employee-specific, single use (default 24 h). Also valid for a first registration. `consentOverrideReason` (≥ 5 chars): **Org Admin only** |
-| `GET /qr`                                                                        | HR, Org Admin | Open QR codes (never the token)                                                                                                            |
-| `POST /qr/:id/cancel`                                                            | HR, Org Admin |                                                                                                                                            |
+| Route                                                                            | Who           |                                                                                                                                                                       |
+| -------------------------------------------------------------------------------- | ------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `POST /qr/onboarding` `{label?, expiresInHours?, maxUses?}`                      | HR, Org Admin | Shared QR for **first registration only**, many employees (default 72 h; may be printed or shown on a screen). Returns `token` and `qrPayload` **once**               |
+| `POST /qr/:id/regenerate` `{expiresInHours?}`                                    | HR, Org Admin | Cancels a shared QR and returns a new one (same label and use limit); the old code stops working at once. `404 QR_NOT_FOUND` for replacement, cancelled or unknown QR |
+| `POST /employees/:id/replacement-qr` `{expiresInHours?, consentOverrideReason?}` | HR, Org Admin | Employee-specific, single use (default 24 h). Also valid for a first registration. `consentOverrideReason` (≥ 5 chars): **Org Admin only**                            |
+| `GET /qr`                                                                        | HR, Org Admin | Open QR codes (never the token)                                                                                                                                       |
+| `POST /qr/:id/cancel`                                                            | HR, Org Admin |                                                                                                                                                                       |
 
 The QR payload is `tkw://register?token=<tenantId>.<random>`; only a SHA-256 hash is stored; it holds no personal data.
 
@@ -21,8 +22,7 @@ The QR payload is `tkw://register?token=<tenantId>.<random>`; only a SHA-256 has
 `POST /devices/register` `{qrToken, platform, model?, osVersion?, appVersion?, attestationKeyId?, publicKey?, attestationToken?}`
 
 In one transaction: check the QR (`QR_INVALID | QR_CANCELLED | QR_EXPIRED | QR_USED_UP | QR_NOT_FOR_YOU | QR_ALREADY_USED`),
-the employee is active, replace any current device (only a replacement QR may, unless the tenant setting
-`onboarding_qr_may_replace_device` is `true`; otherwise `DEVICE_ALREADY_REGISTERED`), insert the new device,
+the employee is active, replace any current device (**only a replacement QR may**: a shared QR is refused for an employee with any device history — `DEVICE_ALREADY_REGISTERED` while a device is active, `REPLACEMENT_QR_REQUIRED` after a lost, disabled or replaced one), insert the new device,
 count the QR use, bind the current session to the device. A missing signed consent answers
 `409 CONSENT_REQUIRED` and **nothing changes** (old device and QR untouched). The same install key under two
 accounts answers `409 DEVICE_CONFLICT`.

@@ -16,6 +16,7 @@ const replacementQrSchema = z.object({
   expiresInHours: hours.optional(),
   consentOverrideReason: z.string().trim().min(5).max(500).optional(),
 });
+const regenerateQrSchema = z.object({ expiresInHours: hours.optional() }).strict();
 const registerSchema = z.object({
   qrToken: z.string().min(10).max(300),
   platform: z.enum(["ANDROID", "IOS"]),
@@ -67,6 +68,23 @@ export class DevicesController {
   @Get("qr")
   listOpenQr(@CurrentAuth() auth: AuthContext) {
     return this.devices.listOpenQr(auth);
+  }
+
+  @Roles("ORG_ADMIN", "HR")
+  @Post("qr/:qrId/regenerate")
+  @HttpCode(201)
+  regenerateQr(
+    @CurrentAuth() auth: AuthContext,
+    @Param("qrId") qrId: string,
+    @Body() body: unknown,
+    @Meta() meta: RequestMeta,
+  ) {
+    return this.devices.regenerateOnboardingQr(
+      auth,
+      id.parse(qrId),
+      regenerateQrSchema.parse(body ?? {}),
+      meta,
+    );
   }
 
   @Roles("ORG_ADMIN", "HR")

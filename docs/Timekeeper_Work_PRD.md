@@ -1,7 +1,7 @@
 # Timekeeper Work
 ## Product Requirements Document (PRD)
 
-Version: 1.10
+Version: 1.11
 Product: Timekeeper Work
 Owner: Onki
 Status: Requirements Specification (pre-development review + CTO review + stakeholder decisions applied)
@@ -157,6 +157,7 @@ Rules:
 - QR can be cancelled anytime
 - QR expiration is configurable
 - One QR can onboard multiple employees
+- **[v1.11]** A shared (general) QR is for the **first registration only**. It may be printed and posted on walls or shown on a large screen so that employees who could not attend a group session (late, absent) can register their phone at any time. It does not identify the employee: the employee signs in with their own account, and the signed-consent gate (15.4) and the one-active-device rule still apply. HR can cancel it or **regenerate** it (old code stops working at once)
 - QR contains no personal information
 
 Device Rules:
@@ -971,7 +972,7 @@ Workflow:
 Rules:
 - Replacement QR is single-use, employee-specific and cancellable.
 - Until the new device registration completes, the old device keeps working (unless HR disables it).
-- Registering a new device without a valid Replacement QR (or a general onboarding QR where HR has allowed it) is rejected.
+- **[CHANGED v1.11]** Registering a new phone without a valid Replacement QR is rejected: a shared onboarding QR works only for an employee who has never had a device (no active, replaced or disabled device in their history). There is no tenant setting to relax this (v1.2–v1.10 allowed one).
 - Old device receives a "Device deactivated" message at next login/heartbeat and is logged out.
 - Attendance from the old device after replacement is rejected; events are logged.
 
@@ -1198,6 +1199,7 @@ Added in v1.2 **[v1.2]**:
 | 1.9     | Release plan decided (17.1): Release 1 "Pilot-Lite" for standard-schedule employees (≈ 5.5 months), Release 2 with shifts, full analytics, PDF and tenant admin (≈ 8 months); interim manual-attendance handling for guards; "4 months" = period with only 1–2 tenants. |
 | 1.9.1   | Clarified 6.4 minimum-stay rule (short stays before confirmation are discarded; after confirmation later exits/entries do not change the status), removing a contradiction with the example table. |
 | 1.10    | Rank (цол: e.g. Ахлагч … Хурандаа) and Job Position (албан тушаал) are separate employee fields, each effective-dated (12, 22.1); lists of ranks and positions are tenant-defined; dashboard drill-down lists show both. |
+| 1.11    | Shared QR is for first device registration only and may be posted publicly or shown on a screen; a new phone always needs an HR replacement QR (5, 21.1); HR can regenerate a shared QR. |
 
 ---
 

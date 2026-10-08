@@ -739,7 +739,7 @@ Implemented in `apps/api/src/devices` and `apps/api/src/consent` (routes and rul
 
 - **Registration is one transaction**: QR check → employee active → replace previous device → insert new → count QR use → bind the current session to the device. A rejected registration (for example `CONSENT_REQUIRED`) changes nothing.
 - **Override** for registration before the signed form is recorded is carried by an Org Admin-issued employee-specific QR (reason and admin stored on the QR and copied to the device), so it is always audited and single use.
-- **A general QR cannot replace a device** unless the tenant setting `onboarding_qr_may_replace_device` is true (PRD 21.1).
+- **A general QR is for a first registration only** (PRD 5, 21.1, v1.11): it is refused for an employee with any device history (`DEVICE_ALREADY_REGISTERED` while a device is active, `REPLACEMENT_QR_REQUIRED` otherwise), so a new phone always needs an HR replacement QR. The earlier tenant setting `onboarding_qr_may_replace_device` is gone. `POST /qr/:id/regenerate` cancels a shared QR and issues a new one in one transaction.
 - **Consent withdrawal** also sets the employee's `manual_attendance` flag (PRD 15.4 alternative attendance).
 - **Consent forms** are PDFs rendered with pdfkit and the DejaVu Sans font; draft texts carry a banner and are refused in production.
 - **Attestation** verification is an interface with a configurable placeholder; the real Google/Apple verifiers remain Phase 0 Spike 2. `ATTESTATION_MODE=enforce` fails closed (503) until they exist.

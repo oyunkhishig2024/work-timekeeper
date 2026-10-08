@@ -150,6 +150,51 @@ export class DevicesService {
     });
   }
 
+  /**
+   * Replaces a shared QR: the old one stops working at once and a new one with the same label and use limit and
+   * the given (default) lifetime is returned. Both steps are one transaction. Only shared QR codes can be regenerated.
+   */
+  async regenerateOnboardingQr(
+    auth: AuthContext,
+    id: string,
+    input: { expiresInHours?: number },
+    meta: RequestMeta,
+  ): Promise<CreatedQr> {
+    return this.db.withTenant(auth.tenantId, async (tx) => {
+      const old = await tx.query<{ label: string | null; max_uses: number | null }>(
+        `SELECT label, max_uses FROM onboarding_qr
+          WHERE id = $1 AND kind = 'ONBOARDING' AND cancelled_at IS NULL FOR UPDATE`,
+        [id],
+      );
+      const found = old.rows[0];
+      if (!found) {
+        throw new ApiError(404, "QR_NOT_FOUND", "Shared QR code not found or already cancelled.");
+      }
+      await tx.query(
+        "UPDATE onboarding_qr SET cancelled_at = $2, cancelled_by = $3 WHERE id = $1",
+        [id, this.clock.now(), auth.userId],
+      );
+      const created = await this.insertQr(tx, auth, {
+        kind: "ONBOARDING",
+        employeeId: null,
+        label: found.label ?? undefined,
+        hours: input.expiresInHours ?? this.config.QR_ONBOARDING_HOURS,
+        maxUses: found.max_uses,
+      });
+      await this.audit.record(tx, {
+        tenantId: auth.tenantId,
+        action: "qr.regenerated",
+        actorUserId: auth.userId,
+        actorRole: auth.role,
+        entityType: "onboarding_qr",
+        entityId: created.id,
+        after: { replacedQrId: id, expiresAt: created.expiresAt, maxUses: created.maxUses },
+        ...meta,
+      });
+      return created;
+    });
+  }
+
   async cancelQr(auth: AuthContext, id: string, meta: RequestMeta): Promise<{ id: string }> {
     return this.db.withTenant(auth.tenantId, async (tx) => {
       const { rowCount } = await tx.query(
@@ -204,17 +249,25 @@ export class DevicesService {
           throw new ApiError(403, "EMPLOYEE_INACTIVE", "The employee is not active.");
         }
 
-        const current = await tx.query<{ id: string }>(
-          "SELECT id FROM device WHERE employee_id = $1 AND status = 'ACTIVE' FOR UPDATE",
+        // PRD 5 / 21.1: a general QR is for the FIRST registration only. Any device history (active, replaced,
+        // disabled) means a new phone must come with a replacement QR issued by HR.
+        const devices = await tx.query<{ id: string; status: string }>(
+          "SELECT id, status FROM device WHERE employee_id = $1 FOR UPDATE",
           [employeeId],
         );
-        const previous = current.rows[0];
-        if (previous && qr.kind === "ONBOARDING" && !(await this.onboardingMayReplace(tx))) {
-          throw new ApiError(
-            409,
-            "DEVICE_ALREADY_REGISTERED",
-            "This employee already has a registered device. Ask HR for a replacement QR code.",
-          );
+        const previous = devices.rows.find((d) => d.status === "ACTIVE");
+        if (qr.kind === "ONBOARDING" && devices.rows.length > 0) {
+          throw previous
+            ? new ApiError(
+                409,
+                "DEVICE_ALREADY_REGISTERED",
+                "This employee already has a registered device. Ask HR for a replacement QR code.",
+              )
+            : new ApiError(
+                409,
+                "REPLACEMENT_QR_REQUIRED",
+                "A shared QR code is only for a first registration. Ask HR for a replacement QR code.",
+              );
         }
         if (previous) {
           await tx.query(
@@ -450,13 +503,5 @@ export class DevicesService {
       throw new ApiError(409, "QR_ALREADY_USED", "You have already used this QR code.");
     }
     return qr;
-  }
-
-  /** Tenant setting: may a general QR replace an existing device? Off by default (PRD 21.1). */
-  private async onboardingMayReplace(tx: Db): Promise<boolean> {
-    const { rows } = await tx.query<{ value: unknown }>(
-      "SELECT value FROM tenant_setting WHERE key = 'onboarding_qr_may_replace_device'",
-    );
-    return rows[0]?.value === true;
   }
 }

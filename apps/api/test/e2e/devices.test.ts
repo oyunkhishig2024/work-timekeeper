@@ -64,6 +64,61 @@ describe.skipIf(!hasDb)("devices and QR registration (PRD 5, 21)", () => {
       expect(await auditActions(h, w.tenant.id)).toContain("qr.created");
     });
 
+    it("regenerating a shared QR cancels the old one and returns a working new one", async () => {
+      const w = await world();
+      const hr = bearer(w.hrTokens.accessToken);
+      const old = (
+        await h
+          .http()
+          .post("/v1/qr/onboarding")
+          .set(hr)
+          .send({ label: "Төв салбар", maxUses: 40, expiresInHours: 8 })
+      ).body;
+      const next = await h.http().post(`/v1/qr/${old.id}/regenerate`).set(hr).send({});
+      expect(next.status).toBe(201);
+      expect(next.body).toMatchObject({ kind: "ONBOARDING", maxUses: 40 });
+      expect(next.body.id).not.toBe(old.id);
+      expect(next.body.token).not.toBe(old.token);
+      const stored = await h.owner.query("SELECT label FROM onboarding_qr WHERE id = $1", [
+        next.body.id,
+      ]);
+      expect(stored.rows[0].label).toBe("Төв салбар");
+
+      expect((await register(w.empTokens.accessToken, device(old.token))).body.code).toBe(
+        "QR_CANCELLED",
+      );
+      expect((await register(w.empTokens.accessToken, device(next.body.token))).status).toBe(201);
+      // only the new one is still open (the employee used it, so the list shows it with one use)
+      const open = await h.http().get("/v1/qr").set(hr);
+      expect(open.body.map((q: { id: string }) => q.id)).toEqual([next.body.id]);
+      expect(await auditActions(h, w.tenant.id)).toContain("qr.regenerated");
+
+      // an already cancelled QR, an unknown one and a replacement QR cannot be regenerated
+      expect((await h.http().post(`/v1/qr/${old.id}/regenerate`).set(hr).send({})).status).toBe(
+        404,
+      );
+      const replacement = (
+        await h.http().post(`/v1/employees/${w.employee.id}/replacement-qr`).set(hr).send({})
+      ).body;
+      expect(
+        (await h.http().post(`/v1/qr/${replacement.id}/regenerate`).set(hr).send({})).status,
+      ).toBe(404);
+      expect(
+        (await h.http().post(`/v1/qr/${next.body.id}/regenerate`).set(hr).send({ bogus: 1 }))
+          .status,
+      ).toBe(400);
+      // employees cannot regenerate
+      expect(
+        (
+          await h
+            .http()
+            .post(`/v1/qr/${next.body.id}/regenerate`)
+            .set(bearer(w.empTokens.accessToken))
+            .send({})
+        ).status,
+      ).toBe(403);
+    });
+
     it("only HR and Org Admin manage QR codes", async () => {
       const w = await world();
       const mgr = await createUser(h, w.tenant, { username: "mgr", role: "MANAGER" });
@@ -415,6 +470,18 @@ describe.skipIf(!hasDb)("devices and QR registration (PRD 5, 21)", () => {
         (await h.http().get("/v1/devices/me").set(bearer(w.empTokens.accessToken))).status,
       ).toBe(401);
       expect(await auditActions(h, w.tenant.id)).toContain("device.disabled");
+
+      // A shared QR is for the first registration only: after a lost phone HR must issue a replacement QR.
+      const shared = (
+        await h.http().post("/v1/qr/onboarding").set(bearer(w.hrTokens.accessToken)).send({})
+      ).body;
+      const viaShared = await register((await signIn(h, w.user)).accessToken, device(shared.token));
+      expect(viaShared.status).toBe(409);
+      expect(viaShared.body.code).toBe("REPLACEMENT_QR_REQUIRED");
+      expect(
+        (await h.owner.query("SELECT used_count FROM onboarding_qr WHERE id = $1", [shared.id]))
+          .rows[0].used_count,
+      ).toBe(0);
 
       const again = (
         await h
