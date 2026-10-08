@@ -7,6 +7,7 @@ const expected: Expectation = {
   source: "STANDARD",
   workDate: "2026-10-06",
   locationId: "L1",
+  locationIds: ["L1"],
   timeZone: "UTC",
   shiftTemplateId: null,
   start: t("08:00"),

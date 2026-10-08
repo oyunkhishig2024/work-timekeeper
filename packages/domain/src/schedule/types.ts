@@ -92,6 +92,21 @@ export interface ShiftOverride {
   templateId: string | null;
 }
 
+/**
+ * Hours fixed by HR for one employee over a range of dates (PRD 14.3, v1.26): "come at 06:30 tomorrow and the day after".
+ * They replace whatever the week, a holiday or a shift would say for those dates. Several places mean the person works
+ * at all of them that day; the first is the main one. No places: the employee's usual expected place.
+ */
+export interface PersonalHours {
+  fromDate: DateString;
+  /** Inclusive. */
+  toDate: DateString;
+  startTime: string;
+  /** Later than `startTime` on the same date. */
+  endTime: string;
+  locationIds: readonly string[];
+}
+
 /** Everything the function needs, as plain data loaded by the caller (no database access here). */
 export interface ExpectationInput {
   /** The work date: for a shift, the date it starts (PRD 23.2). */
@@ -104,6 +119,8 @@ export interface ExpectationInput {
   workingDayExceptions: readonly WorkingDayException[];
   holidays: readonly Holiday[];
   rules: readonly AttendanceRules[];
+  /** This employee's personal hours only (PRD 14.3). Optional: absent means none. */
+  personalHours?: readonly PersonalHours[];
   shifts: {
     templates: readonly ShiftTemplate[];
     patterns: readonly ShiftPattern[];
@@ -134,10 +151,12 @@ export type Expectation =
   | { expected: false; reason: "NOT_CONFIGURED"; missing: MissingConfiguration }
   | {
       expected: true;
-      source: "STANDARD" | "SHIFT";
+      source: "STANDARD" | "SHIFT" | "PERSONAL";
       /** The date the day/shift starts, in the location time zone. */
       workDate: DateString;
       locationId: string;
+      /** Every place that counts for the duty: the main one first, more only with personal hours (PRD 14.3). */
+      locationIds: string[];
       timeZone: string;
       shiftTemplateId: string | null;
       /** Absolute instants. */

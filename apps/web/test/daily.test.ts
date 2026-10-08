@@ -7,6 +7,7 @@ import {
   isReasonAssignable,
   overlapNames,
   parseDailyState,
+  personalHoursProblem,
   reasonFormProblem,
   type Reason,
 } from "../src/lib/daily";
@@ -127,5 +128,16 @@ describe("departureText", () => {
       "Тодорхойгүй",
     );
     expect(departureText({ departureState: null, departureAt: null }, fmt)).toBe("—");
+  });
+});
+
+describe("personalHoursProblem", () => {
+  const ok = { fromDate: "2026-10-07", toDate: "2026-10-08", startTime: "06:30", endTime: "14:00" };
+  it("accepts a sensible range and refuses the rest", () => {
+    expect(personalHoursProblem(ok)).toBeNull();
+    expect(personalHoursProblem({ ...ok, toDate: "2026-10-06" })).toMatch(/Дуусах огноо/);
+    expect(personalHoursProblem({ ...ok, endTime: "06:30" })).toMatch(/Дуусах цаг/);
+    expect(personalHoursProblem({ ...ok, startTime: "" })).toMatch(/цагаа/);
+    expect(personalHoursProblem({ ...ok, toDate: "2026-12-01" })).toMatch(/31 хоног/);
   });
 });

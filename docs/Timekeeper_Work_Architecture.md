@@ -1,7 +1,7 @@
 # Timekeeper Work
 ## Technical Architecture Document
 
-Version: 0.27 (draft for review)
+Version: 0.28 (draft for review)
 Status: Draft — based on PRD v1.9 (`docs/Timekeeper_Work_PRD.md`)
 Audience: engineering lead, backend / mobile / web developers, QA
 Scope: the **pilot tier** (1–2 tenants, ~4 months, ~640 employees), built by **one full-stack developer** (decision v0.2, see Section 14). The production tier is covered only where a decision now would be expensive to undo later.
@@ -882,4 +882,10 @@ Migrations `0010_time_rules` and `0011_shifts` add the storage for attendance ru
 - Domain `deriveDeparture`; migration `0023` adds `departure_at` and `departure_state` to `attendance_result` (derived, rebuilt by recompute). The engine computes it with the arrival on every recompute, so an EXIT event updates the day at once and the worker tick turns an unanswered duty into `UNKNOWN`.
 - The daily list API, the Excel/CSV/PDF export and the `/daily` screen show arrival and departure. A correction by HR changes the status and the arrival, not the departure.
 - Not done: left-early / short-hours detection and reports (V2). The consent text must be reworded and approved before real use (PRD Appendix A, item 4).
+
+# 43. Implementation Status (personal hours, PRD v1.26)
+
+- Domain: `PersonalHours` in `ExpectationInput`, `getExpectation` step 2, `Expectation.locationIds` and `source: "PERSONAL"`. Migration `0024`: `personal_hours` (exclusion constraint: no overlapping dates per employee) and `personal_hours_location` (position 0 = main place).
+- API `apps/api/src/personal-hours`: `POST/GET /v1/personal-hours`, `DELETE /v1/personal-hours/:id`; the expectation loader and the roster pass the hours to `getExpectation`; the engine counts events of every place of the day. The web has the dialog on `/daily`.
+- Not done: a screen to list and delete personal hours, the mobile geofence list for multi-place days (the app is not built), the employees screen selection.
 

@@ -1,7 +1,7 @@
 # Timekeeper Work
 ## Product Requirements Document (PRD)
 
-Version: 1.25
+Version: 1.26
 Product: Timekeeper Work
 Owner: Onki
 Status: Requirements Specification (pre-development review + CTO review + stakeholder decisions applied)
@@ -200,6 +200,7 @@ This is an informational/diagnostic state shown to HR; it does not by itself cou
 The system determines whether an employee is expected on a given **work date**, where, and when, as follows (first match wins) **[CHANGED v1.3]**:
 
 1. Not an active employee on that date (disabled/archived, or before start date) → **not expected**, excluded from all counts.
+1a. **[v1.26]** Employee has **Personal Hours** covering the date (14.4) → **expected** for exactly those hours and places, whatever the Working Week, a holiday, a day off or a shift would say.
 2. Employee has a **Shift Assignment** (see 23): the shift schedule decides. The date is an off day in the pattern → **not expected**. A public holiday excludes the employee only if the shift template is flagged "observes public holidays" (24h guard shifts are not).
 3. No shift assignment (standard schedule): the date is a public holiday / day off (14.2) or an off day of the Working Week (14.1), unless a working-day exception (14.1) makes it a working day → **not expected**, excluded from counts. Start and end times come from the expected location's Working Week row for that weekday.
 4. Active **Temporary Location Assignment** covering the date → **expected at the temporary location** (using the shift/standard times unless the assignment specifies its own).
@@ -703,6 +704,17 @@ Org Admin manages a **Holiday Calendar** per tenant:
 - Guards (Хамгаалалт) are on 24 h shift patterns (23) and are not governed by this table.
 
 ---
+
+## 14.4 Personal Hours (Хувийн ажлын цаг) **[v1.26]**
+
+HR can fix the hours of chosen employees for a range of dates, without a shift template: "come at 06:30 tomorrow and the day after", "one employee has other hours for two days".
+
+- Chosen from the daily list (several employees at once, as with reasons; the chosen names stay visible) or by the API: employees, from-date, to-date (up to 31 days), start and end time (end later than start, same day), optional note.
+- **Places:** none = the employee's usual expected place (6.1). One or more = the employee works at all of them that day; the first is the main one. Arrival is the first confirmed stay at any of them, the departure is the last exit (9, 23.2), and the day is judged with the rules of the main place. An employee who starts at one branch and finishes at another is therefore one full day, not an absence.
+- They replace the day's hours (6.1 step 1a): the late rule (6.2) and the end of the duty (6.3) follow the personal hours.
+- One set per employee and date (no overlaps); HR can delete a set, and the days it covered go back to the usual rules. Dates can start at most 31 days back and end at most 90 days ahead; the days that already exist are rebuilt at once. Every change is audited.
+- Org Admin and HR create and delete; a Manager reads inside the data scope.
+- Not covered: the phone must also watch all the places of the day (employee app, not built yet).
 
 # 15. Security
 
@@ -1216,6 +1228,7 @@ Added in v1.2 **[v1.2]**:
 | 1.23    | Employee bulk import specified as built (12.3): dry run first with a per-row report, "valid rows only" or "abort on any error", .xlsx or CSV up to 2,000 rows, text-only cells, all rows in one transaction, audited. Because the employee code is assigned by the system, rows **without a code create** employees and rows **with a code update** them (with a diff); a row whose name and department already exist is skipped, so a repeated upload creates nothing. No password is imported: each new employee can get a login with a one-time password, returned once as a sheet and never stored (the invite link / activation code flow of 12.3 is still open). |
 | 1.24    | **No-show cut-off and early-arrival window removed** (6.2, 6.3, 13, 14.1, 23.1, 23.2, 26): there is no "Ирээгүй after N minutes" setting; whoever arrives on the day attended and is Хоцорсон however late. An employee with no arrival and no reason is Хүлээгдэж байна until their own duty ends (the end of their working day or shift) and only then Ирээгүй; arrivals before the start are always Цагтаа (a standard day counts entries from local midnight, a shift from 12 h before its start). Everyone is judged against their own hours, so early-start teams (e.g. a bakery 06:30–14:00) use their own shift template. Leaving early is still not detected (V2, 23.2). `cutoffMinutes` / `earlyWindowMinutes` are removed from the rules and shift-template APIs. |
 | 1.25    | Departure time shown to HR (6.4, 9, 23.2): the daily list and its export have an arrival and a departure column. Departure = the last EXIT of the duty place after the arrival; "Байгаа" while inside; "Тодорхойгүй" when the phone never reported leaving after the duty ended. Left-early detection stays V2. Appendix A, item 4 (purpose) must be reworded and approved before real use. |
+| 1.26    | Personal Hours (14.4, 6.1): HR fixes the hours, and optionally several places, of chosen employees for up to 31 days, replacing the week, a holiday or a shift for those dates; with several places one day at different branches is one full day. Built as `/v1/personal-hours`, a dialog on the daily list and `getExpectation` in the domain package. |
 
 ---
 

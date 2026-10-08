@@ -29,7 +29,7 @@ const e = getExpectation({
 });
 // → { expected: false, reason: "INACTIVE" | "HOLIDAY" | "OFF_DAY" | "SHIFT_OFF" }
 //   { expected: false, reason: "NOT_CONFIGURED", missing: "WORKING_WEEK" | "ATTENDANCE_RULES" | "SHIFT_ASSIGNMENT" | … }
-//   { expected: true, source, workDate, locationId, timeZone, shiftTemplateId, start, end,
+//   { expected: true, source, workDate, locationId, locationIds, timeZone, shiftTemplateId, start, end,
 //     graceMinutes, cutoff, earlyWindowStart, minStayMinutes }   (start/end/cutoff are UTC instants)
 ```
 
@@ -41,11 +41,12 @@ The input is plain data in the shape of the database rows (`employee`, `temp_loc
 
 1. **Not employed on the date** → `INACTIVE`. The last day (`endDate`) itself is still expected; before `startDate` is not.
    A disabled employee without an end date is treated as not employed.
-2. **Shift override for the date** (`ADD`/`SWAP`/`REMOVE`) → HR's explicit decision; it **wins over holidays**.
-3. **Employee on a shift schedule** → the assignment decides and the working week is ignored: pattern day
+2. **Personal hours covering the date** (PRD 14.4) → the stated hours and places (`source: "PERSONAL"`, `locationIds` = every place, main first); wins over everything below.
+3. **Shift override for the date** (`ADD`/`SWAP`/`REMOVE`) → HR's explicit decision; it **wins over holidays**.
+4. **Employee on a shift schedule** → the assignment decides and the working week is ignored: pattern day
    `(date − cycleStart) mod cycleLength` (works for dates before the cycle start), or a fixed template. A holiday only
    makes the day off for templates with `observesHolidays`.
-4. **Standard schedule:** working-day exception **>** holiday **>** working week.
+5. **Standard schedule:** working-day exception **>** holiday **>** working week.
 
 Where: a temporary assignment covering the date (inclusive), otherwise the primary location. The holiday calendar, the
 working week (own version only if the location is `OVERRIDE`, else the tenant's), the rules and the time zone are those

@@ -618,7 +618,7 @@ export class AttendanceService {
           ? deriveDeparture({
               expectation,
               events: counted
-                .filter((r) => r.locationId === expectation.locationId)
+                .filter((r) => expectation.locationIds.includes(r.locationId))
                 .map((r) => ({ type: r.type, at: r.at })),
               arrivalAt: system.arrivalAt,
               now,
@@ -633,7 +633,10 @@ export class AttendanceService {
         );
         const flagged = expectation.expected
           ? mine.filter(
-              (r) => r.flagged && r.locationId === expectation.locationId && r.at < expectation.end,
+              (r) =>
+                r.flagged &&
+                expectation.locationIds.includes(r.locationId) &&
+                r.at < expectation.end,
             ).length
           : 0;
         const key = `${e.id}|${date}`;
@@ -709,7 +712,7 @@ export class AttendanceService {
   ): DerivedAttendance {
     if (expectation.expected) {
       const own: GeofenceEvent[] = events
-        .filter((r) => r.locationId === expectation.locationId && r.at < expectation.end)
+        .filter((r) => expectation.locationIds.includes(r.locationId) && r.at < expectation.end)
         .map((r) => ({ type: r.type, at: r.at }));
       return deriveStatus({ expectation, events: own, hasReason, now });
     }

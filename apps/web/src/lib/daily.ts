@@ -179,3 +179,22 @@ export function departureText(
   if (r.departureState === "UNKNOWN") return "Тодорхойгүй";
   return "—";
 }
+
+/** What the personal-hours form may send; mirrors what the API accepts (PRD 14.3). */
+export function personalHoursProblem(f: {
+  fromDate: string;
+  toDate: string;
+  startTime: string;
+  endTime: string;
+}): string | null {
+  if (!isIsoDate(f.fromDate) || !isIsoDate(f.toDate)) return "Огноогоо оруулна уу.";
+  if (f.toDate < f.fromDate) return "Дуусах огноо эхлэх огнооноос өмнө байж болохгүй.";
+  if ((Date.parse(f.toDate) - Date.parse(f.fromDate)) / 86_400_000 > 30) {
+    return "Нэг удаад дээд тал нь 31 хоногийн цаг тогтооно.";
+  }
+  if (!/^\d\d:\d\d$/.test(f.startTime) || !/^\d\d:\d\d$/.test(f.endTime)) {
+    return "Эхлэх, дуусах цагаа оруулна уу.";
+  }
+  if (f.endTime <= f.startTime) return "Дуусах цаг эхлэх цагаас хойш байх ёстой.";
+  return null;
+}

@@ -34,6 +34,7 @@ import { STATUS_STYLE } from "../dashboard/status-ui";
 import { fieldClass, primaryButton, secondaryButton } from "../modal";
 import { AssignReasonDialog } from "./assign-reason-dialog";
 import { CorrectionDialog } from "./correction-dialog";
+import { PersonalHoursDialog } from "./personal-hours-dialog";
 
 const CHIPS: DailyFilterStatus[] = [
   "EXPECTED",
@@ -67,6 +68,7 @@ export function DailyScreen({ user }: { user: SessionUser }) {
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [assign, setAssign] = useState<DailyItem[] | null>(null);
+  const [hours, setHours] = useState<DailyItem[] | null>(null);
   // Ticked employees are kept as whole rows so they stay visible (and selected) while the filters change.
   const [selected, setSelected] = useState<Map<string, DailyItem>>(new Map());
   const [correct, setCorrect] = useState<DailyItem | null>(null);
@@ -165,6 +167,7 @@ export function DailyScreen({ user }: { user: SessionUser }) {
   const after = () => {
     setSelected(new Map());
     setAssign(null);
+    setHours(null);
     setCorrect(null);
     setMessage("Хадгаллаа.");
     void load();
@@ -290,6 +293,13 @@ export function DailyScreen({ user }: { user: SessionUser }) {
             <button
               type="button"
               className={`${secondaryButton} text-sm`}
+              onClick={() => setHours([...selected.values()])}
+            >
+              Ажлын цаг тогтоох ({selected.size})
+            </button>
+            <button
+              type="button"
+              className={`${secondaryButton} text-sm`}
               onClick={() => setSelected(new Map())}
             >
               Бүгдийг болиулах
@@ -383,6 +393,15 @@ export function DailyScreen({ user }: { user: SessionUser }) {
           date={date}
           reasons={reasons}
           onClose={() => setAssign(null)}
+          onSaved={after}
+        />
+      )}
+      {hours && date && (
+        <PersonalHoursDialog
+          rows={hours}
+          date={date}
+          locations={locations}
+          onClose={() => setHours(null)}
           onSaved={after}
         />
       )}

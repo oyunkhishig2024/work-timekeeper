@@ -5,6 +5,7 @@ import {
   isEmployedOn,
   type Expectation,
   type ExpectationInput,
+  type PersonalHours,
 } from "../../src";
 import {
   baseInput,
@@ -743,5 +744,79 @@ describe("getExpectation — purity", () => {
     const second = run(input);
     expect(JSON.stringify(input)).toBe(snapshot);
     expect(first).toEqual(second);
+  });
+});
+
+describe("getExpectation — personal hours (PRD 14.3)", () => {
+  const personal = (over: Partial<PersonalHours> = {}): PersonalHours => ({
+    fromDate: MON,
+    toDate: TUE,
+    startTime: "06:30",
+    endTime: "14:00",
+    locationIds: [],
+    ...over,
+  });
+
+  it("replace the working week for the dates they cover, only for those", () => {
+    const input = (workDate: string) => baseInput({ workDate, personalHours: [personal()] });
+    const mon = expectDuty(run(input(MON)));
+    expect(mon).toMatchObject({ source: "PERSONAL", locationId: CENTRAL, locationIds: [CENTRAL] });
+    expect(iso(mon.start)).toBe("2026-10-04T22:30:00.000Z"); // 06:30 Ulaanbaatar
+    expect(iso(mon.end)).toBe("2026-10-05T06:00:00.000Z"); // 14:00
+    expect(iso(mon.cutoff)).toBe(iso(mon.end));
+    expect(expectDuty(run(input(TUE))).source).toBe("PERSONAL");
+    expect(expectDuty(run(input("2026-10-07"))).source).toBe("STANDARD");
+  });
+
+  it("make a day off or a holiday a working day, and win over a shift", () => {
+    expect(
+      expectDuty(
+        run(
+          baseInput({ workDate: SUN, personalHours: [personal({ fromDate: SUN, toDate: SUN })] }),
+        ),
+      ).source,
+    ).toBe("PERSONAL");
+    const holiday = {
+      name: "x",
+      fromDate: MON,
+      toDate: MON,
+      repeatsYearly: false,
+      appliesToAll: true,
+      locationIds: [],
+    };
+    expect(
+      expectDuty(run(baseInput({ holidays: [holiday], personalHours: [personal()] }))).source,
+    ).toBe("PERSONAL");
+    expect(
+      expectDuty(
+        run(
+          guardInput({
+            workDate: "2026-10-10",
+            personalHours: [personal({ fromDate: "2026-10-10", toDate: "2026-10-10" })],
+          }),
+        ),
+      ).source,
+    ).toBe("PERSONAL");
+  });
+
+  it("with several places the first is the main one and all of them count", () => {
+    const e = expectDuty(
+      run(baseInput({ personalHours: [personal({ locationIds: [NAIMAN, CENTRAL] })] })),
+    );
+    expect(e).toMatchObject({ locationId: NAIMAN, locationIds: [NAIMAN, CENTRAL] });
+  });
+
+  it("are judged with the rules of the main place", () => {
+    const rules = [defaultRules(), defaultRules({ locationId: NAIMAN, graceMinutes: 30 })];
+    const e = expectDuty(
+      run(baseInput({ rules, personalHours: [personal({ locationIds: [NAIMAN] })] })),
+    );
+    expect(e.graceMinutes).toBe(30);
+  });
+
+  it("do not bring back someone who is not employed", () => {
+    const input = baseInput({ personalHours: [personal()] });
+    input.employee = { ...input.employee, endDate: "2026-10-01" };
+    expect(run(input)).toEqual({ expected: false, reason: "INACTIVE" });
   });
 });

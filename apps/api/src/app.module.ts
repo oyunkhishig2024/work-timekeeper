@@ -13,6 +13,7 @@ import { EmployeesModule } from "./employees/employees.module";
 import { HealthModule } from "./modules/health/health.module";
 import { NotificationsModule } from "./notifications/notifications.module";
 import { OrgModule } from "./org/org.module";
+import { PersonalHoursModule } from "./personal-hours/personal-hours.module";
 import { ReasonsModule } from "./reasons/reasons.module";
 import { ScheduleModule } from "./schedule/schedule.module";
 import { SecurityModule } from "./security/security.module";
@@ -38,6 +39,7 @@ import { UsersModule } from "./users/users.module";
     DevicesModule,
     ConsentModule,
     ScheduleModule,
+    PersonalHoursModule,
     ReasonsModule,
     AttendanceModule,
     NotificationsModule,

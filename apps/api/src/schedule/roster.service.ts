@@ -23,7 +23,7 @@ export interface RosterCell {
   expected: boolean;
   /** Why not expected (INACTIVE | HOLIDAY | OFF_DAY | SHIFT_OFF | NOT_CONFIGURED), or the source when expected. */
   reason: string | null;
-  source: "STANDARD" | "SHIFT" | null;
+  source: "STANDARD" | "SHIFT" | "PERSONAL" | null;
   missing: string | null;
   locationId: string | null;
   shiftTemplateId: string | null;
@@ -132,6 +132,7 @@ export class RosterService {
             workingDayExceptions: data.exceptions,
             holidays: data.holidays,
             rules: data.rules,
+            personalHours: data.personalFor(e.id),
             shifts,
           };
           const x = getExpectation(input);

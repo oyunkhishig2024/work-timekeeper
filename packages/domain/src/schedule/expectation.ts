@@ -20,6 +20,7 @@ const MS_PER_MINUTE = 60_000;
 /** What is planned for the day, before rules and time zones are applied. */
 type Duty =
   | { kind: "STANDARD"; startTime: string; endTime: string }
+  | { kind: "PERSONAL"; startTime: string; endTime: string }
   | { kind: "SHIFT"; template: ShiftTemplate };
 
 type Resolution = { duty: Duty } | { off: NotExpectedReason } | { missing: MissingConfiguration };
@@ -55,10 +56,11 @@ export function expectedLocationId(input: ExpectationInput): string {
  * (PRD 6.1, 14, 23.5). Pure: no database, no clock. Order of precedence:
  *
  *  1. not employed on the date                       → not expected (INACTIVE)
- *  2. a shift override for the date (ADD/SWAP/REMOVE) → HR's explicit decision, wins over holidays
- *  3. employee on a shift schedule                    → the assignment decides; the working week is ignored;
+ *  2. personal hours covering the date                → HR fixed this person's hours (and places): wins over everything below
+ *  3. a shift override for the date (ADD/SWAP/REMOVE) → HR's explicit decision, wins over holidays
+ *  4. employee on a shift schedule                    → the assignment decides; the working week is ignored;
  *                                                       a holiday only counts for templates that observe holidays
- *  4. standard schedule: working-day exception > holiday > working week
+ *  5. standard schedule: working-day exception > holiday > working week
  *
  * The expected location is the temporary assignment if one covers the date, otherwise the primary location;
  * holidays, the working week and the rules are those of that location. Anything that has to be configured but is
@@ -68,19 +70,30 @@ export function getExpectation(input: ExpectationInput): Expectation {
   const { workDate, employee } = input;
   if (!isEmployedOn(employee, workDate)) return notExpected("INACTIVE");
 
-  const locationId = expectedLocationId(input);
+  const personal = input.personalHours?.find((p) => p.fromDate <= workDate && workDate <= p.toDate);
+  const locationId = personal?.locationIds[0] ?? expectedLocationId(input);
   const location = input.locations.find((l) => l.id === locationId);
   if (!location) return notConfigured("LOCATION");
   const timeZone = location.timeZone ?? input.tenantTimeZone;
 
-  const resolution = resolveDuty(input, locationId, location.workingWeekMode === "OVERRIDE");
+  const resolution = personal
+    ? {
+        duty: {
+          kind: "PERSONAL" as const,
+          startTime: personal.startTime,
+          endTime: personal.endTime,
+        },
+      }
+    : resolveDuty(input, locationId, location.workingWeekMode === "OVERRIDE");
   if ("off" in resolution) return notExpected(resolution.off);
   if ("missing" in resolution) return notConfigured(resolution.missing);
 
   const rules = pickVersion(input.rules, locationId, workDate);
   if (!rules) return notConfigured("ATTENDANCE_RULES");
 
-  return buildExpectation(resolution.duty, rules, workDate, locationId, timeZone);
+  const places =
+    personal && personal.locationIds.length > 0 ? [...personal.locationIds] : [locationId];
+  return buildExpectation(resolution.duty, rules, workDate, locationId, places, timeZone);
 }
 
 function resolveDuty(
@@ -192,6 +205,7 @@ function buildExpectation(
   rules: AttendanceRules,
   workDate: DateString,
   locationId: string,
+  locationIds: string[],
   timeZone: string,
 ): Expectation {
   const startTime = duty.kind === "SHIFT" ? duty.template.startTime : duty.startTime;
@@ -214,6 +228,7 @@ function buildExpectation(
     source: duty.kind,
     workDate,
     locationId,
+    locationIds,
     timeZone,
     shiftTemplateId: duty.kind === "SHIFT" ? duty.template.id : null,
     start,

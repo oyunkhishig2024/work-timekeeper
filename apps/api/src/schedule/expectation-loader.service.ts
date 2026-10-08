@@ -4,6 +4,7 @@ import {
   type AttendanceRules,
   type ExpectationInput,
   type Holiday,
+  type PersonalHours,
   type ShiftAssignment,
   type ShiftOverride,
   type ShiftPattern,
@@ -49,6 +50,7 @@ export class ExpectationLoader {
       workingDayExceptions: data.exceptions,
       holidays: data.holidays,
       rules: data.rules,
+      personalHours: data.personalFor(e.id),
       shifts: data.shiftsFor(e.id),
     };
   }
@@ -185,6 +187,17 @@ export class ExpectationLoader {
         [employeeIds, from, to],
       )
     ).rows;
+    const personalRows = (
+      await tx.query<PersonalHours & { employeeId: string }>(
+        `SELECT p.employee_id AS "employeeId", p.from_date::text AS "fromDate", p.to_date::text AS "toDate",
+                to_char(p.start_time, 'HH24:MI') AS "startTime", to_char(p.end_time, 'HH24:MI') AS "endTime",
+                COALESCE((SELECT array_agg(pl.location_id::text ORDER BY pl.position)
+                            FROM personal_hours_location pl WHERE pl.personal_hours_id = p.id), '{}') AS "locationIds"
+           FROM personal_hours p
+          WHERE p.employee_id = ANY($1::uuid[]) AND p.from_date <= $3 AND p.to_date >= $2`,
+        [employeeIds, from, to],
+      )
+    ).rows;
     const reasons = (
       await tx.query<{
         employeeId: string;
@@ -227,6 +240,8 @@ export class ExpectationLoader {
         assignments: assignments.filter((a) => a.employeeId === employeeId),
         overrides: overrides.filter((o) => o.employeeId === employeeId),
       }),
+      personalFor: (employeeId: string): PersonalHours[] =>
+        personalRows.filter((p) => p.employeeId === employeeId),
       tempFor: (employeeId: string) => temps.filter((t) => t.employeeId === employeeId),
       reasonOn: (employeeId: string, date: string): string | null =>
         coveringReason(employeeId, date)?.name ?? null,

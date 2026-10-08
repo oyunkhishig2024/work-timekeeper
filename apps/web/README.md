@@ -61,6 +61,8 @@ get the actions and the export (a Manager's export depends on a tenant setting, 
   cleared after saving and holds at most 500 people (the API limit). One call to `POST /v1/reason-assignments`, all or nothing; when
   someone already has a reason in the period (`REASON_OVERLAP`) the dialog names them so they can be unticked.
 
+- **Ажлын цаг тогтоох** (same selection strip): fixes hours for the chosen employees over a range of dates (PRD 14.4), with one or more places (the first ticked is the main one). Overlaps are named; deleting is only in the API for now.
+
 Not here yet: ending or changing a reason from this screen (use the reason assignments API).
 
 ## Review (`/review`, `/device-alerts`; PRD 6.7)
