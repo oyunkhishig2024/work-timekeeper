@@ -1,13 +1,12 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import type { Client } from "pg";
-import { asTenant, connectOwner, createFixture, hasDb, type Fixture } from "./helpers";
+import { connectOwner, createFixture, hasDb, type Fixture } from "./helpers";
 
-const UNIQUE = "23505";
-const FK = "23503";
 const CHECK = "23514";
 const EXCLUSION = "23P01";
+const FK = "23503";
 
-describe.skipIf(!hasDb)("rank and position history (PRD 12, 22.1)", () => {
+describe.skipIf(!hasDb)("rank and position history, free text (PRD 12, 22.1)", () => {
   let client: Client;
   beforeAll(async () => {
     client = await connectOwner();
@@ -16,96 +15,102 @@ describe.skipIf(!hasDb)("rank and position history (PRD 12, 22.1)", () => {
     await client.end();
   });
 
-  async function ids(f: Fixture) {
-    const rank = await client.query<{ id: string }>(
-      "INSERT INTO job_rank (tenant_id, name, sort_order) VALUES ($1, 'Ахлагч', 1), ($1, 'Ахлах ахлагч', 2) RETURNING id",
-      [f.tenantId],
-    );
-    const pos = await client.query<{ id: string }>(
-      "INSERT INTO job_position (tenant_id, name) VALUES ($1, 'Харуул'), ($1, 'Ахлах харуул') RETURNING id",
-      [f.tenantId],
-    );
-    return { r: rank.rows.map((x) => x.id), p: pos.rows.map((x) => x.id) };
-  }
-  const rankRow = (f: Fixture, rank: string, from: string, to: string | null) =>
+  const rankRow = (f: Fixture, title: string, from: string, to: string | null) =>
     client.query(
-      "INSERT INTO employee_rank_assignment (tenant_id, employee_id, job_rank_id, valid_from, valid_to) VALUES ($1, $2, $3, $4, $5)",
-      [f.tenantId, f.employeeId, rank, from, to],
+      "INSERT INTO employee_rank_assignment (tenant_id, employee_id, title, valid_from, valid_to) VALUES ($1, $2, $3, $4, $5)",
+      [f.tenantId, f.employeeId, title, from, to],
     );
-  const posRow = (f: Fixture, pos: string, from: string, to: string | null) =>
+  const posRow = (f: Fixture, title: string, from: string, to: string | null) =>
     client.query(
-      "INSERT INTO employee_position_assignment (tenant_id, employee_id, job_position_id, valid_from, valid_to) VALUES ($1, $2, $3, $4, $5)",
-      [f.tenantId, f.employeeId, pos, from, to],
+      "INSERT INTO employee_position_assignment (tenant_id, employee_id, title, valid_from, valid_to) VALUES ($1, $2, $3, $4, $5)",
+      [f.tenantId, f.employeeId, title, from, to],
     );
 
-  it("keeps rank and position histories independent of each other", async () => {
+  it("keeps rank and position histories independent; any wording is allowed", async () => {
     const f = await createFixture(client);
-    const { r, p } = await ids(f);
-    // Promoted on 2026-06-01; position unchanged since hire.
-    await rankRow(f, r[0]!, "2025-01-01", "2026-06-01");
-    await rankRow(f, r[1]!, "2026-06-01", null);
-    await posRow(f, p[0]!, "2025-01-01", null);
+    await rankRow(f, "Ахлагч", "2025-01-01", "2026-06-01");
+    await rankRow(f, "Ахлах мэргэжилтэн", "2026-06-01", null); // not a military rank: free text
+    await posRow(f, "Харуул", "2025-01-01", null);
     const at = await client.query(
-      `SELECT (SELECT jr.name FROM employee_rank_assignment a JOIN job_rank jr ON jr.id = a.job_rank_id
-                WHERE a.employee_id = $1 AND a.valid_from <= $2 AND (a.valid_to IS NULL OR a.valid_to > $2)) AS rank,
-              (SELECT jp.name FROM employee_position_assignment a JOIN job_position jp ON jp.id = a.job_position_id
-                WHERE a.employee_id = $1 AND a.valid_from <= $2 AND (a.valid_to IS NULL OR a.valid_to > $2)) AS position`,
+      `SELECT (SELECT title FROM employee_rank_assignment WHERE employee_id = $1 AND valid_from <= $2 AND (valid_to IS NULL OR valid_to > $2)) AS rank,
+              (SELECT title FROM employee_position_assignment WHERE employee_id = $1 AND valid_from <= $2 AND (valid_to IS NULL OR valid_to > $2)) AS position`,
       [f.employeeId, "2026-03-01"],
     );
     expect(at.rows[0]).toEqual({ rank: "Ахлагч", position: "Харуул" });
-    const now = await client.query(
-      "SELECT jr.name FROM employee_rank_assignment a JOIN job_rank jr ON jr.id = a.job_rank_id WHERE a.employee_id = $1 AND a.valid_to IS NULL",
-      [f.employeeId],
-    );
-    expect(now.rows[0]!.name).toBe("Ахлах ахлагч");
   });
 
-  it("rejects overlapping periods and invalid ranges", async () => {
+  it("rejects overlapping periods, blank or over-long titles and invalid ranges", async () => {
     const f = await createFixture(client);
-    const { r, p } = await ids(f);
-    await rankRow(f, r[0]!, "2026-01-01", "2026-06-01");
-    await expect(rankRow(f, r[1]!, "2026-05-31", null)).rejects.toMatchObject({ code: EXCLUSION });
-    await expect(rankRow(f, r[1]!, "2026-07-01", "2026-07-01")).rejects.toMatchObject({
+    await rankRow(f, "A", "2026-01-01", "2026-06-01");
+    await expect(rankRow(f, "B", "2026-05-31", null)).rejects.toMatchObject({ code: EXCLUSION });
+    await expect(rankRow(f, "B", "2026-07-01", "2026-07-01")).rejects.toMatchObject({
       code: CHECK,
     });
-    await posRow(f, p[0]!, "2026-01-01", null);
-    await expect(posRow(f, p[1]!, "2026-02-01", null)).rejects.toMatchObject({ code: EXCLUSION });
-  });
-
-  it("allows back-to-back periods (half-open ranges)", async () => {
-    const f = await createFixture(client);
-    const { p } = await ids(f);
-    await posRow(f, p[0]!, "2026-01-01", "2026-03-01");
-    await expect(posRow(f, p[1]!, "2026-03-01", null)).resolves.toBeDefined();
-  });
-
-  it("keeps unique names and sort order per tenant, and ranks cannot cross tenants", async () => {
-    const a = await createFixture(client);
-    const b = await createFixture(client);
-    const ra = await ids(a);
-    await ids(b); // same names in another tenant are fine
-    await expect(
-      client.query("INSERT INTO job_rank (tenant_id, name, sort_order) VALUES ($1, 'Ахмад', 1)", [
-        a.tenantId,
-      ]),
-    ).rejects.toMatchObject({ code: UNIQUE });
-    await expect(
-      client.query("INSERT INTO job_position (tenant_id, name) VALUES ($1, 'Харуул')", [
-        a.tenantId,
-      ]),
-    ).rejects.toMatchObject({ code: UNIQUE });
-    // tenant B's employee cannot take tenant A's rank
-    await expect(rankRow(b, ra.r[0]!, "2026-01-01", null)).rejects.toMatchObject({ code: FK });
-  });
-
-  it("is isolated by tenant (RLS)", async () => {
-    const a = await createFixture(client);
-    const b = await createFixture(client);
-    await ids(a);
-    const visible = await asTenant(client, b.tenantId, async () => {
-      const res = await client.query("SELECT count(*)::int AS n FROM job_rank");
-      return res.rows[0].n as number;
+    await expect(posRow(f, "   ", "2026-01-01", null)).rejects.toMatchObject({ code: CHECK });
+    await expect(posRow(f, "x".repeat(121), "2026-01-01", null)).rejects.toMatchObject({
+      code: CHECK,
     });
-    expect(visible).toBe(0);
+    await posRow(f, "P", "2026-01-01", "2026-03-01");
+    await expect(posRow(f, "Q", "2026-03-01", null)).resolves.toBeDefined(); // back to back
+  });
+
+  it("only an employee of the same tenant can have a history", async () => {
+    const a = await createFixture(client);
+    const b = await createFixture(client);
+    await expect(
+      client.query(
+        "INSERT INTO employee_rank_assignment (tenant_id, employee_id, title, valid_from) VALUES ($1, $2, 'X', '2026-01-01')",
+        [b.tenantId, a.employeeId],
+      ),
+    ).rejects.toMatchObject({ code: FK });
+  });
+
+  describe("names (Овог / Нэр)", () => {
+    it("full_name and the two parts are kept in step, whichever is written", async () => {
+      const f = await createFixture(client); // inserted with full_name only: 'Бадам Гэндэн'
+      const row = async () =>
+        (
+          await client.query(
+            "SELECT last_name, first_name, full_name FROM employee WHERE id = $1",
+            [f.employeeId],
+          )
+        ).rows[0];
+      expect(await row()).toEqual({
+        last_name: "Бадам",
+        first_name: "Гэндэн",
+        full_name: "Бадам Гэндэн",
+      });
+      await client.query("UPDATE employee SET first_name = 'Гэндэн-Эрдэнэ' WHERE id = $1", [
+        f.employeeId,
+      ]);
+      expect(await row()).toEqual({
+        last_name: "Бадам",
+        first_name: "Гэндэн-Эрдэнэ",
+        full_name: "Бадам Гэндэн-Эрдэнэ",
+      });
+      await client.query(
+        "UPDATE employee SET last_name = 'Дорж', first_name = 'Бат' WHERE id = $1",
+        [f.employeeId],
+      );
+      expect(await row()).toEqual({ last_name: "Дорж", first_name: "Бат", full_name: "Дорж Бат" });
+      // an old-style update of full_name only is split again
+      await client.query("UPDATE employee SET full_name = 'Нямаа Сарнай Цэцэг' WHERE id = $1", [
+        f.employeeId,
+      ]);
+      expect(await row()).toEqual({
+        last_name: "Нямаа",
+        first_name: "Сарнай Цэцэг",
+        full_name: "Нямаа Сарнай Цэцэг",
+      });
+      await client.query("UPDATE employee SET full_name = 'Хулан' WHERE id = $1", [f.employeeId]);
+      expect(await row()).toEqual({ last_name: "", first_name: "Хулан", full_name: "Хулан" });
+      // new-style insert
+      const inserted = await client.query(
+        `INSERT INTO employee (tenant_id, employee_no, last_name, first_name, department_id, primary_location_id)
+         VALUES ($1, 'N-1', 'Эрдэнэ', 'Болд', $2, $3) RETURNING full_name`,
+        [f.tenantId, f.departmentId, f.locationId],
+      );
+      expect(inserted.rows[0].full_name).toBe("Эрдэнэ Болд");
+    });
   });
 });

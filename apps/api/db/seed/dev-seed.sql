@@ -16,11 +16,6 @@ BEGIN
     (t, 'Хүний нөөц'), (t, 'Санхүү'), (t, 'Хангамж'), (t, 'Хамгаалалт')
   ON CONFLICT (tenant_id, name) DO NOTHING;
 
-  INSERT INTO job_rank (tenant_id, name, sort_order) VALUES
-    (t, 'Ахлагч', 1), (t, 'Ахлах ахлагч', 2), (t, 'Дэслэгч', 3), (t, 'Ахлах дэслэгч', 4),
-    (t, 'Ахмад', 5), (t, 'Хошууч', 6), (t, 'Дэд хурандаа', 7), (t, 'Хурандаа', 8)
-  ON CONFLICT (tenant_id, name) DO NOTHING;
-
   INSERT INTO location (tenant_id, name, address, lat, lng, radius_m) VALUES
     (t, 'Төв салбар',     'PLACEHOLDER', 47.9184, 106.9177, 200),
     (t, 'Цагаан даваа',   'PLACEHOLDER', 47.9200, 106.9200, 200),

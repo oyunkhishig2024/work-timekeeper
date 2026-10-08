@@ -23,6 +23,11 @@ describe.skipIf(!hasDb)("reasons and reason assignments (PRD 11)", () => {
   const today = () => todayIn("Asia/Ulaanbaatar", h.clock.now());
   const addDays = (date: string, n: number) =>
     new Date(Date.parse(`${date}T00:00:00Z`) + n * 86_400_000).toISOString().slice(0, 10);
+  /** The system assigns 16-digit codes; tests relabel them (E-1, E-2 ...) so they stay readable and sortable. */
+  const relabel = async (res: { body: { id: string } }, no: string): Promise<string> => {
+    await h.owner.query("UPDATE employee SET employee_no = $1 WHERE id = $2", [no, res.body.id]);
+    return res.body.id;
+  };
   const post = (token: string, url: string, body: object = {}) =>
     h.http().post(url).set(bearer(token)).send(body);
   const put = (token: string, url: string, body: object) =>
@@ -55,14 +60,15 @@ describe.skipIf(!hasDb)("reasons and reason assignments (PRD 11)", () => {
     const central = await loc("Төв салбар");
     const emma = await loc("ЭМАА");
     const employee = async (no: string, location = central, department = dept) =>
-      (
+      relabel(
         await post(hr, "/v1/employees", {
-          employeeNo: no,
-          fullName: `Name ${no}`,
+          lastName: "Name",
+          firstName: no,
           departmentId: department,
           primaryLocationId: location,
-        })
-      ).body.id as string;
+        }),
+        no,
+      );
     const reasonId = async (name: string) =>
       ((await get(admin, "/v1/reasons")).body as Array<{ id: string; name: string }>).find(
         (r) => r.name === name,

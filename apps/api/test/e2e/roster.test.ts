@@ -16,6 +16,11 @@ describe.skipIf(!hasDb)("roster calendar (PRD 23.5)", () => {
   const addDays = (date: string, n: number) =>
     new Date(Date.parse(`${date}T00:00:00Z`) + n * 86_400_000).toISOString().slice(0, 10);
   const isoWeekday = (date: string) => ((new Date(`${date}T00:00:00Z`).getUTCDay() + 6) % 7) + 1;
+  /** The system assigns 16-digit codes; tests relabel them (E-1, E-2 ...) so they stay readable and sortable. */
+  const relabel = async (res: { body: { id: string } }, no: string): Promise<string> => {
+    await h.owner.query("UPDATE employee SET employee_no = $1 WHERE id = $2", [no, res.body.id]);
+    return res.body.id;
+  };
   const post = (token: string, url: string, body: object = {}) =>
     h.http().post(url).set(bearer(token)).send(body);
   const put = (token: string, url: string, body: object) =>
@@ -56,16 +61,17 @@ describe.skipIf(!hasDb)("roster calendar (PRD 23.5)", () => {
       location = central,
       extra: object = {},
     ) =>
-      (
+      relabel(
         await post(hr, "/v1/employees", {
-          employeeNo: no,
-          fullName: `Name ${no}`,
+          lastName: "Name",
+          firstName: no,
           departmentId: dept,
           primaryLocationId: location,
           scheduleMode,
           ...extra,
-        })
-      ).body.id as string;
+        }),
+        no,
+      );
     return { tenant, admin, hr, mgr, mgrUser, dept, central, emma, employee };
   }
 

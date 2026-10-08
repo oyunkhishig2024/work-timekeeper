@@ -8,7 +8,8 @@ import { JOB_KINDS, type JobKind } from "./job-kinds";
 const pgCode = (error: unknown) => (error as { code?: string })?.code;
 
 export interface AssignInput {
-  catalogId: string;
+  /** The new rank / position as free text; `null` ends the current period without a successor. */
+  title: string | null;
   /** Defaults to today; must not be in the future. */
   effectiveDate?: string;
   note?: string | null;
@@ -16,8 +17,8 @@ export interface AssignInput {
 
 /**
  * Effective-dated rank / position history of one employee (PRD 12, 22.1). The two histories are independent:
- * a promotion does not touch the position and a transfer does not touch the rank.
- * Visibility (data scope) is checked by the caller; this class only enforces the history rules.
+ * a promotion does not touch the position and a transfer does not touch the rank. The values are free text, so any
+ * organization can use its own wording. Visibility (data scope) is checked by the caller.
  */
 @Injectable()
 export class JobHistoryService {
@@ -26,21 +27,18 @@ export class JobHistoryService {
   async history(tx: Db, kind: JobKind, employeeId: string) {
     const k = JOB_KINDS[kind];
     const { rows } = await tx.query(
-      `SELECT a.id, a.${k.catalogColumn} AS "${kind}Id", c.name AS "${kind}Name",
-              a.valid_from::text AS "validFrom", a.valid_to::text AS "validTo", a.note,
-              a.created_at AS "createdAt"
-         FROM ${k.assignment} a
-         JOIN ${k.catalog} c ON c.tenant_id = a.tenant_id AND c.id = a.${k.catalogColumn}
-        WHERE a.employee_id = $1
-        ORDER BY a.valid_from DESC`,
+      `SELECT a.id, a.title AS "${kind}", a.valid_from::text AS "validFrom", a.valid_to::text AS "validTo",
+              a.note, a.created_at AS "createdAt"
+         FROM ${k.assignment} a WHERE a.employee_id = $1 ORDER BY a.valid_from DESC`,
       [employeeId],
     );
     return rows;
   }
 
   /**
-   * Gives the employee a new rank/position from `effectiveDate`: the open period ends that day and a new one
-   * starts. Choosing the one they already hold is a conflict; so is a date that is not after the current start.
+   * Gives the employee a new rank/position from `effectiveDate`: the open period ends that day and a new one starts
+   * (or only ends, for `null`). Choosing what they already hold (ignoring case) is a conflict; so is a date that is
+   * not after the current start.
    */
   async assign(
     tx: Db,
@@ -52,17 +50,7 @@ export class JobHistoryService {
     meta: RequestMeta,
   ) {
     const k = JOB_KINDS[kind];
-    const catalog = await tx.query<{ name: string; active: boolean }>(
-      `SELECT name, active FROM ${k.catalog} WHERE id = $1`,
-      [input.catalogId],
-    );
-    const chosen = catalog.rows[0];
-    if (!chosen) {
-      throw new ApiError(400, `${k.code}_NOT_FOUND`, `The ${k.label} does not exist.`);
-    }
-    if (!chosen.active) {
-      throw new ApiError(400, `${k.code}_INACTIVE`, `The ${k.label} is inactive.`);
-    }
+    const title = input.title === null ? null : input.title.trim().replace(/\s+/gu, " ");
     const effective = input.effectiveDate ?? today;
     if (effective > today) {
       throw new ApiError(
@@ -80,18 +68,41 @@ export class JobHistoryService {
     }
 
     const latest = (
-      await tx.query<{ id: string; catalogId: string; validFrom: string; validTo: string | null }>(
-        `SELECT id, ${k.catalogColumn} AS "catalogId", valid_from::text AS "validFrom", valid_to::text AS "validTo"
+      await tx.query<{ id: string; title: string; validFrom: string; validTo: string | null }>(
+        `SELECT id, title, valid_from::text AS "validFrom", valid_to::text AS "validTo"
            FROM ${k.assignment} WHERE employee_id = $1 ORDER BY valid_from DESC LIMIT 1 FOR UPDATE`,
         [employee.id],
       )
     ).rows[0];
 
     if (latest && latest.validTo === null) {
-      if (latest.catalogId === input.catalogId) {
+      if (title !== null && latest.title.toLowerCase() === title.toLowerCase()) {
         throw new ApiError(409, `${k.code}_UNCHANGED`, `The employee already has this ${k.label}.`);
       }
-      if (effective <= latest.validFrom) {
+      if (effective === latest.validFrom) {
+        // A correction on the day the current value was set: nothing was in force yet, so change it in place.
+        if (title === null)
+          await tx.query(`DELETE FROM ${k.assignment} WHERE id = $1`, [latest.id]);
+        else
+          await tx.query(`UPDATE ${k.assignment} SET title = $2, note = $3 WHERE id = $1`, [
+            latest.id,
+            title,
+            input.note ?? null,
+          ]);
+        await this.recordChange(
+          tx,
+          auth,
+          kind,
+          employee.id,
+          latest,
+          title,
+          effective,
+          input.note ?? null,
+          meta,
+        );
+        return latest.id;
+      }
+      if (effective < latest.validFrom) {
         throw new ApiError(
           409,
           "EFFECTIVE_DATE_NOT_AFTER_CURRENT",
@@ -103,6 +114,8 @@ export class JobHistoryService {
         latest.id,
         effective,
       ]);
+    } else if (title === null) {
+      throw new ApiError(409, `${k.code}_NOT_SET`, `The employee has no ${k.label} to remove.`);
     } else if (latest && latest.validTo !== null && effective < latest.validTo) {
       throw new ApiError(
         409,
@@ -112,40 +125,73 @@ export class JobHistoryService {
       );
     }
 
-    let id: string;
-    try {
-      const { rows } = await tx.query<{ id: string }>(
-        `INSERT INTO ${k.assignment} (tenant_id, employee_id, ${k.catalogColumn}, valid_from, note, created_by)
-         VALUES ($1, $2, $3, $4, $5, $6) RETURNING id`,
-        [auth.tenantId, employee.id, input.catalogId, effective, input.note ?? null, auth.userId],
-      );
-      id = rows[0]!.id;
-    } catch (error) {
-      if (pgCode(error) === "23P01") {
-        throw new ApiError(
-          409,
-          "HISTORY_CONFLICT",
-          `The ${k.label} history already covers this date.`,
+    let id: string | null = null;
+    if (title !== null) {
+      try {
+        const { rows } = await tx.query<{ id: string }>(
+          `INSERT INTO ${k.assignment} (tenant_id, employee_id, title, valid_from, note, created_by)
+           VALUES ($1, $2, $3, $4, $5, $6) RETURNING id`,
+          [auth.tenantId, employee.id, title, effective, input.note ?? null, auth.userId],
         );
+        id = rows[0]!.id;
+      } catch (error) {
+        if (pgCode(error) === "23P01") {
+          throw new ApiError(
+            409,
+            "HISTORY_CONFLICT",
+            `The ${k.label} history already covers this date.`,
+          );
+        }
+        if (pgCode(error) === "23514") {
+          throw new ApiError(400, "TITLE_INVALID", `The ${k.label} must be 1–120 characters.`);
+        }
+        throw error;
       }
-      throw error;
     }
+    await this.recordChange(
+      tx,
+      auth,
+      kind,
+      employee.id,
+      latest,
+      title,
+      effective,
+      input.note ?? null,
+      meta,
+    );
+    return id;
+  }
+
+  private async recordChange(
+    tx: Db,
+    auth: AuthContext,
+    kind: JobKind,
+    employeeId: string,
+    latest: { title: string; validFrom: string } | undefined,
+    title: string | null,
+    effective: string,
+    note: string | null,
+    meta: RequestMeta,
+  ): Promise<void> {
     await this.audit.record(tx, {
       tenantId: auth.tenantId,
-      action: k.auditAction,
+      action: JOB_KINDS[kind].auditAction,
       actorUserId: auth.userId,
       actorRole: auth.role,
       entityType: "employee",
-      entityId: employee.id,
-      before: latest ? { [`${kind}Id`]: latest.catalogId, from: latest.validFrom } : null,
-      after: {
-        [`${kind}Id`]: input.catalogId,
-        name: chosen.name,
-        from: effective,
-        note: input.note ?? null,
-      },
+      entityId: employeeId,
+      before: latest ? { [kind]: latest.title, from: latest.validFrom } : null,
+      after: { [kind]: title, from: effective, note },
       ...meta,
     });
-    return id;
+  }
+
+  /** Distinct values already used in the organization, for the suggestion lists of the text fields. */
+  async suggestions(tx: Db, kind: JobKind): Promise<string[]> {
+    const k = JOB_KINDS[kind];
+    const { rows } = await tx.query<{ title: string }>(
+      `SELECT min(title) AS title FROM ${k.assignment} GROUP BY lower(title) ORDER BY lower(title) LIMIT 500`,
+    );
+    return rows.map((r) => r.title);
   }
 }

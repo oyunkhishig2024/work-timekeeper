@@ -46,8 +46,8 @@ const SCHEMAS: Record<ReportName, z.ZodTypeAny> = {
     manualAttendance: bool.optional(),
     hasDevice: bool.optional(),
     consentStatus: z.enum(["NOT_REQUESTED", "PRINTED", "SIGNED", "WITHDRAWN"]).optional(),
-    rankId: id.optional(),
-    positionId: id.optional(),
+    rank: z.string().trim().min(1).max(120).optional(),
+    position: z.string().trim().min(1).max(120).optional(),
   }),
   holidays: z.object({
     format,

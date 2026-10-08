@@ -9,21 +9,24 @@ const id = z.string().uuid();
 const isoDate = z.string().refine(isValidIsoDate, "Use a real date as YYYY-MM-DD");
 const bool = z.enum(["true", "false"]).transform((v) => v === "true");
 
+/** Free text (any wording an organization uses), 1–120 characters. */
+const title = z.string().trim().min(1).max(120);
+
 const fields = {
-  employeeNo: z.string().trim().min(1).max(40),
-  fullName: z.string().trim().min(1).max(160),
+  lastName: z.string().trim().min(1).max(80),
+  firstName: z.string().trim().min(1).max(80),
   departmentId: id,
   primaryLocationId: id,
   startDate: isoDate.nullable().optional(),
   endDate: isoDate.nullable().optional(),
   scheduleMode: z.enum(["STANDARD", "SHIFT"]).optional(),
   manualAttendance: z.boolean().optional(),
-  rankId: id.optional(),
-  positionId: id.optional(),
+  rank: title.optional(),
+  position: title.optional(),
 };
 const createSchema = z.object(fields).strict();
 const updateSchema = z
-  .object(fields)
+  .object({ ...fields, rank: title.nullable().optional(), position: title.nullable().optional() })
   .partial()
   .strict()
   .refine((v) => Object.keys(v).length > 0, "Nothing to update");
@@ -35,11 +38,13 @@ const listSchema = z.object({
   locationId: id.optional(),
   scheduleMode: z.enum(["STANDARD", "SHIFT"]).optional(),
   manualAttendance: bool.optional(),
-  rankId: id.optional(),
-  positionId: id.optional(),
+  rank: z.string().trim().min(1).max(120).optional(),
+  position: z.string().trim().min(1).max(120).optional(),
   hasDevice: bool.optional(),
   consentStatus: z.enum(["NOT_REQUESTED", "PRINTED", "SIGNED", "WITHDRAWN"]).optional(),
-  sort: z.enum(["employeeNo", "fullName", "createdAt"]).default("employeeNo"),
+  sort: z
+    .enum(["employeeNo", "fullName", "lastName", "firstName", "createdAt"])
+    .default("employeeNo"),
   order: z.enum(["asc", "desc"]).default("asc"),
   limit: z.coerce.number().int().min(1).max(200).default(50),
   offset: z.coerce.number().int().min(0).default(0),
@@ -51,8 +56,8 @@ const assignSchema = z
     note: z.string().trim().max(300).nullable().optional(),
   })
   .strict();
-const assignRank = assignSchema.extend({ rankId: id }).strict();
-const assignPosition = assignSchema.extend({ positionId: id }).strict();
+const assignRank = assignSchema.extend({ rank: title.nullable() }).strict();
+const assignPosition = assignSchema.extend({ position: title.nullable() }).strict();
 
 const disableSchema = z
   .object({ effectiveDate: isoDate.optional(), reason: z.string().trim().max(300).optional() })
@@ -63,12 +68,14 @@ const reactivateSchema = z
 const archiveSchema = z.object({ force: z.boolean().optional() }).strict();
 const accountSchema = z
   .object({
+    // Optional: the default login name is the employee's 16-digit code.
     username: z
       .string()
       .trim()
       .min(3)
       .max(64)
-      .regex(/^[A-Za-z0-9._-]+$/u, "Only letters, digits, dot, underscore and dash"),
+      .regex(/^[A-Za-z0-9._-]+$/u, "Only letters, digits, dot, underscore and dash")
+      .optional(),
   })
   .strict();
 
@@ -84,6 +91,13 @@ export class EmployeesController {
   @Get()
   list(@CurrentAuth() auth: AuthContext, @Query() query: unknown) {
     return this.employees.list(auth, listSchema.parse(query));
+  }
+
+  /** Rank / position values already in use, for the suggestion list of the text fields. */
+  @Roles("ORG_ADMIN", "HR")
+  @Get("job-titles/:kind")
+  jobTitles(@CurrentAuth() auth: AuthContext, @Param("kind") kind: string) {
+    return this.employees.jobTitleSuggestions(auth, z.enum(["rank", "position"]).parse(kind));
   }
 
   @Roles("ORG_ADMIN", "HR", "MANAGER")
@@ -130,12 +144,12 @@ export class EmployeesController {
     @Body() body: unknown,
     @Meta() meta: RequestMeta,
   ) {
-    const { rankId, ...rest } = assignRank.parse(body);
+    const { rank, ...rest } = assignRank.parse(body);
     return this.employees.assignJob(
       auth,
       "rank",
       id.parse(employeeId),
-      { catalogId: rankId, ...rest },
+      { title: rank, ...rest },
       meta,
     );
   }
@@ -149,12 +163,12 @@ export class EmployeesController {
     @Body() body: unknown,
     @Meta() meta: RequestMeta,
   ) {
-    const { positionId, ...rest } = assignPosition.parse(body);
+    const { position, ...rest } = assignPosition.parse(body);
     return this.employees.assignJob(
       auth,
       "position",
       id.parse(employeeId),
-      { catalogId: positionId, ...rest },
+      { title: position, ...rest },
       meta,
     );
   }
@@ -221,7 +235,7 @@ export class EmployeesController {
     return this.employees.createAccount(
       auth,
       id.parse(employeeId),
-      accountSchema.parse(body),
+      accountSchema.parse(body ?? {}),
       meta,
     );
   }

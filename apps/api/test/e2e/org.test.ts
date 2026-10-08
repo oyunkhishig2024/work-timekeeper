@@ -39,8 +39,8 @@ describe.skipIf(!hasDb)("departments and locations (PRD 13)", () => {
   const get = (token: string, url: string) => h.http().get(url).set(bearer(token));
   const employee = (token: string, departmentId: string, primaryLocationId: string, no: string) =>
     post(token, "/v1/employees", {
-      employeeNo: no,
-      fullName: `Name ${no}`,
+      lastName: "Name",
+      firstName: no,
       departmentId,
       primaryLocationId,
     });

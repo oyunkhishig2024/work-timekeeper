@@ -1,3 +1,4 @@
+import { randomInt } from "node:crypto";
 import { Injectable } from "@nestjs/common";
 import { Clock } from "../common/clock";
 import { ApiError, forbidden } from "../common/api-error";
@@ -13,8 +14,9 @@ import { JobHistoryService, type AssignInput } from "./job-history.service";
 import type { JobKind } from "./job-kinds";
 
 export interface EmployeeFields {
-  employeeNo: string;
-  fullName: string;
+  /** Овог (last / family name) and Нэр (first / given name). The employee code is assigned by the system. */
+  lastName: string;
+  firstName: string;
   departmentId: string;
   primaryLocationId: string;
   startDate?: string | null;
@@ -22,8 +24,9 @@ export interface EmployeeFields {
   scheduleMode?: "STANDARD" | "SHIFT";
   manualAttendance?: boolean;
   /** Rank (цол) / position (албан тушаал) held from the start date (create) or from today (update). */
-  rankId?: string;
-  positionId?: string;
+  /** Free text; `null` (update only) ends the current period. */
+  rank?: string | null;
+  position?: string | null;
 }
 
 export interface EmployeeFilter {
@@ -34,24 +37,24 @@ export interface EmployeeFilter {
   scheduleMode?: "STANDARD" | "SHIFT";
   manualAttendance?: boolean;
   hasDevice?: boolean;
-  rankId?: string;
-  positionId?: string;
+  rank?: string;
+  position?: string;
   consentStatus?: "NOT_REQUESTED" | "PRINTED" | "SIGNED" | "WITHDRAWN";
-  sort: "employeeNo" | "fullName" | "createdAt";
+  sort: "employeeNo" | "fullName" | "lastName" | "firstName" | "createdAt";
   order: "asc" | "desc";
   limit: number;
   offset: number;
 }
 
 const SELECT = `
-  e.id, e.employee_no AS "employeeNo", e.full_name AS "fullName", e.status,
+  e.id, e.employee_no AS "employeeNo", e.full_name AS "fullName", e.last_name AS "lastName",
+  e.first_name AS "firstName", e.status,
   e.department_id AS "departmentId", d.name AS "departmentName",
   e.primary_location_id AS "primaryLocationId", l.name AS "locationName",
   e.start_date::text AS "startDate", e.end_date::text AS "endDate",
   e.schedule_mode AS "scheduleMode", e.manual_attendance AS "manualAttendance",
   e.device_model AS "deviceModel", e.os_version AS "osVersion", e.device_compatible AS "deviceCompatible",
-  ra.job_rank_id AS "rankId", jr.name AS "rankName",
-  pa.job_position_id AS "positionId", jp.name AS "positionName",
+  ra.title AS "rank", pa.title AS "position",
   cs.status AS "consentStatus",
   EXISTS (SELECT 1 FROM device dv WHERE dv.tenant_id = e.tenant_id AND dv.employee_id = e.id AND dv.status = 'ACTIVE') AS "hasActiveDevice",
   e.created_at AS "createdAt"`;
@@ -62,19 +65,19 @@ const FROM = `
   JOIN location l ON l.tenant_id = e.tenant_id AND l.id = e.primary_location_id
   LEFT JOIN employee_consent_status cs ON cs.tenant_id = e.tenant_id AND cs.employee_id = e.id
   LEFT JOIN employee_rank_assignment ra ON ra.tenant_id = e.tenant_id AND ra.employee_id = e.id AND ra.valid_to IS NULL
-  LEFT JOIN job_rank jr ON jr.tenant_id = ra.tenant_id AND jr.id = ra.job_rank_id
-  LEFT JOIN employee_position_assignment pa ON pa.tenant_id = e.tenant_id AND pa.employee_id = e.id AND pa.valid_to IS NULL
-  LEFT JOIN job_position jp ON jp.tenant_id = pa.tenant_id AND jp.id = pa.job_position_id`;
+  LEFT JOIN employee_position_assignment pa ON pa.tenant_id = e.tenant_id AND pa.employee_id = e.id AND pa.valid_to IS NULL`;
 
 const SORT_COLUMNS = {
   employeeNo: "e.employee_no",
   fullName: "e.full_name",
+  lastName: "e.last_name",
+  firstName: "e.first_name",
   createdAt: "e.created_at",
 } as const;
 
 const COLUMN_FOR: Record<string, string> = {
-  employeeNo: "employee_no",
-  fullName: "full_name",
+  lastName: "last_name",
+  firstName: "first_name",
   departmentId: "department_id",
   primaryLocationId: "primary_location_id",
   startDate: "start_date",
@@ -115,8 +118,8 @@ export class EmployeesService {
       if (filter.scheduleMode) add("e.schedule_mode = ?", filter.scheduleMode);
       if (filter.manualAttendance !== undefined)
         add("e.manual_attendance = ?", filter.manualAttendance);
-      if (filter.rankId) add("ra.job_rank_id = ?", filter.rankId);
-      if (filter.positionId) add("pa.job_position_id = ?", filter.positionId);
+      if (filter.rank) add("lower(ra.title) = lower(?)", filter.rank);
+      if (filter.position) add("lower(pa.title) = lower(?)", filter.position);
       if (filter.consentStatus)
         add("COALESCE(cs.status, 'NOT_REQUESTED') = ?", filter.consentStatus);
       if (filter.hasDevice !== undefined) {
@@ -169,16 +172,19 @@ export class EmployeesService {
       const scope = await this.scopes.forUser(tx, auth);
       this.assertInScope(scope, input.departmentId, input.primaryLocationId);
       await this.assertActiveReferences(tx, input.departmentId, input.primaryLocationId);
+      const today = await this.tenantToday(tx, auth.tenantId);
+      const employeeNo = await this.generateEmployeeNo(tx, today);
       let id: string;
       try {
         const { rows } = await tx.query<{ id: string }>(
           `INSERT INTO employee
-             (tenant_id, employee_no, full_name, department_id, primary_location_id, start_date, end_date, schedule_mode, manual_attendance)
-           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING id`,
+             (tenant_id, employee_no, last_name, first_name, department_id, primary_location_id, start_date, end_date, schedule_mode, manual_attendance)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING id`,
           [
             auth.tenantId,
-            input.employeeNo,
-            input.fullName,
+            employeeNo,
+            input.lastName,
+            input.firstName,
             input.departmentId,
             input.primaryLocationId,
             input.startDate ?? null,
@@ -191,27 +197,26 @@ export class EmployeesService {
       } catch (error) {
         throw this.mapWriteError(error);
       }
-      const today = await this.tenantToday(tx, auth.tenantId);
       const from = input.startDate && input.startDate <= today ? input.startDate : today;
       const initial = { id, startDate: null };
-      if (input.rankId) {
+      if (input.rank) {
         await this.jobs.assign(
           tx,
           auth,
           "rank",
           initial,
-          { catalogId: input.rankId, effectiveDate: from },
+          { title: input.rank, effectiveDate: from },
           today,
           meta,
         );
       }
-      if (input.positionId) {
+      if (input.position) {
         await this.jobs.assign(
           tx,
           auth,
           "position",
           initial,
-          { catalogId: input.positionId, effectiveDate: from },
+          { title: input.position, effectiveDate: from },
           today,
           meta,
         );
@@ -223,7 +228,7 @@ export class EmployeesService {
         actorRole: auth.role,
         entityType: "employee",
         entityId: id,
-        after: input,
+        after: { employeeNo, ...input },
         ...meta,
       });
       return this.loadVisible(tx, scope, id);
@@ -236,7 +241,7 @@ export class EmployeesService {
    * effective-dated history (PRD 22.1) is a separate, later piece of work.
    */
   async update(auth: AuthContext, id: string, input: Partial<EmployeeFields>, meta: RequestMeta) {
-    const { rankId, positionId, ...fields } = input;
+    const { rank, position, ...fields } = input;
     return this.db.withTenant(auth.tenantId, async (tx) => {
       const scope = await this.scopes.forUser(tx, auth);
       const current = await this.loadVisible(tx, scope, id);
@@ -281,22 +286,22 @@ export class EmployeesService {
           ...meta,
         });
       }
-      // A different rank / position takes effect today; choosing the current one is a no-op here.
+      // A different rank / position takes effect today (`null` ends it); the current one changes nothing.
       const today = await this.tenantToday(tx, auth.tenantId);
       const employee = { id, startDate: current.startDate };
-      if (rankId && rankId !== current.rankId) {
-        await this.jobs.assign(tx, auth, "rank", employee, { catalogId: rankId }, today, meta);
-      }
-      if (positionId && positionId !== current.positionId) {
-        await this.jobs.assign(
-          tx,
-          auth,
-          "position",
-          employee,
-          { catalogId: positionId },
-          today,
-          meta,
-        );
+      for (const [kind, value, existing] of [
+        ["rank", rank, current.rank],
+        ["position", position, current.position],
+      ] as const) {
+        if (value === undefined) continue;
+        const wanted = value === null ? null : value.trim();
+        if (
+          (wanted ?? "").toLowerCase() === (existing ?? "").toLowerCase() &&
+          (wanted === null) === (existing === null)
+        )
+          continue;
+        if (wanted === null && existing === null) continue;
+        await this.jobs.assign(tx, auth, kind, employee, { title: wanted }, today, meta);
       }
       return this.loadVisible(tx, scope, id);
     });
@@ -559,7 +564,7 @@ export class EmployeesService {
   async createAccount(
     auth: AuthContext,
     id: string,
-    input: { username: string },
+    input: { username?: string },
     meta: RequestMeta,
   ) {
     const temporaryPassword = this.passwords.generateTemporary();
@@ -569,6 +574,8 @@ export class EmployeesService {
       const employee = await this.loadVisible(tx, scope, id);
       if (employee.status !== "ACTIVE")
         throw new ApiError(409, "EMPLOYEE_NOT_ACTIVE", "The employee is not active.");
+      // The login name defaults to the 16-digit employee code (not secret); the password is always a random one-time one.
+      const username = input.username ?? (employee.employeeNo as string);
       const existing = await tx.query("SELECT 1 FROM user_account WHERE employee_id = $1", [id]);
       if ((existing.rowCount ?? 0) > 0)
         throw new ApiError(409, "ACCOUNT_EXISTS", "The employee already has a login account.");
@@ -577,7 +584,7 @@ export class EmployeesService {
         const { rows } = await tx.query<{ id: string }>(
           `INSERT INTO user_account (tenant_id, username, display_name, password_hash, role, employee_id)
            VALUES ($1, $2, $3, $4, 'EMPLOYEE', $5) RETURNING id`,
-          [auth.tenantId, input.username, employee.fullName, passwordHash, id],
+          [auth.tenantId, username, employee.fullName, passwordHash, id],
         );
         userId = rows[0]!.id;
       } catch (error) {
@@ -592,14 +599,38 @@ export class EmployeesService {
         actorRole: auth.role,
         entityType: "employee",
         entityId: id,
-        after: { userId, username: input.username },
+        after: { userId, username },
         ...meta,
       });
-      return { userId, username: input.username, temporaryPassword };
+      return { userId, username, temporaryPassword };
     });
   }
 
   // ------------------------------------------------------------------ helpers
+
+  /**
+   * The employee code is assigned by the system: 16 digits = the registration date in the tenant's time zone
+   * (YYYYMMDD) followed by 8 random digits. It never changes and is unique within the tenant (a collision is re-rolled).
+   * It is the default login name of the employee's account; it is not a secret.
+   */
+  private async generateEmployeeNo(tx: Db, today: string): Promise<string> {
+    const prefix = today.replace(/-/gu, "");
+    for (let attempt = 0; attempt < 20; attempt++) {
+      const candidate = `${prefix}${String(randomInt(0, 100_000_000)).padStart(8, "0")}`;
+      const taken = await tx.query("SELECT 1 FROM employee WHERE employee_no = $1", [candidate]);
+      if (taken.rowCount === 0) return candidate;
+    }
+    throw new ApiError(
+      503,
+      "EMPLOYEE_NO_UNAVAILABLE",
+      "Could not allocate an employee code; try again.",
+    );
+  }
+
+  /** Titles already used (for the suggestion lists of the text fields). */
+  async jobTitleSuggestions(auth: AuthContext, kind: JobKind): Promise<string[]> {
+    return this.db.withTenant(auth.tenantId, (tx) => this.jobs.suggestions(tx, kind));
+  }
 
   private async loadVisible(tx: Db, scope: DataScope, id: string) {
     const params: unknown[] = [id];
@@ -616,8 +647,8 @@ export class EmployeesService {
           startDate: string | null;
           endDate: string | null;
           fullName: string;
-          rankId: string | null;
-          positionId: string | null;
+          rank: string | null;
+          position: string | null;
         })
       | undefined;
     // An employee outside the caller's scope looks exactly like one that does not exist.

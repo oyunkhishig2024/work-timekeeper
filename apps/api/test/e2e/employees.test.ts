@@ -22,6 +22,14 @@ describe.skipIf(!hasDb)("employees (PRD 12)", () => {
     await h.close();
   });
 
+  /** The system assigns 16-digit codes; tests relabel them (E-1, E-2 ...) so they stay readable and sortable. */
+  const relabel = async (res: { body: Record<string, unknown> }, no: string) => {
+    await h.owner.query("UPDATE employee SET employee_no = $1 WHERE id = $2", [no, res.body.id]);
+    return { ...res.body, employeeNo: no, id: res.body.id as string } as Record<string, unknown> & {
+      id: string;
+      employeeNo: string;
+    };
+  };
   const today = () => todayIn("Asia/Ulaanbaatar", h.clock.now());
   const post = (token: string, url: string, body: object = {}) =>
     h.http().post(url).set(bearer(token)).send(body);
@@ -57,14 +65,15 @@ describe.skipIf(!hasDb)("employees (PRD 12)", () => {
       primaryLocationId = central,
       token = hr,
     ) =>
-      (
+      relabel(
         await post(token, "/v1/employees", {
-          employeeNo: no,
-          fullName: name,
+          lastName: name.includes(" ") ? name.split(" ")[0] : name,
+          firstName: name.includes(" ") ? name.split(" ").slice(1).join(" ") : "Нэр",
           departmentId,
           primaryLocationId,
-        })
-      ).body;
+        }),
+        no,
+      );
     return {
       tenant,
       adminUser,
@@ -82,18 +91,20 @@ describe.skipIf(!hasDb)("employees (PRD 12)", () => {
   }
 
   describe("create, read and update", () => {
-    it("HR creates an employee; the number is unique; references must exist and be active", async () => {
+    it("HR creates an employee; the system assigns a unique 16-digit code; references must exist and be active", async () => {
       const w = await world();
-      const res = await post(w.hr, "/v1/employees", {
-        employeeNo: "E-001",
-        fullName: "Бадам Гэндэн",
+      const body = {
+        lastName: "Бадам",
+        firstName: "Гэндэн",
         departmentId: w.hrDept,
         primaryLocationId: w.central,
         startDate: "2026-10-01",
-      });
+      };
+      const res = await post(w.hr, "/v1/employees", body);
       expect(res.status).toBe(201);
       expect(res.body).toMatchObject({
-        employeeNo: "E-001",
+        lastName: "Бадам",
+        firstName: "Гэндэн",
         fullName: "Бадам Гэндэн",
         status: "ACTIVE",
         departmentName: "Хүний нөөц",
@@ -104,23 +115,30 @@ describe.skipIf(!hasDb)("employees (PRD 12)", () => {
         manualAttendance: false,
         consentStatus: "NOT_REQUESTED",
         hasActiveDevice: false,
+        rank: null,
+        position: null,
       });
-
-      const dup = await post(w.hr, "/v1/employees", {
-        employeeNo: "E-001",
-        fullName: "X",
-        departmentId: w.hrDept,
-        primaryLocationId: w.central,
-      });
-      expect(dup.status).toBe(409);
-      expect(dup.body.code).toBe("EMPLOYEE_NO_TAKEN");
+      // 16 digits: the registration date (tenant time zone) then 8 random digits; never repeated
+      expect(res.body.employeeNo).toMatch(/^\d{16}$/u);
+      expect(res.body.employeeNo.slice(0, 8)).toBe(today().replaceAll("-", ""));
+      const second = await post(w.hr, "/v1/employees", body);
+      expect(second.body.employeeNo).toMatch(/^\d{16}$/u);
+      expect(second.body.employeeNo).not.toBe(res.body.employeeNo);
+      // the code is never accepted from the client, neither when creating nor when editing
+      expect((await post(w.hr, "/v1/employees", { ...body, employeeNo: "1234" })).status).toBe(400);
+      expect(
+        (await patch(w.hr, `/v1/employees/${res.body.id}`, { employeeNo: "1234" })).status,
+      ).toBe(400);
+      expect(
+        (await post(w.hr, "/v1/employees", { ...body, fullName: "Бадам Гэндэн" })).status,
+      ).toBe(400);
 
       const ghost = "00000000-0000-4000-8000-000000000000";
       expect(
         (
           await post(w.hr, "/v1/employees", {
-            employeeNo: "E-2",
-            fullName: "X",
+            lastName: "X",
+            firstName: "Нэр",
             departmentId: ghost,
             primaryLocationId: w.central,
           })
@@ -129,8 +147,8 @@ describe.skipIf(!hasDb)("employees (PRD 12)", () => {
       expect(
         (
           await post(w.hr, "/v1/employees", {
-            employeeNo: "E-2",
-            fullName: "X",
+            lastName: "X",
+            firstName: "Нэр",
             departmentId: w.hrDept,
             primaryLocationId: ghost,
           })
@@ -140,8 +158,8 @@ describe.skipIf(!hasDb)("employees (PRD 12)", () => {
       expect(
         (
           await post(w.hr, "/v1/employees", {
-            employeeNo: "E-2",
-            fullName: "X",
+            lastName: "X",
+            firstName: "Нэр",
             departmentId: w.financeDept,
             primaryLocationId: w.central,
           })
@@ -155,12 +173,12 @@ describe.skipIf(!hasDb)("employees (PRD 12)", () => {
     it("validates input and enforces roles", async () => {
       const w = await world();
       const base = {
-        employeeNo: "E-9",
-        fullName: "Name",
+        lastName: "Name",
+        firstName: "Нэр",
         departmentId: w.hrDept,
         primaryLocationId: w.central,
       };
-      expect((await post(w.hr, "/v1/employees", { ...base, fullName: "" })).status).toBe(400);
+      expect((await post(w.hr, "/v1/employees", { ...base, firstName: "" })).status).toBe(400);
       expect((await post(w.hr, "/v1/employees", { ...base, startDate: "2026-02-30" })).status).toBe(
         400,
       );
@@ -192,7 +210,7 @@ describe.skipIf(!hasDb)("employees (PRD 12)", () => {
 
       const other = await world();
       expect((await get(other.hr, `/v1/employees/${e.id}`)).status).toBe(404);
-      expect((await patch(other.hr, `/v1/employees/${e.id}`, { fullName: "Hacked" })).status).toBe(
+      expect((await patch(other.hr, `/v1/employees/${e.id}`, { lastName: "Hacked" })).status).toBe(
         404,
       );
       expect((await post(other.hr, `/v1/employees/${e.id}/disable`)).status).toBe(404);
@@ -203,7 +221,7 @@ describe.skipIf(!hasDb)("employees (PRD 12)", () => {
       const w = await world();
       const e = await w.create("E-1", "Бадам Гэндэн");
       const res = await patch(w.hr, `/v1/employees/${e.id}`, {
-        fullName: "Бадам Гэндэн-Эрдэнэ",
+        firstName: "Гэндэн-Эрдэнэ",
         departmentId: w.financeDept,
         primaryLocationId: w.naimanSharga,
         scheduleMode: "SHIFT",
@@ -225,11 +243,11 @@ describe.skipIf(!hasDb)("employees (PRD 12)", () => {
       );
       expect(trail.rows).toHaveLength(1);
       expect(trail.rows[0].before).toMatchObject({
-        full_name: "Бадам Гэндэн",
+        first_name: "Гэндэн",
         schedule_mode: "STANDARD",
       });
 
-      await patch(w.hr, `/v1/employees/${e.id}`, { fullName: "Бадам Гэндэн-Эрдэнэ" }); // nothing changed
+      await patch(w.hr, `/v1/employees/${e.id}`, { firstName: "Гэндэн-Эрдэнэ" }); // nothing changed
       expect(
         (
           await h.owner.query(
@@ -239,11 +257,7 @@ describe.skipIf(!hasDb)("employees (PRD 12)", () => {
         ).rows[0].n,
       ).toBe(1);
       expect((await patch(w.hr, `/v1/employees/${e.id}`, {})).status).toBe(400);
-      expect((await patch(w.mgr, `/v1/employees/${e.id}`, { fullName: "x" })).status).toBe(403);
-      const second = await w.create("E-2", "Other");
-      expect(
-        (await patch(w.hr, `/v1/employees/${e.id}`, { employeeNo: second.employeeNo })).body.code,
-      ).toBe("EMPLOYEE_NO_TAKEN");
+      expect((await patch(w.mgr, `/v1/employees/${e.id}`, { lastName: "x" })).status).toBe(403);
       expect(
         (
           await patch(w.hr, `/v1/employees/${e.id}`, {
@@ -311,9 +325,12 @@ describe.skipIf(!hasDb)("employees (PRD 12)", () => {
         await w.create(no!, name!);
       const page = await get(w.hr, "/v1/employees?sort=fullName&order=desc&limit=2&offset=0");
       expect(page.body).toMatchObject({ total: 3, limit: 2, offset: 0 });
-      expect(page.body.items.map((e: { fullName: string }) => e.fullName)).toEqual(["Cc", "Bb"]);
+      expect(page.body.items.map((e: { fullName: string }) => e.fullName)).toEqual([
+        "Cc Нэр",
+        "Bb Нэр",
+      ]);
       const next = await get(w.hr, "/v1/employees?sort=fullName&order=desc&limit=2&offset=2");
-      expect(next.body.items.map((e: { fullName: string }) => e.fullName)).toEqual(["Aa"]);
+      expect(next.body.items.map((e: { fullName: string }) => e.fullName)).toEqual(["Aa Нэр"]);
     });
   });
 
@@ -362,12 +379,12 @@ describe.skipIf(!hasDb)("employees (PRD 12)", () => {
         (await get(w.hr, "/v1/employees")).body.items.map((e: { id: string }) => e.id),
       ).toEqual([inCentral.id]);
       expect((await get(w.hr, `/v1/employees/${away.id}`)).status).toBe(404);
-      expect((await patch(w.hr, `/v1/employees/${away.id}`, { fullName: "x" })).status).toBe(404);
+      expect((await patch(w.hr, `/v1/employees/${away.id}`, { lastName: "x" })).status).toBe(404);
       expect(
         (
           await post(w.hr, "/v1/employees", {
-            employeeNo: "E-9",
-            fullName: "New",
+            lastName: "New",
+            firstName: "Нэр",
             departmentId: w.financeDept,
             primaryLocationId: w.naimanSharga,
           })
@@ -376,8 +393,8 @@ describe.skipIf(!hasDb)("employees (PRD 12)", () => {
       expect(
         (
           await post(w.hr, "/v1/employees", {
-            employeeNo: "E-9",
-            fullName: "New",
+            lastName: "New",
+            firstName: "Нэр",
             departmentId: w.financeDept,
             primaryLocationId: w.central,
           })
@@ -600,7 +617,7 @@ describe.skipIf(!hasDb)("employees (PRD 12)", () => {
       );
       expect(await auditActions(h, w.tenant.id)).toContain("employee.disabled");
       expect(
-        (await patch(w.hr, `/v1/employees/${e.id}`, { fullName: "Бадам Гэндэн (өмнөх)" })).status,
+        (await patch(w.hr, `/v1/employees/${e.id}`, { firstName: "Гэндэн (өмнөх)" })).status,
       ).toBe(200); // disabled records stay editable
     });
 
@@ -608,8 +625,8 @@ describe.skipIf(!hasDb)("employees (PRD 12)", () => {
       const w = await world();
       const e = (
         await post(w.hr, "/v1/employees", {
-          employeeNo: "E-1",
-          fullName: "X",
+          lastName: "X",
+          firstName: "Нэр",
           departmentId: w.hrDept,
           primaryLocationId: w.central,
           startDate: "2026-09-01",
@@ -710,7 +727,7 @@ describe.skipIf(!hasDb)("employees (PRD 12)", () => {
         (await post(w.admin, `/v1/employees/${e.id}/archive`, { force: true })).body.code,
       ).toBe("EMPLOYEE_NOT_DISABLED");
 
-      expect((await patch(w.hr, `/v1/employees/${e.id}`, { fullName: "x" })).body.code).toBe(
+      expect((await patch(w.hr, `/v1/employees/${e.id}`, { lastName: "x" })).body.code).toBe(
         "EMPLOYEE_ARCHIVED",
       );
       expect((await get(w.hr, "/v1/employees?status=ALL")).body.total).toBe(1);

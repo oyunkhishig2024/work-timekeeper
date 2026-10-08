@@ -24,6 +24,11 @@ describe.skipIf(!hasDb)("report export (PRD 20)", () => {
   const today = () => todayIn("Asia/Ulaanbaatar", h.clock.now());
   const addDays = (date: string, n: number) =>
     new Date(Date.parse(`${date}T00:00:00Z`) + n * 86_400_000).toISOString().slice(0, 10);
+  /** The system assigns 16-digit codes; tests relabel them (E-1, E-2 ...) so they stay readable and sortable. */
+  const relabel = async (res: { body: { id: string } }, no: string): Promise<string> => {
+    await h.owner.query("UPDATE employee SET employee_no = $1 WHERE id = $2", [no, res.body.id]);
+    return res.body.id;
+  };
   const post = (token: string, url: string, body: object = {}) =>
     h.http().post(url).set(bearer(token)).send(body);
   const put = (token: string, url: string, body: object) =>
@@ -78,22 +83,22 @@ describe.skipIf(!hasDb)("report export (PRD 20)", () => {
     const central = await loc("Төв салбар");
     const emma = await loc("ЭМАА");
     const employee = async (no: string, location = central, extra: object = {}) =>
-      (
+      relabel(
         await post(hr, "/v1/employees", {
-          employeeNo: no,
-          fullName: `Овог ${no}`,
+          lastName: "Овог",
+          firstName: no,
           departmentId: dept,
           primaryLocationId: location,
           ...extra,
-        })
-      ).body.id as string;
+        }),
+        no,
+      );
     return { tenant, admin, hr, mgr, mgrUser, dept, central, emma, employee };
   }
 
   it("exports the same list as Excel, CSV and PDF with the right headers and content types", async () => {
     const w = await world();
-    const rank = (await post(w.admin, "/v1/ranks", { name: "Ахмад" })).body.id as string;
-    await w.employee("E-1", w.central, { rankId: rank });
+    await w.employee("E-1", w.central, { rank: "Ахмад" });
     await w.employee("E-2", w.emma);
 
     const xlsx = await download(w.hr, "/v1/exports/employees?format=xlsx");
@@ -104,18 +109,18 @@ describe.skipIf(!hasDb)("report export (PRD 20)", () => {
     );
     const rows = await sheetRows(xlsx.body as Buffer);
     expect(rows[0]).toEqual(
-      expect.arrayContaining(["Код", "Овог нэр", "Салбар", "Цол", "Албан тушаал"]),
+      expect.arrayContaining(["Код", "Овог", "Нэр", "Салбар", "Цол", "Албан тушаал"]),
     );
     expect(rows).toHaveLength(3);
     expect(rows[1]).toEqual(
-      expect.arrayContaining(["E-1", "Овог E-1", "Хамгаалалт", "Төв салбар", "Ахмад"]),
+      expect.arrayContaining(["E-1", "Овог", "E-1", "Хамгаалалт", "Төв салбар", "Ахмад"]),
     );
 
     const csv = await h.http().get("/v1/exports/employees?format=csv").set(bearer(w.hr));
     expect(csv.headers["content-type"]).toContain("text/csv");
     expect(csv.text.charCodeAt(0)).toBe(0xfeff);
     expect(csv.text.split("\r\n").filter(Boolean)).toHaveLength(3);
-    expect(csv.text).toContain("Овог E-2");
+    expect(csv.text).toContain("Овог,E-2");
 
     const pdf = await download(w.hr, "/v1/exports/employees?format=pdf");
     expect(pdf.headers["content-type"]).toBe("application/pdf");

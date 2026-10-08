@@ -1,7 +1,7 @@
 # Timekeeper Work
 ## Product Requirements Document (PRD)
 
-Version: 1.13
+Version: 1.14
 Product: Timekeeper Work
 Owner: Onki
 Status: Requirements Specification (pre-development review + CTO review + stakeholder decisions applied)
@@ -548,11 +548,11 @@ Features:
 
 Employee Fields **[CHANGED]**:
 
-- Employee Number (unique per tenant)
-- Full Name
+- **Employee Number [CHANGED v1.14]**: assigned by the system, 16 digits = registration date (YYYYMMDD) + 8 random digits; unique per tenant, never edited; it is the default login name (the password is a random one-time password, never derived from the code)
+- **Last name (Овог) and First name (Нэр)** as two separate fields **[v1.14]**; the full name is shown as "Овог Нэр"
 - **Department** (required)
 - **Primary Location** (required)
-- **Rank (цол)** and **Job Position (албан тушаал)** — two separate fields, each with its own effective-dated history **[v1.10]**
+- **Rank (цол)** and **Job Position (албан тушаал)** — two separate **free-text** fields, each with its own effective-dated history **[v1.10, CHANGED v1.14]**: any wording (not only military ranks), with suggestions from values already used
 - Username
 - **Schedule** (Standard / Shift Assignment, see 23) **[v1.3]**
 - **Consent status** (Not requested / Printed / Signed / Withdrawn, see 15.4) **[v1.3]**
@@ -562,11 +562,12 @@ Employee Fields **[CHANGED]**:
 
 Excel Import Fields:
 
-- Employee Number
-- Full Name
+- ~~Employee Number~~ **[CHANGED v1.14]** not in the file: the system assigns each new employee a 16-digit code (re-imports match existing employees by that code only when the column is present)
+- **Last name (Овог), First name (Нэр)** — two columns **[v1.14]**
 - Department
 - **Primary Location** (must match an existing location, rows with unknown location are rejected with a row-level error report)
-- Username
+- Username (optional; defaults to the employee code)
+- Rank (цол), Position (албан тушаал) — free text, optional **[v1.14]**
 - Shift Pattern / Template, Cycle Start Date (optional, see 23.4) **[v1.3]**
 - ~~Password~~ **[CHANGED v1.2]** Plaintext passwords are no longer accepted in the Excel file. See 12.3 (Import Safety) and 15.2 (Identity).
 
@@ -1204,6 +1205,7 @@ Added in v1.2 **[v1.2]**:
 | 1.11    | Shared QR is for first device registration only and may be posted publicly or shown on a screen; a new phone always needs an HR replacement QR (5, 21.1); HR can regenerate a shared QR. |
 | 1.12    | Refinements made while building the APIs: an employee has **one reason at a time** and a reason may be open-ended (11); a reason that has not started can be deleted, a started one is ended (11); a new working week applies from today or later only (14.1); a shift template/pattern in use is replaced by a new version, never edited (23, 22.1); holiday changes reaching today or the past need a recompute confirmation (14.2). |
 | 1.13    | Refinements: holiday import accepts .xlsx or CSV with the 12.3 dry-run / valid-only / abort rules and skips existing holidays (14.2); attendance rule versions are effective-dated per tenant or location with the PRD defaults until saved (13, 6.2–6.4); the roster calendar flags duties that collide with reasons (23.5); exports are Excel, CSV and PDF, audited, with Manager export off by default via tenant setting `manager_may_export` (20). |
+| 1.14    | Employee code is system-assigned (16 digits: date + 8 random) and is the default login name; Овог and Нэр are separate fields; rank (цол) and position (албан тушаал) are free text instead of tenant lists (12, 22.1). Excel import files carry no code column. |
 
 ---
 
