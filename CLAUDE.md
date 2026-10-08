@@ -14,5 +14,6 @@
 - Working week, holidays and shifts API: see `apps/api/src/schedule/README.md`. Reasons API: see `apps/api/src/reasons/README.md`. Report export (Excel/CSV/PDF): see `apps/api/src/exports/README.md`. Security (WAF, adaptive rate limiting, DDoS plan): see `docs/security/README.md` and `apps/api/src/security/README.md`; production runs behind a proxy, so `TRUST_PROXY` must be set correctly.
 - Domain rules and the expectation function (`getExpectation`): see `packages/domain/README.md`. Add rules there with tests that cite the PRD section.
 - Attendance core (events, `deriveStatus`, daily results, worker tick): see `apps/api/src/attendance/README.md`. Statuses are derived data; never edit `attendance_result` by hand, rebuild it with `POST /v1/attendance/recompute`.
+- Abuse state stores (memory/Redis), the circuit breaker and Redis ops: see `apps/api/src/security/README.md`. Never copy rule logic into a store; stores only move state atomically. Detector methods are async; the middleware uses `detector.admit()` once per request. Redis tests start their own redis-server and skip if the binary is missing.
 - Mobile app is intentionally not scaffolded yet (see `apps/mobile/README.md`).
 - Before finishing a change run: `pnpm format:check && pnpm lint && pnpm typecheck && pnpm test && pnpm build`.

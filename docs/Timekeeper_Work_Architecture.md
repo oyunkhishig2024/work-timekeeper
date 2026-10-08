@@ -807,3 +807,9 @@ Migrations `0010_time_rules` and `0011_shifts` add the storage for attendance ru
 - **Reading:** `GET /attendance/daily` (list with rank, position, department, location, scope-limited), `GET /attendance/summary` (totals, rates, per location and department), `GET /me/attendance`.
 - **Open:** corrections overlay and review queue (PRD 6.9), plausibility checks from coordinates, push notifications, hourly retention of old events, heartbeat-silent alerts, summaries for date ranges.
 
+# 29. Implementation Status (shared abuse-protection state)
+
+- Adaptive abuse protection keeps per-IP state in an `AbuseStateStore`: in-process memory by default, Redis when `REDIS_URL` is set (several API instances). Rules live once in `abuse-detector.ts` as steps `(state, event, now) -> state`; Redis applies them with optimistic compare-and-set (one key per IP, TTL 2 h to 8 days). Redis is a soft dependency: timeout, circuit breaker, fail open to local memory. Postgres `ip_block` plus the 30 s sync stays the durable record and operator channel.
+- Run Redis on 127.0.0.1 or a private network with a password; no persistence; `maxmemory` plus `allkeys-lru`. Alert on the log event `security.redis_unavailable`.
+- Not verified: password/TLS Redis, Cluster/Sentinel, real multi-host load.
+

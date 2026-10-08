@@ -15,4 +15,5 @@ apps/mobile/android/build/
 next-env.d.ts
 *.tsbuildinfo
 # uploaded files (consent scans) in local development
-storage/
+/storage/
+/apps/api/storage/
