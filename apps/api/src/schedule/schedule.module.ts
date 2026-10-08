@@ -1,6 +1,7 @@
 import { type MiddlewareConsumer, Module, type NestModule, RequestMethod } from "@nestjs/common";
 import { raw } from "express";
 import { AttendanceRulesService } from "./attendance-rules.service";
+import { ExpectationLoader } from "./expectation-loader.service";
 import { HolidayImportService } from "./holiday-import.service";
 import { HolidaysService } from "./holidays.service";
 import {
@@ -24,9 +25,10 @@ import { WorkingWeekService } from "./working-week.service";
     ShiftConfigController,
     ShiftRosterController,
   ],
-  exports: [HolidaysService, ShiftsService, RosterService],
+  exports: [HolidaysService, ShiftsService, RosterService, ExpectationLoader],
   providers: [
     HolidayImportService,
+    ExpectationLoader,
     RosterService,
     AttendanceRulesService,
     WorkingWeekService,

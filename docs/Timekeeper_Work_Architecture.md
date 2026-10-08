@@ -1,7 +1,7 @@
 # Timekeeper Work
 ## Technical Architecture Document
 
-Version: 0.13 (draft for review)
+Version: 0.14 (draft for review)
 Status: Draft — based on PRD v1.9 (`docs/Timekeeper_Work_PRD.md`)
 Audience: engineering lead, backend / mobile / web developers, QA
 Scope: the **pilot tier** (1–2 tenants, ~4 months, ~640 employees), built by **one full-stack developer** (decision v0.2, see Section 14). The production tier is covered only where a decision now would be expensive to undo later.
@@ -798,4 +798,12 @@ Migrations `0010_time_rules` and `0011_shifts` add the storage for attendance ru
 - **Adaptive protection** (`apps/api/src/security`, migration `0015_ip_block`): per-IP score from behaviour (probing, credential stuffing, enumeration, scanners, floods), decaying; THROTTLE → temporary BAN (15 min, 1 h, 6 h, 24 h), valid access tokens exempt from bans so shared mobile-network addresses keep working; bans persisted and synced across instances; operator CLI `ip-blocks`; attached before everything (`applyAbuseProtection`) so unknown URLs and probes outside `/v1` are seen.
 - **`TRUST_PROXY`** (number of proxies or trusted addresses) decides which X-Forwarded-For entry is the client; it must match the deployment.
 - **Open:** the Cloudflare and nginx files were written without access to the real accounts or servers and must be applied in log mode first; rules are sized for the Cloudflare Free plan (limits to be re-checked); Hostinger VPS has no managed PostgreSQL/PITR, so backups and restore rehearsal are to be built on the VPS (PRD 25.2); per-process scores (Redis if the API is scaled out).
+
+# 28. Implementation Status (attendance core)
+
+- **Events** (`POST /v1/events`, migration `0016`): only from the employee's ACTIVE registered device (the session carries `device_id`; a refresh now keeps it). Idempotent by `(device, clientEventId)`. Time is server-authoritative: `occurred_at = received_at − ageMs`. Flags `CLOCK_SKEW`, `LATE_SYNC`, `LOW_ACCURACY` are stored; the last two make the event `counted = false`. Unknown location → rejected per event.
+- **Engine** (`apps/api/src/attendance/attendance.service.ts`): loads data through the shared `ExpectationLoader` (also used by the roster), calls `getExpectation` and `deriveStatus` from `packages/domain`, and upserts `attendance_result` (+ `attendance_result_log` for every status change). Results are derived; `POST /v1/attendance/recompute` rebuilds a range (after reasons, holidays or shifts change).
+- **Worker** (`AttendanceTicker`): every minute, for each tenant, re-evaluates yesterday and today so PENDING becomes NO_SHOW at the cut-off. A holiday or reason change is picked up by the next tick for those two days and by `recompute` for older days.
+- **Reading:** `GET /attendance/daily` (list with rank, position, department, location, scope-limited), `GET /attendance/summary` (totals, rates, per location and department), `GET /me/attendance`.
+- **Open:** corrections overlay and review queue (PRD 6.9), plausibility checks from coordinates, push notifications, hourly retention of old events, heartbeat-silent alerts, summaries for date ranges.
 

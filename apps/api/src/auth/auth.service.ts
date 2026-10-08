@@ -163,12 +163,13 @@ export class AuthService {
       id: string;
       user_id: string;
       family_id: string;
+      device_id: string | null;
       revoked_at: Date | null;
       expires_at: Date;
     };
     const outcome = await this.db.withTenant<Outcome<AuthTokens>>(tenantId, async (tx) => {
       const found = await tx.query<SessionRow>(
-        `SELECT id, user_id, family_id, revoked_at, expires_at FROM auth_session
+        `SELECT id, user_id, family_id, device_id, revoked_at, expires_at FROM auth_session
           WHERE refresh_hash = $1 FOR UPDATE`,
         [hashRefreshToken(refreshToken)],
       );
@@ -187,7 +188,10 @@ export class AuthService {
       }
 
       await this.sessions.revoke(tx, session.id);
-      return { kind: "ok", value: await this.sessions.issue(tx, user, session.family_id) };
+      return {
+        kind: "ok",
+        value: await this.sessions.issue(tx, user, session.family_id, session.device_id),
+      };
     });
 
     if (outcome.kind === "fail") throw outcome.error;

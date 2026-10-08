@@ -1,6 +1,7 @@
 import { Module } from "@nestjs/common";
 import { APP_FILTER } from "@nestjs/core";
 import { AccessModule } from "./access/access.module";
+import { AttendanceModule } from "./attendance/attendance.module";
 import { AuditModule } from "./audit/audit.module";
 import { AuthModule } from "./auth/auth.module";
 import { ProblemFilter } from "./common/problem.filter";
@@ -37,6 +38,7 @@ import { UsersModule } from "./users/users.module";
     ConsentModule,
     ScheduleModule,
     ReasonsModule,
+    AttendanceModule,
     ExportsModule,
     HealthModule,
   ],

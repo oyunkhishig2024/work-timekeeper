@@ -23,8 +23,16 @@ export class SessionService {
     return limits;
   }
 
-  /** Creates a session (new family unless `familyId` is given on rotation) and signs tokens. */
-  async issue(db: Db, user: UserRow, familyId?: string): Promise<AuthTokens> {
+  /**
+   * Creates a session (new family unless `familyId` is given on rotation) and signs tokens. A rotated session keeps the
+   * device it was bound to, so a registered phone stays recognised after its first token refresh (PRD 21.2).
+   */
+  async issue(
+    db: Db,
+    user: UserRow,
+    familyId?: string,
+    deviceId?: string | null,
+  ): Promise<AuthTokens> {
     const now = this.clock.now();
     const lifetimeMs =
       user.role === "EMPLOYEE"
@@ -33,8 +41,8 @@ export class SessionService {
     const refresh = newRefreshToken(user.tenant_id);
 
     const { rows } = await db.query<{ id: string }>(
-      `INSERT INTO auth_session (tenant_id, user_id, refresh_hash, expires_at, family_id, last_used_at)
-       VALUES ($1, $2, $3, $4, COALESCE($5::uuid, gen_random_uuid()), $6)
+      `INSERT INTO auth_session (tenant_id, user_id, refresh_hash, expires_at, family_id, last_used_at, device_id)
+       VALUES ($1, $2, $3, $4, COALESCE($5::uuid, gen_random_uuid()), $6, $7)
        RETURNING id`,
       [
         user.tenant_id,
@@ -43,6 +51,7 @@ export class SessionService {
         new Date(now.getTime() + lifetimeMs),
         familyId ?? null,
         now,
+        deviceId ?? null,
       ],
     );
     const sessionId = rows[0]!.id;

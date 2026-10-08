@@ -6,6 +6,7 @@ export type AttendanceStatus =
   | "NO_SHOW" // Ирээгүй
   | "PENDING" // Хүлээгдэж байна (before the no-show cut-off)
   | "NOT_EXPECTED"
+  | "NOT_CONFIGURED" // Тохиргоо дутуу: HR-д харуулна, таамаглахгүй (PRD 6.1)
   | "WORKED_OFF_DAY"; // Ажилласан (амралтын өдөр)
 
 /** Raw geofence transition reported by a device, already time-corrected by the server. */

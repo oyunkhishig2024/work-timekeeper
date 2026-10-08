@@ -13,5 +13,6 @@
 - Organization, employees, lifecycle and data scope API: see `apps/api/src/employees/README.md` (Managers are limited to their assigned scope; there is no employee delete; employee code is a system-assigned 16-digit number; name is Овог + Нэр; rank (цол) and position (албан тушаал) are free text with separate effective-dated histories).
 - Working week, holidays and shifts API: see `apps/api/src/schedule/README.md`. Reasons API: see `apps/api/src/reasons/README.md`. Report export (Excel/CSV/PDF): see `apps/api/src/exports/README.md`. Security (WAF, adaptive rate limiting, DDoS plan): see `docs/security/README.md` and `apps/api/src/security/README.md`; production runs behind a proxy, so `TRUST_PROXY` must be set correctly.
 - Domain rules and the expectation function (`getExpectation`): see `packages/domain/README.md`. Add rules there with tests that cite the PRD section.
+- Attendance core (events, `deriveStatus`, daily results, worker tick): see `apps/api/src/attendance/README.md`. Statuses are derived data; never edit `attendance_result` by hand, rebuild it with `POST /v1/attendance/recompute`.
 - Mobile app is intentionally not scaffolded yet (see `apps/mobile/README.md`).
 - Before finishing a change run: `pnpm format:check && pnpm lint && pnpm typecheck && pnpm test && pnpm build`.

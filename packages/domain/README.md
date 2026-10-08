@@ -68,8 +68,21 @@ off weekday). It is for HR to fix; the function never falls back silently. A day
 - `candidateWorkDates(instant, tz)` returns the local date and the day before: an event at 01:30 can belong to the
   night shift that started the evening before (a duty lasts at most 24 h).
 
+## `deriveStatus(input)` (attendance/derive.ts)
+
+Turns one expectation + the geofence events of the duty location + "a reason covers this date" + the clock into
+`{ status, arrivalAt, lateMinutes }`. Precedence (PRD 6.6), first match wins:
+
+1. Not expected → `NOT_EXPECTED`; `NOT_CONFIGURED` is passed through for HR to fix (never guessed).
+2. A reason covers the date → `EXCUSED` (even if the person also arrived).
+3. A confirmed stay (PRD 6.4: first ENTER of a stay of at least `minStayMinutes`) → `ON_TIME` / `LATE` (PRD 6.2, minute
+   precision, grace). A late arrival **after** the cut-off is still `LATE` (PRD 6.3).
+4. `now` is at or past the cut-off → `NO_SHOW`; otherwise `PENDING`.
+
+Events before `earlyWindowStart` are ignored (PRD 23.2). `deriveOffDayStatus` adds `WORKED_OFF_DAY` for a confirmed stay on
+a holiday / off day (never for inactive employees). Both are pure; the API supplies events and the clock.
+
 ## Not here yet
 
-`deriveStatus` (turning events + this expectation + reasons + corrections into Цагтаа / Хоцорсон / Ирээгүй / …) and
-`WORKED_OFF_DAY`; the location time zone column (the field exists in the input, the database does not have it yet);
-effective-dated employee department/location history (PRD 22.1).
+Corrections overlay (PRD 6.9) and coordinate-based plausibility checks; the location time zone column (the field exists in
+the input, the database does not have it yet); effective-dated employee department/location history (PRD 22.1).

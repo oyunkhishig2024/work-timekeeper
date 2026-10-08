@@ -20,8 +20,9 @@ SQL-first migrations run by [`node-pg-migrate`](https://github.com/salsita/node-
 | `0013_reasons`                        | `absence_reason` (15 predefined, `seed_default_reasons()`), `reason_assignment` (dated, one per employee at a time)                                      |
 | `0014_names_and_free_titles`          | `employee.last_name` / `first_name` (kept in step with `full_name` by a trigger); rank and position histories hold free text (`title`), catalogs dropped |
 | `0015_ip_block`                       | `ip_block`: temporary IP bans from the adaptive abuse protection (service-wide, platform role only; survives restarts, operator can lift)                |
+| `0016_attendance_core`                | `device_event` (idempotent, server-timed, flagged), `attendance_result` (derived, rebuildable), `attendance_result_log` (status history)                 |
 
-Still to come (in this order of need): device events + heartbeats, `attendance_day` + corrections + anomalies + `daily_summary`, export jobs.
+Still to come (in this order of need): corrections + anomalies, export jobs.
 
 ## Rules enforced by the database for devices and consent (0008)
 

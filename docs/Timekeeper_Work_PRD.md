@@ -1,7 +1,7 @@
 # Timekeeper Work
 ## Product Requirements Document (PRD)
 
-Version: 1.15
+Version: 1.16
 Product: Timekeeper Work
 Owner: Onki
 Status: Requirements Specification (pre-development review + CTO review + stakeholder decisions applied)
@@ -1208,6 +1208,7 @@ Added in v1.2 **[v1.2]**:
 | 1.13    | Refinements: holiday import accepts .xlsx or CSV with the 12.3 dry-run / valid-only / abort rules and skips existing holidays (14.2); attendance rule versions are effective-dated per tenant or location with the PRD defaults until saved (13, 6.2–6.4); the roster calendar flags duties that collide with reasons (23.5); exports are Excel, CSV and PDF, audited, with Manager export off by default via tenant setting `manager_may_export` (20). |
 | 1.14    | Employee code is system-assigned (16 digits: date + 8 random) and is the default login name; Овог and Нэр are separate fields; rank (цол) and position (албан тушаал) are free text instead of tenant lists (12, 22.1). Excel import files carry no code column. |
 | 1.15    | Security operations: WAF in front of the stack, adaptive IP throttling/ban in the API, DDoS response plan (25.6); hosting assumed to be a Hostinger VPS behind Cloudflare for the pilot (provider choice in the Architecture is still open for managed PostgreSQL with PITR). |
+| 1.16    | Attendance core specified as built: device events are timed by the server (receive time minus the phone's monotonic age; CLOCK_SKEW > 2 min flagged, events older than 24 h and ENTER fixes worse than 50 m are stored and flagged but not counted); statuses are derived data that can be rebuilt (`POST /attendance/recompute`), a worker re-evaluates every minute so NO_SHOW appears exactly at the cut-off; dashboard Total = everyone expected (on time + late + excused + no show + not yet decided), rates are shares of it with one decimal. |
 
 ---
 
