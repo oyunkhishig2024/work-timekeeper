@@ -1,15 +1,13 @@
-import Link from "next/link";
+"use client";
 
+import { useRouter } from "next/navigation";
+import { useEffect } from "react";
+
+/** The front page is the dashboard; visitors without a session are sent on to the sign-in page from there. */
 export default function HomePage() {
-  return (
-    <main className="mx-auto max-w-3xl p-8">
-      <h1 className="text-2xl font-semibold">Timekeeper Work</h1>
-      <p className="mt-2 text-slate-600">Хянах самбар удахгүй. Admin web skeleton.</p>
-      <p className="mt-4">
-        <Link href="/notifications" className="text-teal-700 underline">
-          Мэдэгдэл
-        </Link>
-      </p>
-    </main>
-  );
+  const router = useRouter();
+  useEffect(() => {
+    router.replace("/dashboard");
+  }, [router]);
+  return <p className="p-8 text-slate-600">Ачаалж байна…</p>;
 }

@@ -39,7 +39,7 @@ export default function LoginPage() {
         String(form.get("password")),
       );
       if (result.kind === "MFA") setChallenge(result.challengeToken);
-      else router.replace("/notifications");
+      else router.replace("/dashboard");
     });
   };
 
@@ -48,7 +48,7 @@ export default function LoginPage() {
     const code = String(new FormData(event.currentTarget).get("code"));
     void run(async () => {
       await verifyTotp(challenge!, code);
-      router.replace("/notifications");
+      router.replace("/dashboard");
     });
   };
 

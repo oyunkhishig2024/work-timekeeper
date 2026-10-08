@@ -66,6 +66,10 @@ describe.skipIf(!hasDb)("authentication (PRD 15.2)", () => {
         totpEnabled: false,
         requires: [],
       });
+      // The dashboard needs the organization's name and its own "today" (tenant time zone, PRD 22.2).
+      expect(me.body.organization).toMatchObject({ timeZone: "Asia/Ulaanbaatar" });
+      expect(me.body.organization.today).toMatch(/^\d{4}-\d{2}-\d{2}$/u);
+      expect(me.body.organization.name).toBeTruthy();
     });
 
     it("rejects disabled accounts like unknown ones", async () => {

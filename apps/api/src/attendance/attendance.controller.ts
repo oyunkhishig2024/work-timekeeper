@@ -51,7 +51,8 @@ const ingestSchema = z
 
 const dailyQuery = z.object({
   date: isoDate,
-  status: z.enum(STATUSES).optional(),
+  /** EXPECTED = everyone expected that day (on time, late, excused, no show, still pending): the dashboard's total. */
+  status: z.enum([...STATUSES, "EXPECTED"]).optional(),
   locationId: id.optional(),
   departmentId: id.optional(),
   limit: z.coerce.number().int().min(1).max(500).default(100),

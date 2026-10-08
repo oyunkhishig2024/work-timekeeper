@@ -1,7 +1,7 @@
 # Admin web app (Next.js)
 
-Early skeleton: sign-in and the Org Admin notifications page. The dashboard and the rest of the admin screens are still to come
-(the clickable prototype shows the intended design).
+Early build: sign-in, the dashboard (Хянах самбар) and the Org Admin notifications page. Daily attendance, employees, roster,
+reports, QR and settings screens are still to come (the clickable prototype shows the intended design).
 
 ## Run
 
@@ -20,6 +20,25 @@ refresh token in `sessionStorage` (a reload keeps you signed in, closing the tab
 token refresh and a retry (`src/lib/api.ts`). Hardening still to do: move the refresh token to an httpOnly cookie behind a
 backend-for-frontend, so page scripts never see it.
 
+## Dashboard (`/dashboard`, PRD 7, 8)
+
+Open to Org Admin, HR and Manager (the API limits the numbers to the caller's data scope). All state is in the URL
+(`?date=&status=&location=&department=&by=`), so the back button and links work.
+
+- Header with the organization name (from `GET /v1/auth/me`, which also gives the organization's own "today" and time zone) and
+  date navigation: previous day, today, next day, date picker.
+- **Ажиллах ёстой** card (everyone expected: on time + late + excused + no show + not yet due) and four quick cards: Цагтаа, Хоцорсон,
+  Шалтгаантай, Ирээгүй, with counts and shares. Every card opens the list behind it.
+- Notes under the total: nobody expected that day, worked on a day off, missing configuration, "⚑ N days have an event waiting for
+  review" (PRD 6.7, the counts may change), hand-corrected days (PRD 6.9).
+- **Салбараар / Нэгжээр**: per branch or department the total, on-time rate (`212 / 220`), a stacked bar and one pill per status
+  (count and share); a pill opens the list for that branch or department.
+- **List**: rank, full name, position, department, branch, status and an explanation (arrival time and minutes late, the reason,
+  "no record, no reason given", ...), with "Засварласан" and "⚑ шалгах" marks. Chips switch the status inside the same scope.
+- Today's numbers refresh every minute (the worker moves people from "not yet due" to "no show" at the cut-off).
+- Numbers come from `GET /v1/attendance/summary`, lists from `GET /v1/attendance/daily` (`status=EXPECTED` = the total). The web only
+  formats; no attendance rule is repeated here.
+
 ## Web Push (`public/sw.js`, `src/lib/push.ts`, `src/components/push-card.tsx`)
 
 Server side: `apps/api/src/notifications/README.md`. Browser side:
@@ -37,10 +56,10 @@ Server side: `apps/api/src/notifications/README.md`. Browser side:
 
 ## Tests
 
-`pnpm --filter @timekeeper/web test`: pure helpers (`push.ts`) and the service worker, which runs in a fake worker scope
+`pnpm --filter @timekeeper/web test`: dashboard helpers (`attendance.ts`: dates, explanations, bar widths, URL state), push helpers (`push.ts`) and the service worker, which runs in a fake worker scope
 (`test/sw.test.ts`: payloads, link safety, click handling, lifecycle).
 
-Checked by hand in headless Chromium against a real API (sign-in with TOTP, redirect, service worker activation, a push delivered
+Checked by hand in headless Chromium against a real API (dashboard with two branches and every status: cards, branch pills, lists, department view, date navigation; and sign-in with TOTP, redirect, service worker activation, a push delivered
 through the browser's push pipeline shown as a notification, unreadable payload, inbox, mark read, session restore after reload,
 sign-out). **Not verified:** a real subscription through Google / Mozilla / Apple push services (the sandbox cannot reach them),
 and installed-PWA behaviour on iOS.

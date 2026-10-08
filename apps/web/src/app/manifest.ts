@@ -5,7 +5,7 @@ export default function manifest(): MetadataRoute.Manifest {
   return {
     name: "Timekeeper Work",
     short_name: "Timekeeper",
-    start_url: "/notifications",
+    start_url: "/dashboard",
     scope: "/",
     display: "standalone",
     background_color: "#ffffff",

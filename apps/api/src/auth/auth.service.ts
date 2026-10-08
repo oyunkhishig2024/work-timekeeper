@@ -2,6 +2,7 @@ import { randomBytes } from "node:crypto";
 import { Inject, Injectable } from "@nestjs/common";
 import { APP_CONFIG, type AppConfig } from "../common/config";
 import { Clock } from "../common/clock";
+import { todayIn } from "../common/dates";
 import { ApiError, invalidCredentials, unauthorized } from "../common/api-error";
 import { type Db, DatabaseService } from "../database/database.service";
 import { AuditService } from "../audit/audit.service";
@@ -213,6 +214,21 @@ export class AuthService {
 
   // ---------------------------------------------------------------- account
 
+  /** Name, code, time zone and today's date of the organization (the dashboard opens on "today" in its zone, PRD 22.2). */
+  private async organization(tx: Db, tenantId: string) {
+    const { rows } = await tx.query<{ name: string; code: string; time_zone: string }>(
+      "SELECT name, code, time_zone FROM tenant WHERE id = $1",
+      [tenantId],
+    );
+    const t = rows[0]!;
+    return {
+      name: t.name,
+      code: t.code,
+      timeZone: t.time_zone,
+      today: todayIn(t.time_zone, this.clock.now()),
+    };
+  }
+
   async me(auth: AuthContext) {
     return this.db.withTenant(auth.tenantId, async (tx) => {
       const user = await this.findUserById(tx, auth.userId, false);
@@ -224,6 +240,7 @@ export class AuthService {
         role: user.role,
         totpEnabled: user.totp_enabled,
         requires: auth.limited,
+        organization: await this.organization(tx, auth.tenantId),
       };
     });
   }

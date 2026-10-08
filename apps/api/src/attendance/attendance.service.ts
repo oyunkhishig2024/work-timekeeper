@@ -101,7 +101,7 @@ interface ExistingRow {
 
 export interface DailyFilter {
   date: string;
-  status?: AttendanceStatus;
+  status?: AttendanceStatus | "EXPECTED";
   locationId?: string;
   departmentId?: string;
   limit: number;
@@ -743,7 +743,9 @@ export class AttendanceService {
         params.push(value);
         where.push(sql.replace("?", `$${params.length}`));
       };
-      if (f.status) add("r.status = ?", f.status);
+      if (f.status === "EXPECTED") {
+        where.push("r.status IN ('ON_TIME', 'LATE', 'EXCUSED', 'NO_SHOW', 'PENDING')");
+      } else if (f.status) add("r.status = ?", f.status);
       if (f.locationId) add("COALESCE(r.location_id, e.primary_location_id) = ?", f.locationId);
       if (f.departmentId) add("e.department_id = ?", f.departmentId);
       const total = await tx.query<{ n: number }>(

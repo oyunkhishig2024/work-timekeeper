@@ -178,6 +178,26 @@ describe.skipIf(!hasDb)("attendance core: events, deriveStatus, daily results (P
     expect(list.body.items[0]).toHaveProperty("position");
   });
 
+  it("EXPECTED lists everyone expected that day (the dashboard's total), including those still pending", async () => {
+    const w = await world();
+    await createEmployee(h, w.tenant);
+    k.setClock("08:05");
+    await send(await emp(w), [ev(w)]);
+    k.setClock("08:30");
+    await tick(w.tenant.id);
+    const hr = await hrToken(w);
+    const all = await get(hr, `/v1/attendance/daily?date=${WORK_DATE}&status=EXPECTED`);
+    expect(all.body.total).toBe(3);
+    expect(all.body.items.map((i: { status: string }) => i.status).sort()).toEqual([
+      "ON_TIME",
+      "PENDING",
+      "PENDING",
+    ]);
+    const s = await get(hr, `/v1/attendance/summary?date=${WORK_DATE}`);
+    expect(s.body.total).toBe(all.body.total);
+    expect((await get(hr, `/v1/attendance/daily?date=${WORK_DATE}&status=BOGUS`)).status).toBe(400);
+  });
+
   it("a Manager sees only their scope; with no scope assigned they see nothing (4)", async () => {
     const w = await world();
     setClock("10:00");
