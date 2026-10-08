@@ -3,26 +3,27 @@
 SQL-first migrations run by [`node-pg-migrate`](https://github.com/salsita/node-pg-migrate)
 (Architecture ADR-9). Files are `NNNN_name.sql` with `-- Up Migration` and `-- Down Migration` sections.
 
-| Migration                             | Contents                                                                                                                                                 |
-| ------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `0001_foundation`                     | `btree_gist`, roles `app_user` / `platform_admin` (no login, no `BYPASSRLS`), `current_tenant_id()`, `set_updated_at()`, `apply_tenant_rls()`            |
-| `0002_tenancy`                        | `tenant` (with `code` for login), `resolve_tenant_by_code()`, `tenant_setting`, `platform_user` (Super Admin)                                            |
-| `0003_org`                            | `department`, `location` (radius 100–500 m)                                                                                                              |
-| `0004_employees`                      | `employee`, `temp_location_assignment` (no overlapping periods)                                                                                          |
-| `0005_identity`                       | `user_account`, `user_scope`, `auth_session`, `invite`                                                                                                   |
-| `0006_audit_log`                      | append-only `audit_log`                                                                                                                                  |
-| `0007_auth_hardening`                 | TOTP replay step, session families, recovery codes, display name                                                                                         |
-| `0008_devices_consent`                | `device`, `onboarding_qr` (+ `_use`), `consent_text_version`, `consent_record`, view `employee_consent_status`, consent / deactivation triggers          |
-| `0009_device_attestation_qr_override` | device attestation state; Org Admin consent override carried by an employee-specific QR                                                                  |
-| `0010_time_rules`                     | `attendance_rule_version`, `working_week_version` / `working_week_day`, `working_day_exception`, `holiday` / `holiday_location`                          |
-| `0011_shifts`                         | `shift_template`, `shift_pattern` / `shift_pattern_day`, `shift_assignment`, `shift_override`                                                            |
-| `0012_rank_position`                  | `job_rank` (ordered), `job_position`, `employee_rank_assignment`, `employee_position_assignment` (separate, effective-dated, no overlaps)                |
-| `0013_reasons`                        | `absence_reason` (15 predefined, `seed_default_reasons()`), `reason_assignment` (dated, one per employee at a time)                                      |
-| `0014_names_and_free_titles`          | `employee.last_name` / `first_name` (kept in step with `full_name` by a trigger); rank and position histories hold free text (`title`), catalogs dropped |
-| `0015_ip_block`                       | `ip_block`: temporary IP bans from the adaptive abuse protection (service-wide, platform role only; survives restarts, operator can lift)                |
-| `0016_attendance_core`                | `device_event` (idempotent, server-timed, flagged), `attendance_result` (derived, rebuildable), `attendance_result_log` (status history)                 |
+| Migration                             | Contents                                                                                                                                                                    |
+| ------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `0001_foundation`                     | `btree_gist`, roles `app_user` / `platform_admin` (no login, no `BYPASSRLS`), `current_tenant_id()`, `set_updated_at()`, `apply_tenant_rls()`                               |
+| `0002_tenancy`                        | `tenant` (with `code` for login), `resolve_tenant_by_code()`, `tenant_setting`, `platform_user` (Super Admin)                                                               |
+| `0003_org`                            | `department`, `location` (radius 100–500 m)                                                                                                                                 |
+| `0004_employees`                      | `employee`, `temp_location_assignment` (no overlapping periods)                                                                                                             |
+| `0005_identity`                       | `user_account`, `user_scope`, `auth_session`, `invite`                                                                                                                      |
+| `0006_audit_log`                      | append-only `audit_log`                                                                                                                                                     |
+| `0007_auth_hardening`                 | TOTP replay step, session families, recovery codes, display name                                                                                                            |
+| `0008_devices_consent`                | `device`, `onboarding_qr` (+ `_use`), `consent_text_version`, `consent_record`, view `employee_consent_status`, consent / deactivation triggers                             |
+| `0009_device_attestation_qr_override` | device attestation state; Org Admin consent override carried by an employee-specific QR                                                                                     |
+| `0010_time_rules`                     | `attendance_rule_version`, `working_week_version` / `working_week_day`, `working_day_exception`, `holiday` / `holiday_location`                                             |
+| `0011_shifts`                         | `shift_template`, `shift_pattern` / `shift_pattern_day`, `shift_assignment`, `shift_override`                                                                               |
+| `0012_rank_position`                  | `job_rank` (ordered), `job_position`, `employee_rank_assignment`, `employee_position_assignment` (separate, effective-dated, no overlaps)                                   |
+| `0013_reasons`                        | `absence_reason` (15 predefined, `seed_default_reasons()`), `reason_assignment` (dated, one per employee at a time)                                                         |
+| `0014_names_and_free_titles`          | `employee.last_name` / `first_name` (kept in step with `full_name` by a trigger); rank and position histories hold free text (`title`), catalogs dropped                    |
+| `0015_ip_block`                       | `ip_block`: temporary IP bans from the adaptive abuse protection (service-wide, platform role only; survives restarts, operator can lift)                                   |
+| `0016_attendance_core`                | `device_event` (idempotent, server-timed, flagged), `attendance_result` (derived, rebuildable), `attendance_result_log` (status history)                                    |
+| `0017_corrections_anomalies`          | `attendance_correction` (layered over the system result, one in force per employee/date), result `source`/`system_*`/`flagged_events`, event review columns (anomaly queue) |
 
-Still to come (in this order of need): corrections + anomalies, export jobs.
+Still to come (in this order of need): export jobs.
 
 ## Rules enforced by the database for devices and consent (0008)
 

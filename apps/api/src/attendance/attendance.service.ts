@@ -7,7 +7,9 @@ import {
   deriveStatus,
   getExpectation,
   instantToLocalDate,
+  applyCorrection,
   type AttendanceStatus,
+  type Correction,
   type DerivedAttendance,
   type Expectation,
   type GeofenceEvent,
@@ -24,6 +26,8 @@ import { ExpectationLoader, type EmployeeRow } from "../schedule/expectation-loa
 export const CLOCK_SKEW_MS = 2 * 60_000;
 export const LATE_SYNC_MS = 24 * 3_600_000;
 export const MIN_ACCURACY_M = 50;
+/** Flags that put an event in the anomaly review queue (PRD 6.7). LATE_SYNC is a sync matter, not suspicion. */
+export const REVIEW_FLAGS = ["MOCK_LOCATION", "LOW_ACCURACY", "CLOCK_SKEW"] as const;
 const MAX_RECOMPUTE_DAYS = 62;
 const CHUNK = 200;
 
@@ -36,6 +40,8 @@ export interface IncomingEvent {
   /** The phone's wall clock at the event; only used to flag CLOCK_SKEW. */
   deviceTime?: string;
   accuracyM?: number;
+  /** The phone reported that the fix came from a mock-location provider (PRD 6.7). */
+  mockLocation?: boolean;
 }
 
 export type EventOutcome =
@@ -48,6 +54,21 @@ export type EventOutcome =
     }
   | { clientEventId: string; outcome: "DUPLICATE" }
   | { clientEventId: string; outcome: "REJECTED"; code: "UNKNOWN_LOCATION" };
+
+interface EventRow {
+  employeeId: string;
+  locationId: string;
+  type: "ENTER" | "EXIT";
+  at: Date;
+  counted: boolean;
+  flagged: boolean;
+}
+
+interface CorrectionRow extends Correction {
+  id: string;
+  employeeId: string;
+  workDate: string;
+}
 
 interface ExistingRow {
   employeeId: string;
@@ -140,6 +161,8 @@ export class AttendanceService {
           flags.push("CLOCK_SKEW");
         }
         if (ageMs > LATE_SYNC_MS) flags.push("LATE_SYNC");
+        // Accept and flag (PRD 6.7): a mock fix still counts, but HR reviews it.
+        if (e.mockLocation) flags.push("MOCK_LOCATION");
         // An imprecise fix never confirms an arrival (PRD 6.7); leaving is always honoured.
         if (e.type === "ENTER" && e.accuracyM !== undefined && e.accuracyM > MIN_ACCURACY_M) {
           flags.push("LOW_ACCURACY");
@@ -147,8 +170,8 @@ export class AttendanceService {
         const counted = !flags.includes("LATE_SYNC") && !flags.includes("LOW_ACCURACY");
         const inserted = await tx.query(
           `INSERT INTO device_event (tenant_id, employee_id, device_id, location_id, client_event_id, type,
-                                     occurred_at, received_at, claimed_at, accuracy_m, flags, counted)
-           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+                                     occurred_at, received_at, claimed_at, accuracy_m, flags, counted, review_status)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
            ON CONFLICT (tenant_id, device_id, client_event_id) DO NOTHING
            RETURNING id`,
           [
@@ -164,6 +187,7 @@ export class AttendanceService {
             e.accuracyM ?? null,
             flags,
             counted,
+            flags.some((f) => (REVIEW_FLAGS as readonly string[]).includes(f)) ? "PENDING" : null,
           ],
         );
         if (inserted.rowCount === 0) {
@@ -321,10 +345,11 @@ export class AttendanceService {
     const data = await this.loader.load(tx, tenantId, from, to, ids);
     // A duty can start the evening before `from` and last until the next day, so the window is generous.
     const eventRows = (
-      await tx.query<{ employeeId: string; locationId: string; type: "ENTER" | "EXIT"; at: Date }>(
-        `SELECT employee_id AS "employeeId", location_id AS "locationId", type, occurred_at AS at
+      await tx.query<EventRow>(
+        `SELECT employee_id AS "employeeId", location_id AS "locationId", type, occurred_at AS at,
+                counted, review_status IN ('PENDING', 'RECHECK_REQUESTED') AS flagged
            FROM device_event
-          WHERE employee_id = ANY($1::uuid[]) AND counted AND occurred_at >= $2 AND occurred_at < $3
+          WHERE employee_id = ANY($1::uuid[]) AND occurred_at >= $2 AND occurred_at < $3
           ORDER BY occurred_at`,
         [ids, new Date(`${addDays(from, -2)}T00:00:00Z`), new Date(`${addDays(to, 3)}T00:00:00Z`)],
       )
@@ -341,6 +366,18 @@ export class AttendanceService {
       existing.set(`${r.employeeId}|${r.workDate}`, r);
     }
 
+    const corrections = new Map<string, CorrectionRow>();
+    for (const c of (
+      await tx.query<CorrectionRow>(
+        `SELECT id, employee_id AS "employeeId", work_date::text AS "workDate", status, arrival_at AS "arrivalAt"
+           FROM attendance_correction
+          WHERE employee_id = ANY($1::uuid[]) AND work_date BETWEEN $2 AND $3 AND revoked_at IS NULL`,
+        [ids, from, to],
+      )
+    ).rows) {
+      corrections.set(`${c.employeeId}|${c.workDate}`, c);
+    }
+
     const dates = Array.from({ length: daysBetween(from, to) + 1 }, (_, i) => addDays(from, i));
     let changed = 0;
     for (const e of employees) {
@@ -348,15 +385,27 @@ export class AttendanceService {
       for (const date of dates) {
         const expectation = getExpectation(this.loader.inputFor(data, e, date));
         const reasonName = data.reasonOn(e.id, date);
-        const derived = this.derive(
+        const system = this.derive(
           expectation,
-          mine,
+          mine.filter((r) => r.counted),
           e.primaryLocationId,
           reasonName !== null,
           now,
           data,
           date,
         );
+        // PRD 6.9: a correction is layered over the system value, which is kept next to it.
+        const correction = corrections.get(`${e.id}|${date}`) ?? null;
+        const derived = applyCorrection(
+          system,
+          correction,
+          expectation.expected ? expectation.start : null,
+        );
+        const flagged = expectation.expected
+          ? mine.filter(
+              (r) => r.flagged && r.locationId === expectation.locationId && r.at < expectation.end,
+            ).length
+          : 0;
         const key = `${e.id}|${date}`;
         const before = existing.get(key)?.status ?? null;
         if (derived.status === "NOT_EXPECTED") {
@@ -372,13 +421,16 @@ export class AttendanceService {
         }
         await tx.query(
           `INSERT INTO attendance_result (tenant_id, employee_id, work_date, status, location_id, expected_start,
-                                          expected_cutoff, arrival_at, late_minutes, reason_name, missing, computed_at)
-           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+                                          expected_cutoff, arrival_at, late_minutes, reason_name, missing, computed_at,
+                                          source, system_status, system_arrival_at, flagged_events, correction_id)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
            ON CONFLICT (tenant_id, employee_id, work_date) DO UPDATE SET
              status = EXCLUDED.status, location_id = EXCLUDED.location_id, expected_start = EXCLUDED.expected_start,
              expected_cutoff = EXCLUDED.expected_cutoff, arrival_at = EXCLUDED.arrival_at,
              late_minutes = EXCLUDED.late_minutes, reason_name = EXCLUDED.reason_name,
-             missing = EXCLUDED.missing, computed_at = EXCLUDED.computed_at`,
+             missing = EXCLUDED.missing, computed_at = EXCLUDED.computed_at, source = EXCLUDED.source,
+             system_status = EXCLUDED.system_status, system_arrival_at = EXCLUDED.system_arrival_at,
+             flagged_events = EXCLUDED.flagged_events, correction_id = EXCLUDED.correction_id`,
           [
             tenantId,
             e.id,
@@ -394,6 +446,11 @@ export class AttendanceService {
               ? expectation.missing
               : null,
             now,
+            derived.source,
+            system.status,
+            system.arrivalAt,
+            flagged,
+            correction?.id ?? null,
           ],
         );
         if (before !== derived.status) {
@@ -479,7 +536,9 @@ export class AttendanceService {
                 d.id AS "departmentId", d.name AS "departmentName",
                 l.id AS "locationId", l.name AS "locationName",
                 r.status, r.arrival_at AS "arrivalAt", r.late_minutes AS "lateMinutes",
-                r.reason_name AS "reasonName", r.missing, r.expected_start AS "expectedStart"
+                r.reason_name AS "reasonName", r.missing, r.expected_start AS "expectedStart",
+                r.source, r.system_status AS "systemStatus", r.flagged_events AS "flaggedEvents",
+                r.correction_id AS "correctionId"
            FROM attendance_result r
            JOIN employee e ON e.id = r.employee_id
            LEFT JOIN department d ON d.id = e.department_id
@@ -531,6 +590,13 @@ export class AttendanceService {
           WHERE r.work_date = $1 AND ${cond} AND r.status IN ('WORKED_OFF_DAY', 'NOT_CONFIGURED') GROUP BY 1`,
         params,
       );
+      const flagged = await tx.query<{ n: number; corrected: number }>(
+        `SELECT count(*) FILTER (WHERE r.flagged_events > 0)::int AS n,
+                count(*) FILTER (WHERE r.source = 'CORRECTED')::int AS corrected
+           FROM attendance_result r JOIN employee e ON e.id = r.employee_id
+          WHERE r.work_date = $1 AND ${cond} AND r.status NOT IN ('WORKED_OFF_DAY', 'NOT_CONFIGURED')`,
+        params,
+      );
       type Bucket = { id: string | null; name: string | null; counts: Record<string, number> };
       const group = (
         idKey: "locationId" | "departmentId",
@@ -556,6 +622,9 @@ export class AttendanceService {
         ...this.figures(all),
         workedOffDay: extra.rows.find((r) => r.status === "WORKED_OFF_DAY")?.n ?? 0,
         notConfigured: extra.rows.find((r) => r.status === "NOT_CONFIGURED")?.n ?? 0,
+        // PRD 6.7: how many counted days still have an event waiting for review; the counts above may change.
+        flagged: flagged.rows[0]!.n,
+        corrected: flagged.rows[0]!.corrected,
         byLocation: group("locationId", "locationName"),
         byDepartment: group("departmentId", "departmentName"),
       };

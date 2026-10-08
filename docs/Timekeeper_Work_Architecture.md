@@ -1,7 +1,7 @@
 # Timekeeper Work
 ## Technical Architecture Document
 
-Version: 0.15 (draft for review)
+Version: 0.16 (draft for review)
 Status: Draft — based on PRD v1.9 (`docs/Timekeeper_Work_PRD.md`)
 Audience: engineering lead, backend / mobile / web developers, QA
 Scope: the **pilot tier** (1–2 tenants, ~4 months, ~640 employees), built by **one full-stack developer** (decision v0.2, see Section 14). The production tier is covered only where a decision now would be expensive to undo later.
@@ -817,4 +817,10 @@ Migrations `0010_time_rules` and `0011_shifts` add the storage for attendance ru
 
 - `infra/backup/` and `docs/operations/backup-and-restore.md`. The VPS archives encrypted WAL (age, public key only on the server) to a bucket in a separate account and region; the private key is offline in two copies. Restores run through `restore-pitr.sh`; `test/pitr-rehearsal.sh` proves point-in-time recovery end to end (126 assertions).
 - **Not verified:** real rclone and provider, systemd units, production-scale restore time, non-root and Debian-layout runs. Object storage (consent scans, exports) and secrets (`DATA_ENCRYPTION_KEY`) need their own backup. Events a phone already marked acknowledged inside the lost RPO window will not return by themselves.
+
+# 31. Implementation Status (corrections and anomaly review)
+
+- **Corrections** (`attendance/corrections.service.ts`, migration `0017`): stored in `attendance_correction`, layered over the system value by `applyCorrection` in the engine (so ticks and recomputes keep them); result rows carry `source`, `system_status`, `system_arrival_at`. Window 31 days, audited, report with alerts.
+- **Anomaly queue** (`attendance/anomalies.service.ts`): `device_event.review_status`; Confirm / Reject / Request re-check, Reject rebuilds the day; `flagged_events` on the result drives the "N flagged" indicator.
+- **Open:** coordinates on events for plausibility checks, attestation verdicts, month close (PRD 25.5), notifications (alerts, re-check requests).
 

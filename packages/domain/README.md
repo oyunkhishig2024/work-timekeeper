@@ -82,7 +82,13 @@ Turns one expectation + the geofence events of the duty location + "a reason cov
 Events before `earlyWindowStart` are ignored (PRD 23.2). `deriveOffDayStatus` adds `WORKED_OFF_DAY` for a confirmed stay on
 a holiday / off day (never for inactive employees). Both are pure; the API supplies events and the clock.
 
+## `applyCorrection(system, correction, start)` (attendance/correction.ts)
+
+PRD 6.9: layers HR's correction (`ON_TIME` / `LATE` / `NO_SHOW`, optional arrival time) over the system result; the correction wins,
+the system value is kept by the caller. `LATE` counts minutes from `start`; `NO_SHOW` clears the arrival; a day with nobody expected
+(`start` null) is returned unchanged.
+
 ## Not here yet
 
-Corrections overlay (PRD 6.9) and coordinate-based plausibility checks; the location time zone column (the field exists in
+Coordinate-based plausibility checks; the location time zone column (the field exists in
 the input, the database does not have it yet); effective-dated employee department/location history (PRD 22.1).
