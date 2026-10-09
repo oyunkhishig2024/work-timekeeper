@@ -109,4 +109,61 @@ export class TimeReportService {
       };
     });
   }
+
+  /**
+   * Days people came on a holiday or a day off (PRD 6.1, v1.30): who, when they came and when they left. Nothing is counted as
+   * overtime or short hours; HR decides what such a day means (time off, pay, nothing). One row per employee and date.
+   */
+  async offDayWork(auth: AuthContext, f: Omit<TimeReportFilter, "kind">) {
+    if (daysBetween(f.from, f.to) + 1 > MAX_REPORT_DAYS) {
+      throw new ApiError(400, "RANGE_TOO_LONG", `At most ${MAX_REPORT_DAYS} days.`);
+    }
+    return this.db.withTenant(auth.tenantId, async (tx) => {
+      const scope = await this.scopes.forUser(tx, auth);
+      const params: unknown[] = [f.from, f.to];
+      const where: string[] = [
+        "r.work_date BETWEEN $1 AND $2",
+        "r.status = 'WORKED_OFF_DAY'",
+        this.scopes.employeeCondition(scope, "e", params),
+      ];
+      const add = (sql: string, value: unknown) => {
+        params.push(value);
+        where.push(sql.replace("?", `$${params.length}`));
+      };
+      if (f.locationId) add("e.primary_location_id = ?", f.locationId);
+      if (f.departmentId) add("e.department_id = ?", f.departmentId);
+      if (f.q) {
+        params.push(`%${f.q.replace(/[\\%_]/g, "\\$&")}%`);
+        where.push(
+          `(e.full_name ILIKE $${params.length} OR e.employee_no ILIKE $${params.length})`,
+        );
+      }
+      const body = `
+        FROM attendance_result r
+        JOIN employee e ON e.id = r.employee_id
+        LEFT JOIN department d ON d.id = e.department_id
+        LEFT JOIN location pl ON pl.id = e.primary_location_id
+       WHERE ${where.join(" AND ")}`;
+      const total = await tx.query<{ n: number }>(`SELECT count(*)::int AS n ${body}`, params);
+      params.push(f.limit, f.offset);
+      const { rows } = await tx.query(
+        `SELECT e.id AS "employeeId", e.employee_no AS "employeeNo", e.full_name AS "fullName",
+                d.name AS "departmentName", pl.name AS "primaryLocationName",
+                r.work_date::text AS date, r.arrival_at AS "arrivalAt",
+                r.departure_at AS "departureAt", r.departure_state AS "departureState"
+          ${body}
+          ORDER BY r.work_date, e.employee_no
+          LIMIT $${params.length - 1} OFFSET $${params.length}`,
+        params,
+      );
+      return {
+        from: f.from,
+        to: f.to,
+        total: total.rows[0]!.n,
+        limit: f.limit,
+        offset: f.offset,
+        items: rows,
+      };
+    });
+  }
 }

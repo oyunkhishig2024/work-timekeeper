@@ -3,8 +3,8 @@
 import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { ApiRequestError, download } from "@/lib/api";
-import { fetchOrganization, type Organization } from "@/lib/attendance";
-import { fetchDepartments, fetchLocations, type Option } from "@/lib/daily";
+import { fetchOrganization, formatTime, type Organization } from "@/lib/attendance";
+import { departureText, fetchDepartments, fetchLocations, type Option } from "@/lib/daily";
 import {
   exportPath,
   fetchTimeReport,
@@ -19,7 +19,11 @@ import {
 } from "@/lib/reports";
 import { fieldClass, secondaryButton } from "../modal";
 
-const KIND_LABEL: Record<ReportKind, string> = { short: "Дутуу цаг", overtime: "Илүү цаг" };
+const KIND_LABEL: Record<ReportKind, string> = {
+  short: "Дутуу цаг",
+  overtime: "Илүү цаг",
+  offday: "Амралтын өдөр ажилласан",
+};
 const btn =
   "min-h-11 rounded-md border border-slate-300 bg-white px-3 text-sm font-medium hover:bg-slate-100";
 
@@ -57,7 +61,7 @@ export function ReportsScreen() {
     if (!from || !to) return;
     const mine = ++request.current;
     setReport(null);
-    fetchTimeReport(timeReportQuery({ kind, locationId, departmentId }, { from, to })).then(
+    fetchTimeReport(timeReportQuery({ kind, locationId, departmentId }, { from, to }), kind).then(
       (r) => {
         if (request.current === mine) {
           setReport(r);
@@ -92,7 +96,7 @@ export function ReportsScreen() {
       </div>
 
       <ul className="mt-4 flex gap-2" aria-label="Тайлангийн төрөл">
-        {(["short", "overtime"] as const).map((k) => (
+        {(["short", "overtime", "offday"] as const).map((k) => (
           <li key={k}>
             <button
               type="button"
@@ -215,7 +219,42 @@ export function ReportsScreen() {
             : "Энэ хугацаанд илүү цагтай ажилтан алга."}
         </p>
       )}
-      {report && report.items.length > 0 && (
+      {report && report.items.length > 0 && kind === "offday" && org && (
+        <div className="mt-2 overflow-x-auto rounded-lg border border-slate-200 bg-white">
+          <table className="w-full min-w-[640px] text-left text-sm">
+            <thead className="bg-slate-50 text-slate-700">
+              <tr>
+                {["Огноо", "Ажилтан", "Нэгж", "Ирсэн цаг", "Гарсан цаг", "Тайлбар"].map((h) => (
+                  <th key={h} scope="col" className="px-3 py-2 font-medium">
+                    {h}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {report.items.map((r) => (
+                <tr
+                  key={`${r.employeeId}-${r.date}`}
+                  className="border-t border-slate-100 align-top"
+                >
+                  <td className="px-3 py-2">{r.date}</td>
+                  <td className="px-3 py-2">
+                    <div className="font-medium">{r.fullName}</div>
+                    <div className="text-xs text-slate-500">{r.employeeNo}</div>
+                  </td>
+                  <td className="px-3 py-2">{r.departmentName ?? "—"}</td>
+                  <td className="px-3 py-2">{formatTime(r.arrivalAt, org.timeZone) ?? "—"}</td>
+                  <td className="px-3 py-2">
+                    {departureText(r, (iso) => formatTime(iso, org.timeZone))}
+                  </td>
+                  <td className="px-3 py-2">Амралтын өдөр ажилласан</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+      {report && report.items.length > 0 && kind !== "offday" && (
         <div className="mt-2 overflow-x-auto rounded-lg border border-slate-200 bg-white">
           <table className="w-full min-w-[820px] text-left text-sm">
             <thead className="bg-slate-50 text-slate-700">
@@ -280,9 +319,11 @@ export function ReportsScreen() {
         </div>
       )}
       <p className="mt-3 text-xs text-slate-600">
-        {short
-          ? "Дутуу цаг = хоцорсон минут + эрт гарсан минут. Ирээгүй өдрийг минутаар биш өдрөөр тоолно. Цаг: ц:мм."
-          : "Илүү цаг = ажил тарснаас хойш, зөвшөөрөгдөх хугацаанаас (дүрэм, анхдагч 15 мин) илүү байсан минут. Цаг: ц:мм."}
+        {kind === "offday"
+          ? "Амралтын өдөр эсвэл баярын өдөр ирсэн ажилтан: ирсэн, гарсан цагийг тэмдэглэнэ. Илүү цаг, дутуу цагт тооцохгүй; цааш яахыг Хүний нөөц шийднэ."
+          : short
+            ? "Дутуу цаг = хоцорсон минут + эрт гарсан минут. Ирээгүй өдрийг минутаар биш өдрөөр тоолно. Цаг: ц:мм."
+            : "Илүү цаг = ажил тарснаас хойш, зөвшөөрөгдөх хугацаанаас (дүрэм, анхдагч 15 мин) илүү байсан минут. Цаг: ц:мм."}
       </p>
     </div>
   );

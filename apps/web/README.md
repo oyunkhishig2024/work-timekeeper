@@ -65,7 +65,7 @@ get the actions and the export (a Manager's export depends on a tenant setting, 
 
 ## Reports (`/reports`, PRD 20, 23.2)
 
-**Дутуу цаг** and **Илүү цаг** per employee for a **7 хоног** (Monday to Sunday) or a **Сар** (calendar month), with ‹ Өмнөх / Энэ / Дараах › and the branch and department filters (`?type=&period=&date=&location=&department=`). The table shows days attended, late and left-early days with their time, the short time (late + left-early, ц:мм), no-show days, or the overtime days and time. Excel / CSV / PDF export the same report (`/v1/exports/short-hours`, `/v1/exports/overtime`).
+Three lists: **Амралтын өдөр ажилласан** (a row per employee and date with the arrival and the departure; nothing is counted, HR decides), and **Дутуу цаг** and **Илүү цаг** per employee for a **7 хоног** (Monday to Sunday) or a **Сар** (calendar month), with ‹ Өмнөх / Энэ / Дараах › and the branch and department filters (`?type=&period=&date=&location=&department=`). The table shows days attended, late and left-early days with their time, the short time (late + left-early, ц:мм), no-show days, or the overtime days and time. Excel / CSV / PDF export the same report (`/v1/exports/short-hours`, `/v1/exports/overtime`).
 
 Not here yet: ending or changing a reason from this screen (use the reason assignments API).
 

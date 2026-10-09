@@ -61,18 +61,19 @@ const dailyQuery = z.object({
   limit: z.coerce.number().int().min(1).max(500).default(100),
   offset: z.coerce.number().int().min(0).default(0),
 });
+const periodFilters = {
+  from: isoDate,
+  to: isoDate,
+  q: z.string().trim().min(1).max(100).optional(),
+  locationId: id.optional(),
+  departmentId: id.optional(),
+  limit: z.coerce.number().int().min(1).max(500).default(100),
+  offset: z.coerce.number().int().min(0).default(0),
+};
 const timeReportQuery = z
-  .object({
-    kind: z.enum(["short", "overtime"]),
-    from: isoDate,
-    to: isoDate,
-    q: z.string().trim().min(1).max(100).optional(),
-    locationId: id.optional(),
-    departmentId: id.optional(),
-    limit: z.coerce.number().int().min(1).max(500).default(100),
-    offset: z.coerce.number().int().min(0).default(0),
-  })
+  .object({ kind: z.enum(["short", "overtime"]), ...periodFilters })
   .refine((v) => v.to >= v.from, "to is before from");
+const offDayQuery = z.object(periodFilters).refine((v) => v.to >= v.from, "to is before from");
 const recomputeSchema = z
   .object({ from: isoDate, to: isoDate, employeeId: id.optional() })
   .strict();
@@ -129,6 +130,13 @@ export class AttendanceController {
   @Get("time-report")
   timeReportList(@CurrentAuth() auth: AuthContext, @Query() query: unknown) {
     return this.timeReport.report(auth, timeReportQuery.parse(query));
+  }
+
+  /** Days people came on a holiday or a day off: arrival and departure only, nothing counted (PRD 6.1). */
+  @Roles("ORG_ADMIN", "HR", "MANAGER")
+  @Get("off-day-work")
+  offDayWork(@CurrentAuth() auth: AuthContext, @Query() query: unknown) {
+    return this.timeReport.offDayWork(auth, offDayQuery.parse(query));
   }
 
   @Roles("ORG_ADMIN", "HR", "MANAGER")

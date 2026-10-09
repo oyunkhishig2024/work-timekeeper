@@ -1,7 +1,7 @@
 import { api } from "./api";
 import { addDaysIso, isIsoDate } from "./attendance";
 
-export type ReportKind = "short" | "overtime";
+export type ReportKind = "short" | "overtime" | "offday";
 export type PeriodKind = "week" | "month";
 
 export interface TimeReportRow {
@@ -24,12 +24,25 @@ export interface TimeReportRow {
   overtimeMinutes: number;
 }
 
+/** A day someone came on a holiday or a day off: only the times, nothing counted (PRD 6.1). */
+export interface OffDayRow {
+  employeeId: string;
+  employeeNo: string;
+  fullName: string;
+  departmentName: string | null;
+  primaryLocationName: string | null;
+  date: string;
+  arrivalAt: string | null;
+  departureAt: string | null;
+  departureState: "LEFT" | "INSIDE" | "UNKNOWN" | null;
+}
+
 export interface TimeReport {
   kind: ReportKind;
   from: string;
   to: string;
   total: number;
-  items: TimeReportRow[];
+  items: Array<TimeReportRow & OffDayRow>;
 }
 
 /** The reports screen's choices, kept in the URL (`?type=&period=&date=&location=&department=`). */
@@ -49,7 +62,12 @@ export function parseReportsState(params: { get(name: string): string | null }):
     return v && /^[0-9a-f-]{36}$/iu.test(v) ? v : null;
   };
   return {
-    kind: params.get("type") === "overtime" ? "overtime" : "short",
+    kind:
+      params.get("type") === "overtime"
+        ? "overtime"
+        : params.get("type") === "offday"
+          ? "offday"
+          : "short",
     period: params.get("period") === "month" ? "month" : "week",
     date: isIsoDate(date) ? date : null,
     locationId: id("location"),
@@ -98,14 +116,21 @@ export function timeReportQuery(
   s: Pick<ReportsState, "kind" | "locationId" | "departmentId">,
   range: { from: string; to: string },
 ): string {
-  const q = new URLSearchParams({ kind: s.kind, from: range.from, to: range.to, limit: "500" });
+  const q = new URLSearchParams(s.kind === "offday" ? {} : { kind: s.kind }); // the off-day endpoint has no kind
+  q.set("from", range.from);
+  q.set("to", range.to);
+  q.set("limit", "500");
   if (s.locationId) q.set("locationId", s.locationId);
   if (s.departmentId) q.set("departmentId", s.departmentId);
   return q.toString();
 }
 
-export const fetchTimeReport = (query: string) =>
-  api<TimeReport>(`/v1/attendance/time-report?${query}`);
+export const fetchTimeReport = (query: string, kind: ReportKind = "short") =>
+  api<TimeReport>(
+    kind === "offday"
+      ? `/v1/attendance/off-day-work?${query}`
+      : `/v1/attendance/time-report?${query}`,
+  );
 
 /** The export of the same report (Excel / CSV / PDF), same filters. */
 export function exportPath(
@@ -116,5 +141,6 @@ export function exportPath(
   const q = new URLSearchParams({ format, from: range.from, to: range.to });
   if (s.locationId) q.set("locationId", s.locationId);
   if (s.departmentId) q.set("departmentId", s.departmentId);
-  return `/v1/exports/${s.kind === "short" ? "short-hours" : "overtime"}?${q}`;
+  const name = { short: "short-hours", overtime: "overtime", offday: "off-day-work" }[s.kind];
+  return `/v1/exports/${name}?${q}`;
 }

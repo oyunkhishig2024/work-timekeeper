@@ -18,6 +18,7 @@ import {
   type Fix,
   applyCorrection,
   deriveDeparture,
+  deriveOffDayDeparture,
   earlyLeaveMinutes,
   overtimeMinutes,
   type AttendanceStatus,
@@ -637,7 +638,17 @@ export class AttendanceService {
               now,
               lastSeenAt: lastSeen.get(e.id) ?? null,
             })
-          : { state: null, departureAt: null };
+          : system.status === "WORKED_OFF_DAY"
+            ? // Came on a holiday or a day off (PRD 6.1): the times are recorded, nothing is derived from them.
+              deriveOffDayDeparture({
+                events: counted
+                  .filter((r) => r.locationId === e.primaryLocationId)
+                  .map((r) => ({ type: r.type, at: r.at })),
+                arrivalAt: system.arrivalAt,
+                now,
+                lastSeenAt: lastSeen.get(e.id) ?? null,
+              })
+            : { state: null, departureAt: null };
         // PRD 6.9: a correction is layered over the system value, which is kept next to it.
         const correction = corrections.get(`${e.id}|${date}`) ?? null;
         const derived = applyCorrection(

@@ -43,6 +43,7 @@ const CHIPS: DailyFilterStatus[] = [
   "EXCUSED",
   "NO_SHOW",
   "EARLY_LEAVE",
+  "WORKED_OFF_DAY",
   "INACTIVE",
 ];
 const REFRESH_MS = 60_000;
@@ -482,6 +483,11 @@ function Row({
         >
           {label}
         </span>
+        {r.status === "WORKED_OFF_DAY" && (
+          <div className="mt-1 text-xs text-slate-600">
+            Ирсэн, гарсан цагийг тэмдэглэсэн · илүү цагт тооцоогүй, Хүний нөөц шийднэ
+          </div>
+        )}
         {r.source === "CORRECTED" && <div className="mt-1 text-xs text-slate-600">Засварласан</div>}
         {r.flaggedEvents > 0 && <div className="mt-1 text-xs text-slate-600">⚑ шалгах</div>}
         {r.locationInactive && (

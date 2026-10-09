@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { deriveDeparture, type Expectation, type GeofenceEvent } from "../../src";
+import {
+  deriveDeparture,
+  deriveOffDayDeparture,
+  type Expectation,
+  type GeofenceEvent,
+} from "../../src";
 
 const t = (hhmm: string) => new Date(`2026-10-06T${hhmm}:00Z`);
 const expected: Expectation = {
@@ -116,6 +121,42 @@ describe("deriveDeparture (PRD 6.4, 23.2)", () => {
     expect(run([exit("11:00")], "12:00", "08:30")).toEqual({
       state: "LEFT",
       departureAt: t("11:00"),
+    });
+  });
+});
+
+describe("deriveOffDayDeparture (PRD 6.1, 23.2): someone came on a day off", () => {
+  const off = (
+    events: GeofenceEvent[],
+    now: Date,
+    arrival = t("10:00"),
+    lastSeenAt?: Date | null,
+  ) => deriveOffDayDeparture({ events, arrivalAt: arrival, now, lastSeenAt });
+  it("is the last exit of the stay", () => {
+    expect(off([enter("10:00"), exit("15:20")], t("16:00"))).toEqual({
+      state: "LEFT",
+      departureAt: t("15:20"),
+    });
+  });
+  it("is INSIDE while the phone is heard from, UNKNOWN once it is silent for an hour", () => {
+    expect(off([enter("10:00")], t("12:00"), t("10:00"), t("11:30")).state).toBe("INSIDE");
+    expect(off([enter("10:00")], t("12:00"), t("10:00"), t("09:00")).state).toBe("UNKNOWN");
+    expect(off([enter("10:00")], t("12:00"), t("10:00"), null).state).toBe("UNKNOWN");
+  });
+  it("a return after more than 3 h is another visit; a shorter walk out and back is not", () => {
+    expect(off([enter("10:00"), exit("11:00"), enter("14:30")], t("15:00"))).toEqual({
+      state: "LEFT",
+      departureAt: t("11:00"),
+    });
+    expect(
+      off([enter("10:00"), exit("11:00"), enter("13:00")], t("13:30"), t("10:00"), t("13:20"))
+        .state,
+    ).toBe("INSIDE");
+  });
+  it("has nothing without an arrival", () => {
+    expect(off([exit("15:00")], t("16:00"), null as unknown as Date)).toEqual({
+      state: null,
+      departureAt: null,
     });
   });
 });

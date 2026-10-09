@@ -26,7 +26,8 @@ export type ReportName =
   | "shift-assignments"
   | "daily-attendance"
   | "short-hours"
-  | "overtime";
+  | "overtime"
+  | "off-day-work";
 
 export interface ExportResult {
   body: Buffer;
@@ -176,6 +177,18 @@ export class ExportsService {
     });
   }
 
+  private tenantZone(auth: AuthContext): Promise<string> {
+    return this.db.withTenant(
+      auth.tenantId,
+      async (tx) =>
+        (
+          await tx.query<{ time_zone: string }>("SELECT time_zone FROM tenant WHERE id = $1", [
+            auth.tenantId,
+          ])
+        ).rows[0]?.time_zone ?? "Asia/Ulaanbaatar",
+    );
+  }
+
   private async build(
     auth: AuthContext,
     report: ReportName,
@@ -206,15 +219,7 @@ export class ExportsService {
       }
       case "daily-attendance": {
         const date = str("date")!;
-        const tz = await this.db.withTenant(
-          auth.tenantId,
-          async (tx) =>
-            (
-              await tx.query<{ time_zone: string }>("SELECT time_zone FROM tenant WHERE id = $1", [
-                auth.tenantId,
-              ])
-            ).rows[0]?.time_zone ?? "Asia/Ulaanbaatar",
-        );
+        const tz = await this.tenantZone(auth);
         const data = await this.daily.daily(auth, {
           date,
           status: str("status") as "EXPECTED" | undefined,
@@ -344,6 +349,54 @@ export class ExportsService {
             overtimeDays: Number(r.overtimeDays),
             overtimeMinutes: Number(r.overtimeMinutes),
             overtimeHm: hm(Number(r.overtimeMinutes)),
+          })),
+        };
+      }
+      case "off-day-work": {
+        const from = str("from")!;
+        const to = str("to")!;
+        const tz = await this.tenantZone(auth);
+        const data = await this.timeReport.offDayWork(auth, {
+          from,
+          to,
+          locationId: str("locationId"),
+          departmentId: str("departmentId"),
+          q: str("q"),
+          limit: MAX_EXPORT_ROWS + 1,
+          offset: 0,
+        });
+        return {
+          title: "Амралтын өдөр ажилласан",
+          subtitle: [
+            org,
+            `Хугацаа: ${from} — ${to}`,
+            "Ирсэн, гарсан цагийг тэмдэглэсэн; илүү цаг, дутуу цагт тооцоогүй (Хүний нөөц шийднэ)",
+            ...(await this.names(auth, f)),
+          ],
+          columns: [
+            { key: "employeeNo", header: "Код", width: 1 },
+            { key: "fullName", header: "Овог нэр", width: 2 },
+            { key: "departmentName", header: "Нэгж", width: 1 },
+            { key: "primaryLocationName", header: "Үндсэн салбар", width: 1 },
+            { key: "date", header: "Огноо", width: 1 },
+            { key: "arrival", header: "Ирсэн цаг", width: 1 },
+            { key: "departure", header: "Гарсан цаг", width: 1 },
+            { key: "note", header: "Тайлбар", width: 2 },
+          ],
+          rows: (data.items as Array<Record<string, unknown>>).map((r) => ({
+            employeeNo: String(r.employeeNo),
+            fullName: String(r.fullName),
+            departmentName: (r.departmentName as string | null) ?? "",
+            primaryLocationName: (r.primaryLocationName as string | null) ?? "",
+            date: String(r.date),
+            arrival: localTime(r.arrivalAt as Date | null, tz),
+            departure:
+              r.departureState === "LEFT"
+                ? localTime(r.departureAt as Date | null, tz)
+                : r.departureState === "INSIDE"
+                  ? "Байгаа"
+                  : "Тодорхойгүй",
+            note: "Амралтын өдөр ажилласан",
           })),
         };
       }

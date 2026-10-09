@@ -87,6 +87,7 @@ const SCHEMAS: Record<ReportName, z.ZodTypeAny> = {
   }),
   "short-hours": timeReportExport,
   overtime: timeReportExport,
+  "off-day-work": timeReportExport,
   "shift-roster": z
     .object({
       format,

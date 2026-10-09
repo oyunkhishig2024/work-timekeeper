@@ -1,7 +1,7 @@
 # Timekeeper Work
 ## Technical Architecture Document
 
-Version: 0.31 (draft for review)
+Version: 0.32 (draft for review)
 Status: Draft — based on PRD v1.9 (`docs/Timekeeper_Work_PRD.md`)
 Audience: engineering lead, backend / mobile / web developers, QA
 Scope: the **pilot tier** (1–2 tenants, ~4 months, ~640 employees), built by **one full-stack developer** (decision v0.2, see Section 14). The production tier is covered only where a decision now would be expensive to undo later.
@@ -906,4 +906,9 @@ Migrations `0010_time_rules` and `0011_shifts` add the storage for attendance ru
 
 - `deriveDeparture` window 12 h after the end of the duty, a 3 h gap after an exit after the end starts the next visit, and `lastSeenAt` (the active device's `last_seen_at`, loaded once per recompute chunk) keeps a person who is still working INSIDE instead of UNKNOWN. Overtime and the reports follow with no schema change.
 - Not done: a duty that ends after midnight on a standard schedule is still limited to a 12 h after-end window (a 24 h shift has its own end); overtime on days off.
+
+# 47. Implementation Status (worked on a day off, PRD v1.30)
+
+- Domain `deriveOffDayDeparture`; the engine stores the departure of a `WORKED_OFF_DAY` result like any other (no schema change) and derives no overtime or early leave from it. `GET /v1/attendance/off-day-work`, the `off-day-work` export, the `WORKED_OFF_DAY` count and filter of the daily list, the web chip and the third list on `/reports`.
+- Not done: telling a holiday from a plain day off in the label, and any pay or time-off handling (outside the app by decision).
 

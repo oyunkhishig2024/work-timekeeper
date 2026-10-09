@@ -65,6 +65,16 @@ describe("report URL state", () => {
       departmentId: null,
     });
   });
+  it("has a third report for days people came on a day off", () => {
+    expect(parseReportsState(new URLSearchParams("type=offday")).kind).toBe("offday");
+    expect(reportsHref({ kind: "offday" })).toBe("/reports?type=offday");
+    const s = { kind: "offday" as const, locationId: null, departmentId: null };
+    const r = { from: "2026-10-05", to: "2026-10-11" };
+    expect(timeReportQuery(s, r)).toBe("from=2026-10-05&to=2026-10-11&limit=500"); // the endpoint has no kind
+    expect(exportPath(s, r, "pdf")).toBe(
+      "/v1/exports/off-day-work?format=pdf&from=2026-10-05&to=2026-10-11",
+    );
+  });
   it("builds the query and the export of the same report", () => {
     const s = { kind: "short" as const, locationId: null, departmentId: null };
     const r = { from: "2026-10-05", to: "2026-10-11" };

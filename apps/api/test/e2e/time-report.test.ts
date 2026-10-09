@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { hasDb } from "../db/helpers";
-import { attendanceKit, WORK_DATE } from "./attendance-kit";
+import { at, attendanceKit, WORK_DATE } from "./attendance-kit";
 import { createEmployee, createUser, type Harness, signIn, startHarness } from "./harness";
 
 describe.skipIf(!hasDb)("short-hours and overtime reports (PRD 9, 23.2)", () => {
@@ -174,5 +174,62 @@ describe.skipIf(!hasDb)("short-hours and overtime reports (PRD 9, 23.2)", () => 
       .get(`/v1/exports/overtime?format=csv&from=${WORK_DATE}&to=${WORK_DATE}`)
       .set({ Authorization: `Bearer ${token}` });
     expect(csv.text).toContain("8:40");
+  });
+
+  it("someone who comes on a day off: arrival and departure are recorded and labelled, and nothing is counted from them", async () => {
+    const w = await k.world();
+    const admin = (await signIn(h, w.admin)).accessToken;
+    const off = await k.post(admin, "/v1/working-day-exceptions", {
+      date: WORK_DATE,
+      working: false,
+    });
+    expect(off.status).toBeLessThan(300);
+    k.setClock("10:00");
+    await k.send(await k.emp(w), [k.ev(w)]);
+    k.setClock("15:20");
+    await k.send(await k.emp(w), [k.ev(w, { type: "EXIT" })]);
+    k.setClock("16:00");
+    await k.tick(w.tenant.id);
+    const token = (await signIn(h, w.hr)).accessToken;
+
+    const day = (await k.get(token, `/v1/attendance/daily?date=${WORK_DATE}&status=WORKED_OFF_DAY`))
+      .body;
+    expect(day.counts.WORKED_OFF_DAY).toBe(1);
+    expect(day.counts.EXPECTED).toBe(0);
+    expect(day.items).toHaveLength(1);
+    expect(day.items[0]).toMatchObject({
+      employeeId: w.employee.id,
+      status: "WORKED_OFF_DAY",
+      departureState: "LEFT",
+      earlyLeaveMinutes: 0,
+    });
+    expect(new Date(day.items[0].arrivalAt).toISOString()).toBe(at("10:00").toISOString());
+    expect(new Date(day.items[0].departureAt).toISOString()).toBe(at("15:20").toISOString());
+
+    // never counted as overtime or short hours
+    const from = `from=${WORK_DATE}&to=${WORK_DATE}`;
+    expect(
+      (await k.get(token, `/v1/attendance/time-report?kind=overtime&${from}`)).body.total,
+    ).toBe(0);
+    expect(
+      (await k.get(token, `/v1/attendance/time-report?kind=short&${from}`)).body.items,
+    ).toEqual([]);
+
+    // the list for HR
+    const list = await k.get(token, `/v1/attendance/off-day-work?${from}`);
+    expect(list.body.total).toBe(1);
+    expect(list.body.items[0]).toMatchObject({
+      employeeId: w.employee.id,
+      date: WORK_DATE,
+      departureState: "LEFT",
+    });
+    const csv = await h
+      .http()
+      .get(`/v1/exports/off-day-work?format=csv&${from}`)
+      .set({ Authorization: `Bearer ${token}` });
+    expect(csv.status).toBe(200);
+    expect(csv.text).toContain("Амралтын өдөр ажилласан");
+    expect(csv.text).toContain("10:00");
+    expect(csv.text).toContain("15:20");
   });
 });

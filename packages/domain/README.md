@@ -107,6 +107,11 @@ counts: events count until **12 h after the end of the duty** (a 17:30 end and a
 **3 h** after an EXIT is the next visit, not a return. Still inside: `INSIDE` while the phone was heard within the last hour (`lastSeenAt`) or the duty has
 not been over for an hour; `UNKNOWN` once it is over and the phone is silent, or nothing came for 12 h. Never a guess.
 
+## Off-day departure (attendance/departure.ts, `deriveOffDayDeparture`)
+
+On a holiday or a day off with an arrival (`WORKED_OFF_DAY`, PRD 6.1) there is no end of a duty: the visit is the stay from the arrival (last exit before a gap of more
+than 3 h, within 24 h). `INSIDE` while the phone is heard, `UNKNOWN` when silent. Nothing is derived from it: no overtime, no early leave.
+
 ## Left early (attendance/early-leave.ts)
 
 `earlyLeaveMinutes({expectation, departure})` (PRD 23.2): minutes before the end of the duty when the state is `LEFT` and the exit was more than

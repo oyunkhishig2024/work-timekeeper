@@ -116,6 +116,8 @@ export class DailyAttendanceService {
         EXCUSED: byStatus.get("EXCUSED") ?? 0,
         NO_SHOW: byStatus.get("NO_SHOW") ?? 0,
         PENDING: byStatus.get("PENDING") ?? 0,
+        // Came on a holiday or a day off (PRD 6.1): listed apart, not part of EXPECTED.
+        WORKED_OFF_DAY: byStatus.get("WORKED_OFF_DAY") ?? 0,
       };
       const early = await tx.query<{ n: number }>(
         `SELECT count(*)::int AS n FROM attendance_result r JOIN employee e ON e.id = r.employee_id

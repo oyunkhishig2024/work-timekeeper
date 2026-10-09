@@ -47,31 +47,74 @@ export function deriveDeparture(input: {
   const { expectation, arrivalAt, now } = input;
   if (!expectation.expected || arrivalAt === null) return { state: null, departureAt: null };
 
-  const limit = expectation.end.getTime() + AFTER_END_MS;
-  const sorted = input.events
-    .filter((e) => e.at.getTime() >= arrivalAt.getTime() && e.at.getTime() < limit)
-    .sort((a, b) => a.at.getTime() - b.at.getTime());
-  // Stop at the first ENTER that follows an EXIT by more than the gap: that is the next visit.
-  const visit: GeofenceEvent[] = [];
-  for (const e of sorted) {
-    const before = visit[visit.length - 1];
-    if (
-      before?.type === "EXIT" &&
-      e.type === "ENTER" &&
-      e.at.getTime() >= expectation.end.getTime() &&
-      e.at.getTime() - before.at.getTime() > NEW_VISIT_GAP_MS
-    ) {
-      break;
-    }
-    visit.push(e);
-  }
+  const end = expectation.end.getTime();
+  const limit = end + AFTER_END_MS;
+  const visit = visitAfter(input.events, arrivalAt, limit, (e) => e.at.getTime() >= end);
   const last = visit[visit.length - 1];
 
   if (last?.type === "EXIT") return { state: "LEFT", departureAt: last.at };
   // Still inside as far as the phone says (the arrival may also come from HR's correction and have no ENTER of its own).
   const heard =
     input.lastSeenAt != null && now.getTime() - input.lastSeenAt.getTime() <= HEARD_WITHIN_MS;
-  const silentAfterEnd = now.getTime() >= expectation.end.getTime() + HEARD_WITHIN_MS && !heard;
-  const overdue = now.getTime() >= limit || silentAfterEnd;
-  return { state: overdue ? "UNKNOWN" : "INSIDE", departureAt: null };
+  const silentAfterEnd = now.getTime() >= end + HEARD_WITHIN_MS && !heard;
+  return {
+    state: now.getTime() >= limit || silentAfterEnd ? "UNKNOWN" : "INSIDE",
+    departureAt: null,
+  };
+}
+
+/**
+ * The events of one visit: from the arrival, in time order, up to `limit`, stopping at the first ENTER that comes more
+ * than the gap after an EXIT where `lateEnough(enter)` holds (that ENTER is the next visit, not a return).
+ */
+function visitAfter(
+  events: readonly GeofenceEvent[],
+  arrivalAt: Date,
+  limit: number,
+  lateEnough: (enter: GeofenceEvent) => boolean,
+): GeofenceEvent[] {
+  const sorted = events
+    .filter((e) => e.at.getTime() >= arrivalAt.getTime() && e.at.getTime() < limit)
+    .sort((a, b) => a.at.getTime() - b.at.getTime());
+  const visit: GeofenceEvent[] = [];
+  for (const e of sorted) {
+    const before = visit[visit.length - 1];
+    if (
+      before?.type === "EXIT" &&
+      e.type === "ENTER" &&
+      lateEnough(e) &&
+      e.at.getTime() - before.at.getTime() > NEW_VISIT_GAP_MS
+    ) {
+      break;
+    }
+    visit.push(e);
+  }
+  return visit;
+}
+
+/**
+ * PRD 6.1, 23.2 (v1.30): the departure on a day nobody is expected (a holiday or a day off) when the employee came anyway
+ * (WORKED_OFF_DAY). There is no end of a duty, so the visit is the stay from the arrival: the last EXIT before a gap of more
+ * than 3 h, within 24 h of the arrival. INSIDE while the phone is heard from, UNKNOWN when it is silent for an hour.
+ * Nothing is derived from it (no overtime, no leaving early): HR decides what the day means.
+ */
+export function deriveOffDayDeparture(input: {
+  events: readonly GeofenceEvent[];
+  arrivalAt: Date | null;
+  now: Date;
+  lastSeenAt?: Date | null;
+}): Departure {
+  const { arrivalAt, now } = input;
+  if (arrivalAt === null) return { state: null, departureAt: null };
+  const visit = visitAfter(
+    input.events,
+    arrivalAt,
+    arrivalAt.getTime() + 24 * 3_600_000,
+    () => true,
+  );
+  const last = visit[visit.length - 1];
+  if (last?.type === "EXIT") return { state: "LEFT", departureAt: last.at };
+  const heard =
+    input.lastSeenAt != null && now.getTime() - input.lastSeenAt.getTime() <= HEARD_WITHIN_MS;
+  return { state: heard ? "INSIDE" : "UNKNOWN", departureAt: null };
 }

@@ -1,7 +1,7 @@
 import { api } from "./api";
 import { isIsoDate, type Status } from "./attendance";
 
-export type DailyFilterStatus = Status | "EXPECTED" | "INACTIVE" | "EARLY_LEAVE";
+export type DailyFilterStatus = Status | "EXPECTED" | "INACTIVE" | "EARLY_LEAVE" | "WORKED_OFF_DAY";
 
 export interface DailyItem {
   employeeId: string;
@@ -70,6 +70,7 @@ const STATUSES: DailyFilterStatus[] = [
   "PENDING",
   "INACTIVE",
   "EARLY_LEAVE",
+  "WORKED_OFF_DAY",
 ];
 
 export function parseDailyState(params: { get(name: string): string | null }): DailyState {
@@ -122,6 +123,7 @@ export const FILTER_LABEL: Record<DailyFilterStatus, string> = {
   PENDING: "Цаг болоогүй",
   INACTIVE: "Байршил идэвхгүй",
   EARLY_LEAVE: "Эрт гарсан",
+  WORKED_OFF_DAY: "Амралтын өдөр ажилласан",
 };
 
 export const CORRECTION_REASONS: Array<[string, string]> = [
