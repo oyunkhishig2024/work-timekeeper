@@ -1,7 +1,7 @@
 # Timekeeper Work
 ## Technical Architecture Document
 
-Version: 0.30 (draft for review)
+Version: 0.31 (draft for review)
 Status: Draft — based on PRD v1.9 (`docs/Timekeeper_Work_PRD.md`)
 Audience: engineering lead, backend / mobile / web developers, QA
 Scope: the **pilot tier** (1–2 tenants, ~4 months, ~640 employees), built by **one full-stack developer** (decision v0.2, see Section 14). The production tier is covered only where a decision now would be expensive to undo later.
@@ -901,4 +901,9 @@ Migrations `0010_time_rules` and `0011_shifts` add the storage for attendance ru
 - Domain `overtimeMinutes` (beside `earlyLeaveMinutes`, same tolerance); migration `0026` adds `attendance_result.overtime_minutes`. `TimeReportService` (`GET /v1/attendance/time-report`) groups the derived results per employee; `short-hours` and `overtime` exports reuse it. `GET /v1/me/attendance` adds a `summary` and the departure, early-leave and overtime of each day, so the phone can show month folders (asking for one month when it opens) without adding days up.
 - Web: `/reports` screen with a week/month switch. Prototype: the roster calendar menu is gone; "Миний ирц" has month folders with weeks inside.
 - Not done: overtime on days off, overtime approval, a separate overtime threshold from the early-leave tolerance, a screen for shift assignments after the roster calendar was dropped (the API remains), the mobile app itself (not built).
+
+# 46. Implementation Status (overtime across midnight, PRD v1.29)
+
+- `deriveDeparture` window 12 h after the end of the duty, a 3 h gap after an exit after the end starts the next visit, and `lastSeenAt` (the active device's `last_seen_at`, loaded once per recompute chunk) keeps a person who is still working INSIDE instead of UNKNOWN. Overtime and the reports follow with no schema change.
+- Not done: a duty that ends after midnight on a standard schedule is still limited to a 12 h after-end window (a 24 h shift has its own end); overtime on days off.
 

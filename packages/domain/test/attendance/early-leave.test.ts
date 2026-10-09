@@ -61,6 +61,12 @@ describe("overtimeMinutes (PRD 23.2)", () => {
     expect(over({ state: null, departureAt: null })).toBe(0);
     expect(over(left("19:00"), { expected: false, reason: "HOLIDAY" })).toBe(0);
   });
+  it("working through the night: leaving at 01:40 after a 17:30 end is 8 h 10 min of overtime", () => {
+    const e = { ...expected, end: t("17:30"), cutoff: t("17:30") };
+    const night = { state: "LEFT" as const, departureAt: new Date("2026-10-07T01:40:00Z") };
+    expect(over(night, e)).toBe(490);
+    expect(earlyLeaveMinutes({ expectation: e, departure: night })).toBe(0);
+  });
   it("a day is never both early and overtime", () => {
     for (const hhmm of ["12:00", "16:50", "17:10", "18:00", "20:59"]) {
       const d = left(hhmm);

@@ -126,4 +126,53 @@ describe.skipIf(!hasDb)("short-hours and overtime reports (PRD 9, 23.2)", () => 
       expect(file.status).toBe(200);
     }
   });
+
+  it("working through the night: still inside while the phone is heard, then the exit at 01:40 is 8 h 40 min of overtime", async () => {
+    const w = await k.world();
+    k.setClock("08:20");
+    await k.send(await k.emp(w), [k.ev(w)]);
+    await k.send(await k.second(w), [k.ev(w)]);
+    // 20:00: the first phone sent a heartbeat a few minutes ago, the second has been silent since the morning
+    k.setClock("19:55");
+    const phone = await k.emp(w);
+    await h
+      .http()
+      .post("/v1/heartbeat")
+      .set({ Authorization: `Bearer ${phone}` });
+    k.setClock("20:00");
+    await k.tick(w.tenant.id);
+    const fresh = async () => (await signIn(h, w.hr)).accessToken;
+    const rows = async () =>
+      (await k.get(await fresh(), `/v1/attendance/daily?date=${WORK_DATE}`)).body.items as Array<
+        Record<string, unknown>
+      >;
+    const state = async (id: string) => (await rows()).find((r) => r.employeeId === id)!;
+    expect(await state(w.employee.id)).toMatchObject({
+      departureState: "INSIDE",
+      status: "LATE",
+    });
+    expect(await state(w.second.employee.id)).toMatchObject({ departureState: "UNKNOWN" });
+
+    // the exit comes at 01:40 the next day (17:00 end of the duty -> 8 h 40 min = 520 min)
+    k.setClock("25:40");
+    await k.send(await k.emp(w), [k.ev(w, { type: "EXIT" })]);
+    k.setClock("26:00");
+    await k.tick(w.tenant.id);
+    expect(await state(w.employee.id)).toMatchObject({
+      departureState: "LEFT",
+      earlyLeaveMinutes: 0,
+    });
+    const token = await fresh();
+    const ot = await k.get(
+      token,
+      `/v1/attendance/time-report?kind=overtime&from=${WORK_DATE}&to=${WORK_DATE}`,
+    );
+    expect(ot.body.items).toHaveLength(1);
+    expect(ot.body.items[0]).toMatchObject({ employeeId: w.employee.id, overtimeMinutes: 520 });
+    const csv = await h
+      .http()
+      .get(`/v1/exports/overtime?format=csv&from=${WORK_DATE}&to=${WORK_DATE}`)
+      .set({ Authorization: `Bearer ${token}` });
+    expect(csv.text).toContain("8:40");
+  });
 });

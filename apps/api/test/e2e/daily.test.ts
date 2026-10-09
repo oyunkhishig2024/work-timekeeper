@@ -280,8 +280,8 @@ describe.skipIf(!hasDb)("daily attendance list (PRD 9, 6.5, 11)", () => {
     k.setClock("08:05");
     await k.send(await k.emp(w), [k.ev(w)]);
     await k.send(await k.second(w), [k.ev(w)]);
-    k.setClock("14:10");
-    await k.send(await k.emp(w), [k.ev(w, { type: "EXIT" })]); // 170 min early
+    k.setClock("15:00");
+    await k.send(await k.emp(w), [k.ev(w, { type: "EXIT" })]); // 120 min early
     k.setClock("16:50");
     await k.send(await k.second(w), [k.ev(w, { type: "EXIT" })]); // 10 min: within the 15 min tolerance
     k.setClock("17:30");
@@ -289,13 +289,13 @@ describe.skipIf(!hasDb)("daily attendance list (PRD 9, 6.5, 11)", () => {
     const day = await rows();
     const mine = day.items.find((r) => r.employeeId === w.employee.id)!;
     const other = day.items.find((r) => r.employeeId === w.second.employee.id)!;
-    expect(mine).toMatchObject({ status: "ON_TIME", earlyLeaveMinutes: 170 });
+    expect(mine).toMatchObject({ status: "ON_TIME", earlyLeaveMinutes: 120 });
     expect(other).toMatchObject({ status: "ON_TIME", earlyLeaveMinutes: 0 });
     expect(day.counts.EARLY_LEAVE).toBe(1);
     const only = await rows("&status=EARLY_LEAVE");
     expect(only.items.map((r) => r.employeeId)).toEqual([w.employee.id]);
 
-    // returning cancels it: the last event decides (a walk out and back is not leaving early)
+    // returning within 3 h cancels it: the last event decides (a walk out and back is not leaving early)
     k.setClock("17:40");
     await k.send(await k.emp(w), [k.ev(w)]);
     expect((await rows()).counts.EARLY_LEAVE).toBe(0);

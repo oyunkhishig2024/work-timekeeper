@@ -101,9 +101,11 @@ accuracy radii so GPS jitter is not a teleport; the same instant at two places i
 
 ## Departure (attendance/departure.ts)
 
-`deriveDeparture({expectation, events, arrivalAt, now})` → `{state: LEFT | INSIDE | UNKNOWN | null, departureAt}` (PRD 6.4, 23.2). After the
-confirmed arrival the last event of the duty place decides: an EXIT is the departure, an ENTER (back from lunch) means still inside.
-Events count until 4 h after the end of the duty; an hour after the end without an EXIT the state is `UNKNOWN`, never a guess.
+`deriveDeparture({expectation, events, arrivalAt, now, lastSeenAt})` → `{state: LEFT | INSIDE | UNKNOWN | null, departureAt}` (PRD 6.4, 23.2). After the
+confirmed arrival the last event of the duty place decides: an EXIT is the departure, an ENTER (back from lunch) means still inside. Work after the end
+counts: events count until **12 h after the end of the duty** (a 17:30 end and an exit at 01:40 → departure 01:40), and after the end an ENTER more than
+**3 h** after an EXIT is the next visit, not a return. Still inside: `INSIDE` while the phone was heard within the last hour (`lastSeenAt`) or the duty has
+not been over for an hour; `UNKNOWN` once it is over and the phone is silent, or nothing came for 12 h. Never a guess.
 
 ## Left early (attendance/early-leave.ts)
 

@@ -574,6 +574,16 @@ export class AttendanceService {
         [ids, new Date(`${addDays(from, -2)}T00:00:00Z`), new Date(`${addDays(to, 3)}T00:00:00Z`)],
       )
     ).rows;
+    // When each phone last reported anything: a person still inside after the duty ended is INSIDE while it is heard from.
+    const lastSeen = new Map<string, Date>(
+      (
+        await tx.query<{ employeeId: string; lastSeenAt: Date | null }>(
+          `SELECT employee_id AS "employeeId", last_seen_at AS "lastSeenAt" FROM device
+            WHERE employee_id = ANY($1::uuid[]) AND status = 'ACTIVE' AND last_seen_at IS NOT NULL`,
+          [ids],
+        )
+      ).rows.map((r) => [r.employeeId, r.lastSeenAt!]),
+    );
     const existing = new Map<string, ExistingRow>();
     for (const r of (
       await tx.query<ExistingRow>(
@@ -625,6 +635,7 @@ export class AttendanceService {
                 .map((r) => ({ type: r.type, at: r.at })),
               arrivalAt: system.arrivalAt,
               now,
+              lastSeenAt: lastSeen.get(e.id) ?? null,
             })
           : { state: null, departureAt: null };
         // PRD 6.9: a correction is layered over the system value, which is kept next to it.
