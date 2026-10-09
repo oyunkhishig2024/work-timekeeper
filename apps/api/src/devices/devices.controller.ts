@@ -100,13 +100,13 @@ export class DevicesController {
 
   // ---- the employee's phone
 
-  @Roles("EMPLOYEE")
+  @Roles("EMPLOYEE", "HR", "MANAGER", "ORG_ADMIN")
   @Post("devices/register")
   register(@CurrentAuth() auth: AuthContext, @Body() body: unknown, @Meta() meta: RequestMeta) {
     return this.devices.register(auth, registerSchema.parse(body), meta);
   }
 
-  @Roles("EMPLOYEE")
+  @Roles("EMPLOYEE", "HR", "MANAGER", "ORG_ADMIN")
   @Get("devices/me")
   myDevice(@CurrentAuth() auth: AuthContext) {
     return this.devices.myDevice(auth);

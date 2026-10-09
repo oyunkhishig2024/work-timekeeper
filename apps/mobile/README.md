@@ -6,6 +6,8 @@ bare React Native) depends on the geofencing library chosen in **Phase 0, Spike 
 `react-native-background-geolocation` (Transistorsoft, commercial licence for Android release
 builds) and `expo-location`. Scaffolding first would risk rework.
 
+**Who uses it:** every employee records their own attendance here, **including the Org Admin, HR and Managers** (their staff account is linked to their own employee record, `PUT /v1/users/:id/employee`). The app has only employee functions for every role (register the phone, health check, today, own history); management tools stay in the web app. Staff sign in with the same two-step login as on the web.
+
 Planned structure once scaffolded (Architecture Section 7.2):
 
 ```

@@ -13,6 +13,8 @@ const createUserSchema = z.object({
     .regex(/^[A-Za-z0-9._-]+$/u, "Only letters, digits, dot, underscore and dash"),
   displayName: z.string().trim().min(1).max(120),
   role: z.enum(["HR", "MANAGER"]),
+  /** The person's own employee record (they also record their own attendance on a phone). */
+  employeeId: z.string().uuid().nullable().optional(),
 });
 const idSchema = z.string().uuid();
 const scopeSchema = z
@@ -57,6 +59,23 @@ export class UsersController {
       auth.tenantId,
       createUserSchema.parse(body),
       { userId: auth.userId, role: auth.role },
+      meta,
+    );
+  }
+
+  /** Links the account to the person's own employee record (or `null` to unlink): PRD 4, v1.32. */
+  @Roles("ORG_ADMIN")
+  @Put(":id/employee")
+  linkEmployee(
+    @CurrentAuth() auth: AuthContext,
+    @Param("id") id: string,
+    @Body() body: unknown,
+    @Meta() meta: RequestMeta,
+  ) {
+    return this.users.linkEmployee(
+      auth,
+      idSchema.parse(id),
+      z.object({ employeeId: idSchema.nullable() }).strict().parse(body).employeeId,
       meta,
     );
   }

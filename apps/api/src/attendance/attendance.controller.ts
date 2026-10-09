@@ -84,7 +84,7 @@ const rangeQuery = z.object({ from: isoDate, to: isoDate });
 export class DeviceEventsController {
   constructor(private readonly attendance: AttendanceService) {}
 
-  @Roles("EMPLOYEE")
+  @Roles("EMPLOYEE", "HR", "MANAGER", "ORG_ADMIN")
   @Post("events")
   @HttpCode(200)
   ingest(@CurrentAuth() auth: AuthContext, @Body() body: unknown) {
@@ -95,14 +95,14 @@ export class DeviceEventsController {
     });
   }
 
-  @Roles("EMPLOYEE")
+  @Roles("EMPLOYEE", "HR", "MANAGER", "ORG_ADMIN")
   @Post("heartbeat")
   @HttpCode(200)
   heartbeat(@CurrentAuth() auth: AuthContext) {
     return this.attendance.heartbeat(auth);
   }
 
-  @Roles("EMPLOYEE")
+  @Roles("EMPLOYEE", "HR", "MANAGER", "ORG_ADMIN")
   @Get("me/attendance")
   mine(@CurrentAuth() auth: AuthContext, @Query() query: unknown) {
     const q = rangeQuery.parse(query);

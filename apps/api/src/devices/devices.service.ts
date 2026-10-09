@@ -312,10 +312,15 @@ export class DevicesService {
           [auth.tenantId, qr.id, employeeId, deviceId, now],
         );
         // From now on this login session belongs to the device; if the device is disabled the session ends.
-        await tx.query("UPDATE auth_session SET device_id = $2 WHERE id = $1", [
-          auth.sessionId,
-          deviceId,
-        ]);
+        // A staff account linked to the person's employee record gets the phone's long session too (PRD 4, 21.2).
+        await tx.query(
+          "UPDATE auth_session SET device_id = $2, expires_at = GREATEST(expires_at, $3) WHERE id = $1",
+          [
+            auth.sessionId,
+            deviceId,
+            new Date(now.getTime() + this.config.EMPLOYEE_SESSION_DAYS * 86_400_000),
+          ],
+        );
 
         await this.audit.record(tx, {
           tenantId: auth.tenantId,

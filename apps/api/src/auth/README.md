@@ -16,7 +16,8 @@ POST /auth/password/change { currentPassword, newPassword }  → fresh tokens; a
 POST /auth/totp/setup    (Bearer)  → { secret, otpauthUri }   scan in Google Authenticator
 POST /auth/totp/enable   { code }  → tokens + 8 recovery codes (shown once)
 
-POST /users                       Org Admin creates an HR or Manager user → one-time temporary password
+POST /users                       Org Admin creates an HR or Manager user (optional employeeId: their own employee record) → one-time temporary password
+PUT  /users/:id/employee          Org Admin links a staff account (Org Admin, HR, Manager) to the person's own employee record, or unlinks (null): they then register a phone and record their own attendance (PRD 4); one login per employee
 POST /users/:id/reset-password    Org Admin → HR/Manager/Employee; HR → Employee
 POST /users/:id/totp-reset        Org Admin (lost phone)
 ```
@@ -53,3 +54,7 @@ POST /users/:id/totp-reset        Org Admin (lost phone)
 - Progressive (escalating) lockout: the lock is a fixed 15 minutes.
 - Absolute maximum session age for staff (idle expiry only).
 - Password-reset by one-time code to a verified email/phone (admin/HR-assisted reset exists).
+
+## Staff who are also employees (PRD 4, v1.32)
+
+Org Admin, HR and Manager are employees too: their account may carry `employee_id` (migration `0028`; an EMPLOYEE account still always has one, and one account per employee). With the link they can `POST /devices/register`, `/events`, `/heartbeat` and read `/me/attendance` from the phone, with the same two-step login as on the web (TOTP for Org Admin and HR). Once the phone is registered the session bound to it lasts `EMPLOYEE_SESSION_DAYS` like an employee's; a web session stays short (`STAFF_SESSION_IDLE_MINUTES`). Without the link these routes answer `403 EMPLOYEE_ONLY`. Linking or unlinking ends the account's phone sessions. Disabling the employee also disables the linked login.

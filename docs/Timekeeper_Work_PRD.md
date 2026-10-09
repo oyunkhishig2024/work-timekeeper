@@ -1,7 +1,7 @@
 # Timekeeper Work
 ## Product Requirements Document (PRD)
 
-Version: 1.31
+Version: 1.32
 Product: Timekeeper Work
 Owner: Onki
 Status: Requirements Specification (pre-development review + CTO review + stakeholder decisions applied)
@@ -77,6 +77,8 @@ Users:
 ---
 
 # 4. User Roles
+
+**Who uses which app [v1.32].** There are two apps. The **web app** (Next.js, on a desktop or laptop) is the management tool of the **Organization Admin, HR and Manager** (and later the Super Admin): dashboards, lists, reports, settings, corrections. The **phone app** (React Native, native, because recording attendance needs background geofencing) is where **every employee records their own attendance, including the Organization Admin, HR and Managers**, who are employees too: they register their own phone, give consent and are counted like anyone else. The phone app has only the employee functions (register the phone, health check, today, own history) for every role; the management tools are **not** on the phone, and a Manager does not need a phone view of the team. An Org Admin, HR or Manager account is **linked to the person's own employee record** (by the Org Admin, 4 / users API); one login per employee, and the same account signs in on the web and on the phone.
 
 ## Super Admin
 
@@ -1242,6 +1244,7 @@ Added in v1.2 **[v1.2]**:
 | 1.29 | Overtime across midnight (23.2, 6.4): the departure window after the end of the duty grows from 4 h to 12 h (a last exit at 01:40 after a 17:30 end is 8 h 10 min of overtime, not Тодорхойгүй); an ENTER more than 3 h after an EXIT after the end is the next visit; a person still inside shows Байгаа while the phone is heard from (heartbeat within an hour), Тодорхойгүй only when it is silent. |
 | 1.30 | Worked on a day off (14.2, 20, 23.2): a holiday or a day off with an arrival is recorded with the arrival and departure and the label «Амралтын өдөр ажилласан»; no overtime, short-hours or left-early is derived and HR decides what it means. New daily chip and a week/month list with Excel / CSV / PDF (`/v1/attendance/off-day-work`, `/v1/exports/off-day-work`). |
 | 1.31 | A holiday and an ordinary day off are told apart (14.2, 20): the daily list, the day-off list and its export say «Баярын өдөр ажилласан» or «Амралтын өдөр ажилласан» (the export has a «Өдрийн төрөл» column); the chip and totals stay one group («Баяр, амралтын өдөр ажилласан»). |
+| 1.32 | Who uses which app (4): the Org Admin, HR and Managers also record their own attendance on a phone, and use the web app (desktop or laptop) for management; the phone app has only employee functions for every role; no team view for Managers on the phone. Their staff account is linked to their own employee record (`PUT /v1/users/:id/employee`, or `employeeId` when the user is created); the phone session lasts like an employee's once the phone is registered. Super Admin is a web user (tenant management, not built). |
 
 ---
 

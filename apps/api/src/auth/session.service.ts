@@ -34,8 +34,10 @@ export class SessionService {
     deviceId?: string | null,
   ): Promise<AuthTokens> {
     const now = this.clock.now();
+    // A phone session lasts like an employee's: an employee account, or a staff account linked to the person's own
+    // employee record once the session is bound to their registered phone (PRD 4, 21.2). A web session stays short.
     const lifetimeMs =
-      user.role === "EMPLOYEE"
+      user.role === "EMPLOYEE" || (user.employee_id !== null && Boolean(deviceId))
         ? this.config.EMPLOYEE_SESSION_DAYS * 24 * 60 * 60 * 1000
         : this.config.STAFF_SESSION_IDLE_MINUTES * 60 * 1000; // sliding: renewed by every refresh
     const refresh = newRefreshToken(user.tenant_id);

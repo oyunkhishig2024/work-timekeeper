@@ -1,7 +1,7 @@
 # Timekeeper Work
 ## Technical Architecture Document
 
-Version: 0.33 (draft for review)
+Version: 0.34 (draft for review)
 Status: Draft — based on PRD v1.9 (`docs/Timekeeper_Work_PRD.md`)
 Audience: engineering lead, backend / mobile / web developers, QA
 Scope: the **pilot tier** (1–2 tenants, ~4 months, ~640 employees), built by **one full-stack developer** (decision v0.2, see Section 14). The production tier is covered only where a decision now would be expensive to undo later.
@@ -915,4 +915,9 @@ Migrations `0010_time_rules` and `0011_shifts` add the storage for attendance ru
 # 48. Implementation Status (holiday vs day off, PRD v1.31)
 
 - Migration `0027` adds `attendance_result.off_day_kind` (`HOLIDAY` | `OFF_DAY`), set by the engine from the expectation reason of a `WORKED_OFF_DAY` day (derived, rebuilt by recompute). The daily list, `GET /v1/attendance/off-day-work`, the `off-day-work` export and the web screens show «Баярын өдөр ажилласан» or «Амралтын өдөр ажилласан».
+
+# 49. Implementation Status (staff on the phone, PRD v1.32)
+
+- Migration `0028`: `user_account.employee_id` may be set for any role (an EMPLOYEE account still always has one). `PUT /v1/users/:id/employee` and `employeeId` on `POST /v1/users`; devices (`register`, `me`), `events`, `heartbeat` and `me/attendance` accept every role and answer `403 EMPLOYEE_ONLY` without a linked employee record. A staff session bound to a registered phone lasts like an employee's.
+- Not done: the mobile app itself; a users screen in the web app (linking is API-only); choosing the link while creating an employee.
 

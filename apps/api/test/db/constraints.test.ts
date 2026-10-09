@@ -71,19 +71,25 @@ describe.skipIf(!hasDb)("data constraints", () => {
     ).rejects.toThrow(/check constraint/i);
   });
 
-  it("requires EMPLOYEE accounts to be linked to an employee and staff accounts not to be", async () => {
+  it("requires EMPLOYEE accounts to be linked to an employee; staff accounts may be (PRD 4), one login per employee", async () => {
     await expect(
       client.query(
         "INSERT INTO user_account (tenant_id, username, password_hash, role) VALUES ($1, 'e1', 'x', 'EMPLOYEE')",
         [f.tenantId],
       ),
     ).rejects.toThrow(/check constraint/i);
+    // an HR account with the person's own employee record is allowed ...
+    await client.query(
+      "INSERT INTO user_account (tenant_id, username, password_hash, role, employee_id) VALUES ($1, 'h1', 'x', 'HR', $2)",
+      [f.tenantId, f.employeeId],
+    );
+    // ... but never a second login for the same employee
     await expect(
       client.query(
-        "INSERT INTO user_account (tenant_id, username, password_hash, role, employee_id) VALUES ($1, 'h1', 'x', 'HR', $2)",
+        "INSERT INTO user_account (tenant_id, username, password_hash, role, employee_id) VALUES ($1, 'h2', 'x', 'MANAGER', $2)",
         [f.tenantId, f.employeeId],
       ),
-    ).rejects.toThrow(/check constraint/i);
+    ).rejects.toThrow(/unique|duplicate/i);
   });
 
   it("usernames are unique per tenant, case-insensitively", async () => {

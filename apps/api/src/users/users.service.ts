@@ -33,7 +33,13 @@ export class UsersService {
   /** Used by the API (Org Admin creates HR/Manager) and by the bootstrap CLI. */
   async create(
     tenantId: string,
-    input: { username: string; displayName: string; role: Exclude<Role, "EMPLOYEE"> },
+    input: {
+      username: string;
+      displayName: string;
+      role: Exclude<Role, "EMPLOYEE">;
+      /** The person's own employee record: they then register a phone and record their own attendance (PRD 4). */
+      employeeId?: string | null;
+    },
     actor: Actor,
     meta: RequestMeta,
   ): Promise<CreatedUser> {
@@ -43,14 +49,29 @@ export class UsersService {
       let id: string;
       try {
         const { rows } = await tx.query<{ id: string }>(
-          `INSERT INTO user_account (tenant_id, username, display_name, password_hash, role)
-           VALUES ($1, $2, $3, $4, $5) RETURNING id`,
-          [tenantId, input.username, input.displayName, passwordHash, input.role],
+          `INSERT INTO user_account (tenant_id, username, display_name, password_hash, role, employee_id)
+           VALUES ($1, $2, $3, $4, $5, $6) RETURNING id`,
+          [
+            tenantId,
+            input.username,
+            input.displayName,
+            passwordHash,
+            input.role,
+            input.employeeId ?? null,
+          ],
         );
         id = rows[0]!.id;
       } catch (error) {
-        if ((error as { code?: string }).code === "23505") {
+        const code = (error as { code?: string; constraint?: string }).code;
+        const constraint = (error as { constraint?: string }).constraint ?? "";
+        if (code === "23505" && constraint.includes("employee")) {
+          throw new ApiError(409, "EMPLOYEE_HAS_ACCOUNT", "That employee already has a login.");
+        }
+        if (code === "23505") {
           throw new ApiError(409, "USERNAME_TAKEN", "That username is already in use.");
+        }
+        if (code === "23503") {
+          throw new ApiError(404, "EMPLOYEE_NOT_FOUND", "The employee does not exist.");
         }
         throw error;
       }
@@ -61,7 +82,7 @@ export class UsersService {
         actorRole: actor.role,
         entityType: "user_account",
         entityId: id,
-        after: { username: input.username, role: input.role },
+        after: { username: input.username, role: input.role, employeeId: input.employeeId ?? null },
         ...meta,
       });
       return {
@@ -80,11 +101,79 @@ export class UsersService {
       const { rows } = await tx.query(
         `SELECT u.id, u.username, u.display_name AS "displayName", u.role, u.status,
                 u.totp_enabled AS "totpEnabled", u.must_change_password AS "mustChangePassword",
-                u.last_login_at AS "lastLoginAt",
+                u.last_login_at AS "lastLoginAt", u.employee_id AS "employeeId",
+                (SELECT e.full_name FROM employee e WHERE e.id = u.employee_id) AS "employeeName",
                 (SELECT count(*)::int FROM user_scope s WHERE s.user_id = u.id) AS "scopeRules"
            FROM user_account u WHERE u.role <> 'EMPLOYEE' ORDER BY u.username`,
       );
       return rows;
+    });
+  }
+
+  /**
+   * Links a staff account (Org Admin, HR, Manager) to the person's own employee record, or unlinks it (`null`). Linked, the
+   * person registers a phone and records their own attendance like any employee (PRD 4, v1.32); the web app is unchanged.
+   * One login per employee: an employee that already has a login (their own employee login, or another staff account) is refused.
+   */
+  async linkEmployee(
+    auth: AuthContext,
+    userId: string,
+    employeeId: string | null,
+    meta: RequestMeta,
+  ) {
+    return this.db.withTenant(auth.tenantId, async (tx) => {
+      const { rows } = await tx.query<{ role: Role; employeeId: string | null }>(
+        'SELECT role, employee_id AS "employeeId" FROM user_account WHERE id = $1 FOR UPDATE',
+        [userId],
+      );
+      const user = rows[0];
+      if (!user) throw new ApiError(404, "USER_NOT_FOUND", "User not found.");
+      if (user.role === "EMPLOYEE") {
+        throw new ApiError(
+          409,
+          "NOT_A_STAFF_ACCOUNT",
+          "An employee login always belongs to its employee; only staff accounts are linked.",
+        );
+      }
+      if (employeeId !== null) {
+        const employee = await tx.query<{ status: string }>(
+          "SELECT status FROM employee WHERE id = $1",
+          [employeeId],
+        );
+        if (!employee.rows[0])
+          throw new ApiError(404, "EMPLOYEE_NOT_FOUND", "The employee does not exist.");
+        if (employee.rows[0].status !== "ACTIVE") {
+          throw new ApiError(409, "EMPLOYEE_NOT_ACTIVE", "Only an active employee can be linked.");
+        }
+        const taken = await tx.query(
+          "SELECT 1 FROM user_account WHERE employee_id = $1 AND id <> $2",
+          [employeeId, userId],
+        );
+        if ((taken.rowCount ?? 0) > 0) {
+          throw new ApiError(409, "EMPLOYEE_HAS_ACCOUNT", "That employee already has a login.");
+        }
+      }
+      await tx.query("UPDATE user_account SET employee_id = $2 WHERE id = $1", [
+        userId,
+        employeeId,
+      ]);
+      // A phone session of the old link must not keep recording for someone else (web sessions stay).
+      await tx.query(
+        "UPDATE auth_session SET revoked_at = now() WHERE user_id = $1 AND device_id IS NOT NULL AND revoked_at IS NULL",
+        [userId],
+      );
+      await this.audit.record(tx, {
+        tenantId: auth.tenantId,
+        action: "user.employee_linked",
+        actorUserId: auth.userId,
+        actorRole: auth.role,
+        entityType: "user_account",
+        entityId: userId,
+        before: { employeeId: user.employeeId },
+        after: { employeeId },
+        ...meta,
+      });
+      return { userId, employeeId };
     });
   }
 

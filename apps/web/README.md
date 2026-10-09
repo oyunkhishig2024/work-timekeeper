@@ -1,5 +1,7 @@
 # Admin web app (Next.js)
 
+Used on a desktop or laptop by the **Org Admin, HR and Manager** (the Super Admin later). They record their own attendance on the phone app, not here (PRD 4).
+
 Early build: sign-in, the dashboard (Хянах самбар), the daily attendance screen (Өдрийн ирц), the review lists (Хяналт), the employee register (Ажилтнууд) and the Org Admin notifications page.
 Roster, reports, QR and settings screens are still to come (the clickable prototype shows the intended design).
 
