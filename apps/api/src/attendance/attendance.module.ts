@@ -14,6 +14,7 @@ import { DeviceAlertsService } from "./device-alerts.service";
 import { CorrectionsService } from "./corrections.service";
 import { AttendanceService } from "./attendance.service";
 import { DailyAttendanceService } from "./daily.service";
+import { MobilePlanService } from "./mobile-plan.service";
 import { TimeReportService } from "./time-report.service";
 
 @Module({
@@ -29,6 +30,7 @@ import { TimeReportService } from "./time-report.service";
     AttendanceService,
     DailyAttendanceService,
     TimeReportService,
+    MobilePlanService,
     CorrectionsService,
     AnomaliesService,
     DeviceAlertsService,

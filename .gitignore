@@ -8,7 +8,9 @@ coverage/
 .env.*
 !.env.example
 .DS_Store
-# mobile (added when scaffolded)
+# mobile (Expo)
+apps/mobile/.expo/
+apps/mobile/dist/
 apps/mobile/ios/Pods/
 apps/mobile/android/.gradle/
 apps/mobile/android/build/

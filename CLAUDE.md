@@ -19,5 +19,5 @@
 - Backups and PITR: see `infra/backup/README.md` and `docs/operations/backup-and-restore.md`. Run `infra/backup/test/pitr-rehearsal.sh` after any change under `infra/backup` (needs PostgreSQL 16 binaries, age and jq; no network). Scripts must stay `shellcheck`-clean. Never edit them to overwrite or delete archived WAL, and never set `archive_command` to `/bin/true`. A rebuilt or upgraded cluster needs a new `BACKUP_REMOTE` prefix.
 - Org Admin notifications and Web Push: see `apps/api/src/notifications/README.md`. Call `notifyOrgAdmins(tx, ...)` inside the transaction of the event; push texts must stay generic (no personal data).
 - Admin web app (sign-in, service worker, push subscription): see `apps/web/README.md`. `public/sw.js` must keep no fetch handler / no caching and only open same-origin links.
-- Mobile app is intentionally not scaffolded yet (see `apps/mobile/README.md`).
+- Mobile app (Expo, employees and staff record their own attendance): see `apps/mobile/README.md`. Logic stays plain TypeScript with tests; background geofencing is unverified until Spike 1 on real phones. Attendance rules still live in `packages/domain`, never in the app.
 - Before finishing a change run: `pnpm format:check && pnpm lint && pnpm typecheck && pnpm test && pnpm build`.

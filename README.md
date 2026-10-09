@@ -11,7 +11,7 @@ Geofence-based workforce attendance for multi-tenant organizations (first tenant
 apps/
   api/        NestJS backend: REST API (src/main.ts) and background worker (src/worker.ts)
   web/        Next.js admin web app (Tailwind CSS)
-  mobile/     React Native app — scaffolded after Phase 0 Spike 1 (see apps/mobile/README.md)
+  mobile/     Expo / React Native app for employees and staff (first slice written; see apps/mobile/README.md)
 packages/
   domain/     Pure TypeScript attendance rules (no framework, no database); tested with Vitest
 infra/

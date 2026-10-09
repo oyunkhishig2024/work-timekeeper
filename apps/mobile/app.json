@@ -1,0 +1,45 @@
+{
+  "expo": {
+    "name": "Timekeeper Work",
+    "slug": "timekeeper-work",
+    "scheme": "tkw",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "light",
+    "ios": {
+      "bundleIdentifier": "mn.timekeeper.work",
+      "supportsTablet": false,
+      "infoPlist": {
+        "UIBackgroundModes": ["location"]
+      }
+    },
+    "android": {
+      "package": "mn.timekeeper.work",
+      "permissions": [
+        "ACCESS_COARSE_LOCATION",
+        "ACCESS_FINE_LOCATION",
+        "ACCESS_BACKGROUND_LOCATION",
+        "CAMERA"
+      ]
+    },
+    "plugins": [
+      [
+        "expo-location",
+        {
+          "isAndroidBackgroundLocationEnabled": true,
+          "isIosBackgroundLocationEnabled": true,
+          "locationAlwaysAndWhenInUsePermission": "Ирцийг ажлын байрны орчимд автоматаар бүртгэхийн тулд байршлыг үргэлж ашиглахыг зөвшөөрнө үү. Байршлыг зөвхөн ажлын цагаар, ажлын байрны орчимд ашиглана.",
+          "locationWhenInUsePermission": "Ирцийг бүртгэхийн тулд байршлыг ашиглана."
+        }
+      ],
+      [
+        "expo-camera",
+        { "cameraPermission": "Утсаа бүртгүүлэхэд QR код уншуулахын тулд камер ашиглана." }
+      ],
+      "expo-secure-store"
+    ],
+    "extra": {
+      "apiUrl": "http://localhost:3001"
+    }
+  }
+}

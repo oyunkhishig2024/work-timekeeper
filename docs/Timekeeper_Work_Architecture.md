@@ -1,7 +1,7 @@
 # Timekeeper Work
 ## Technical Architecture Document
 
-Version: 0.34 (draft for review)
+Version: 0.35 (draft for review)
 Status: Draft — based on PRD v1.9 (`docs/Timekeeper_Work_PRD.md`)
 Audience: engineering lead, backend / mobile / web developers, QA
 Scope: the **pilot tier** (1–2 tenants, ~4 months, ~640 employees), built by **one full-stack developer** (decision v0.2, see Section 14). The production tier is covered only where a decision now would be expensive to undo later.
@@ -438,7 +438,7 @@ A **Health screen** and a periodic background check evaluate: location permissio
 
 ## 7.7 Mobile API (summary)
 
-`POST /auth/login`, `POST /auth/refresh`, `POST /devices/register`, `GET /mobile/plan`, `POST /events/batch`, `POST /devices/heartbeat`, `GET /me/attendance?from&to`, `GET /app/config` (min version, recommended version, OEM guides, policy text version).
+`POST /auth/login` (+ `/auth/totp/verify`, `/auth/password/change`), `POST /auth/refresh`, `POST /devices/register`, `GET /devices/me`, `GET /mobile/plan`, `POST /events` (batches), `POST /heartbeat`, `GET /me/attendance?from&to` (as built; paths under `/v1`), `GET /app/config` (min version, recommended version, OEM guides, policy text version; not built).
 
 ## 7.8 Release and compatibility
 
@@ -920,4 +920,9 @@ Migrations `0010_time_rules` and `0011_shifts` add the storage for attendance ru
 
 - Migration `0028`: `user_account.employee_id` may be set for any role (an EMPLOYEE account still always has one). `PUT /v1/users/:id/employee` and `employeeId` on `POST /v1/users`; devices (`register`, `me`), `events`, `heartbeat` and `me/attendance` accept every role and answer `403 EMPLOYEE_ONLY` without a linked employee record. A staff session bound to a registered phone lasts like an employee's.
 - Not done: the mobile app itself; a users screen in the web app (linking is API-only); choosing the link while creating an employee.
+
+# 50. Implementation Status (mobile app, first slice)
+
+- `apps/mobile`: Expo SDK 57 / TypeScript. Logic (API client with one shared token refresh, outbox, uploader, plan, health, history groups) is plain TypeScript with 42 unit tests and a contract test against the real API; the screens and the `expo-location` geofence bridge compile and bundle (Metro/Hermes) but have not run on a device. New server route `GET /v1/mobile/plan` (`MobilePlanService`).
+- Open: Spike 1 (geofence delivery on real phones), Spike 2 (attestation), encrypted outbox, background upload and heartbeat, force-upgrade, TOTP set-up in the app, store releases.
 

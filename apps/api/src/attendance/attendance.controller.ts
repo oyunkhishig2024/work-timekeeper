@@ -7,6 +7,7 @@ import { AnomaliesService } from "./anomalies.service";
 import { DeviceAlertsService } from "./device-alerts.service";
 import { AttendanceService } from "./attendance.service";
 import { DailyAttendanceService } from "./daily.service";
+import { MobilePlanService } from "./mobile-plan.service";
 import { TimeReportService } from "./time-report.service";
 import { CORRECTION_REASONS, CorrectionsService } from "./corrections.service";
 
@@ -82,7 +83,10 @@ const rangeQuery = z.object({ from: isoDate, to: isoDate });
 /** The employee's phone reports geofence transitions (PRD 6.7, 6.8). */
 @Controller()
 export class DeviceEventsController {
-  constructor(private readonly attendance: AttendanceService) {}
+  constructor(
+    private readonly attendance: AttendanceService,
+    private readonly mobilePlan: MobilePlanService,
+  ) {}
 
   @Roles("EMPLOYEE", "HR", "MANAGER", "ORG_ADMIN")
   @Post("events")
@@ -100,6 +104,13 @@ export class DeviceEventsController {
   @HttpCode(200)
   heartbeat(@CurrentAuth() auth: AuthContext) {
     return this.attendance.heartbeat(auth);
+  }
+
+  /** The places the phone watches today and on the next two days (Architecture 7.3). */
+  @Roles("EMPLOYEE", "HR", "MANAGER", "ORG_ADMIN")
+  @Get("mobile/plan")
+  plan(@CurrentAuth() auth: AuthContext) {
+    return this.mobilePlan.plan(auth);
   }
 
   @Roles("EMPLOYEE", "HR", "MANAGER", "ORG_ADMIN")
