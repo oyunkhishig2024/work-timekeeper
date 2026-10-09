@@ -11,9 +11,8 @@ coverage/
 # mobile (Expo)
 apps/mobile/.expo/
 apps/mobile/dist/
-apps/mobile/ios/Pods/
-apps/mobile/android/.gradle/
-apps/mobile/android/build/
+apps/mobile/ios/
+apps/mobile/android/
 next-env.d.ts
 *.tsbuildinfo
 # uploaded files (consent scans) in local development

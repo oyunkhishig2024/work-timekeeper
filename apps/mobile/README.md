@@ -30,6 +30,32 @@ URL comes from `EXPO_PUBLIC_API_URL`, else `extra.apiUrl` in `app.json`.
 The contract test talks to a real API and is skipped unless `TKW_E2E_URL`, `TKW_E2E_ORG`, `TKW_E2E_USER`, `TKW_E2E_PASSWORD`, `TKW_E2E_QR`
 (a fresh onboarding QR token) and `TKW_E2E_LOCATION` are set.
 
+## Building the installable app (Android APK / iPhone)
+
+The project is a real React Native app: `expo prebuild` generates the native Android (Gradle) and iOS (Xcode) projects from `app.json`
+(checked here for both platforms; permissions, background-location mode, camera text and the launcher icon come out as intended, and the
+microphone permission is blocked). The generated `android/` and `ios/` folders are not committed (they are made from `app.json`).
+Building the binary needs tools that are not in this repository's sandbox (the Android SDK, an Apple toolchain), so it is done in one of two ways:
+
+**A. In the cloud with EAS (no Android Studio, no Mac)** — needs a free Expo account:
+
+```
+npm i -g eas-cli && eas login
+cd apps/mobile
+# set the real API address in eas.json (env.EXPO_PUBLIC_API_URL) for the profile you build
+eas build --platform android --profile preview        # → an .apk link to install on a phone
+eas build --platform ios --profile preview            # → needs an Apple Developer account (99 USD / year); registers the iPhone
+eas build --platform all --profile production         # store builds (.aab / .ipa)
+```
+
+`development` makes a development client (for debugging with `pnpm start`), `preview` an installable test build, `production` the store build.
+
+**B. On your computer** — Android Studio (SDK 35+) or Xcode (Mac): `pnpm --filter @timekeeper/mobile android` / `ios` (`expo run:android`).
+
+Before the first real build: the API must be reachable from phones over **HTTPS** (not `localhost`); `app.json` has the package name
+`mn.timekeeper.work`; Google Play needs a developer account (25 USD once), Apple an Apple Developer account. Spike 1 (real phones, background
+location after 2 h idle and after a reboot) is done with the `preview` build on the target phone models.
+
 ## Structure
 
 ```

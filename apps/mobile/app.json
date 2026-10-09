@@ -11,7 +11,8 @@
       "supportsTablet": false,
       "infoPlist": {
         "UIBackgroundModes": ["location"]
-      }
+      },
+      "buildNumber": "1"
     },
     "android": {
       "package": "mn.timekeeper.work",
@@ -20,7 +21,13 @@
         "ACCESS_FINE_LOCATION",
         "ACCESS_BACKGROUND_LOCATION",
         "CAMERA"
-      ]
+      ],
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#0F766E"
+      },
+      "versionCode": 1,
+      "blockedPermissions": ["android.permission.RECORD_AUDIO"]
     },
     "plugins": [
       [
@@ -34,12 +41,29 @@
       ],
       [
         "expo-camera",
-        { "cameraPermission": "Утсаа бүртгүүлэхэд QR код уншуулахын тулд камер ашиглана." }
+        {
+          "cameraPermission": "Утсаа бүртгүүлэхэд QR код уншуулахын тулд камер ашиглана.",
+          "microphonePermission": false,
+          "recordAudioAndroid": false
+        }
       ],
-      "expo-secure-store"
+      "expo-secure-store",
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/splash-icon.png",
+          "backgroundColor": "#0F766E",
+          "imageWidth": 200
+        }
+      ],
+      "expo-dev-client"
     ],
     "extra": {
       "apiUrl": "http://localhost:3001"
+    },
+    "icon": "./assets/icon.png",
+    "runtimeVersion": {
+      "policy": "appVersion"
     }
   }
 }
