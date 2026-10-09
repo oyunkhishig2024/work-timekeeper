@@ -76,7 +76,7 @@ export class DailyAttendanceService {
                (r.location_id IS NOT NULL AND r.location_id <> e.primary_location_id) AS temporary,
                r.status, r.arrival_at AS "arrivalAt", r.late_minutes AS "lateMinutes",
                r.departure_at AS "departureAt", r.departure_state AS "departureState",
-               r.early_leave_minutes AS "earlyLeaveMinutes",
+               r.early_leave_minutes AS "earlyLeaveMinutes", r.off_day_kind AS "offDayKind",
                r.reason_name AS "reasonName", r.reason_note AS "reasonNote", r.missing,
                r.expected_start AS "expectedStart",
                r.source, r.system_status AS "systemStatus", r.flagged_events AS "flaggedEvents",

@@ -137,7 +137,7 @@ function StatusBadge({ status }: { status: DailyRow["status"] }) {
   if (status === "WORKED_OFF_DAY" || status === "NOT_CONFIGURED") {
     return (
       <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs">
-        {status === "WORKED_OFF_DAY" ? "Амралтын өдөр ажилласан" : "Тохиргоо дутуу"}
+        {status === "WORKED_OFF_DAY" ? "Баяр, амралтын өдөр ажилласан" : "Тохиргоо дутуу"}
       </span>
     );
   }

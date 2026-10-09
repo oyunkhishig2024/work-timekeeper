@@ -19,6 +19,7 @@ import {
   fetchLocations,
   fetchReasons,
   departureText,
+  offDayLabel,
   isReasonAssignable,
   MAX_BULK_ASSIGN,
   parseDailyState,
@@ -441,7 +442,7 @@ function Row({
   const label = expected
     ? STATUS_LABEL[r.status as Status]
     : r.status === "WORKED_OFF_DAY"
-      ? "Амралтын өдөр ажилласан"
+      ? offDayLabel(r.offDayKind)
       : "Тохиргоо дутуу";
   const lastSeen = formatTime(r.lastSeenAt, timeZone);
   return (

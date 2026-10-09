@@ -379,6 +379,7 @@ export class ExportsService {
             { key: "departmentName", header: "Нэгж", width: 1 },
             { key: "primaryLocationName", header: "Үндсэн салбар", width: 1 },
             { key: "date", header: "Огноо", width: 1 },
+            { key: "dayKind", header: "Өдрийн төрөл", width: 1 },
             { key: "arrival", header: "Ирсэн цаг", width: 1 },
             { key: "departure", header: "Гарсан цаг", width: 1 },
             { key: "note", header: "Тайлбар", width: 2 },
@@ -396,7 +397,8 @@ export class ExportsService {
                 : r.departureState === "INSIDE"
                   ? "Байгаа"
                   : "Тодорхойгүй",
-            note: "Амралтын өдөр ажилласан",
+            dayKind: r.offDayKind === "HOLIDAY" ? "Баярын өдөр" : "Амралтын өдөр",
+            note: r.offDayKind === "HOLIDAY" ? "Баярын өдөр ажилласан" : "Амралтын өдөр ажилласан",
           })),
         };
       }

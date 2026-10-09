@@ -202,6 +202,7 @@ describe.skipIf(!hasDb)("short-hours and overtime reports (PRD 9, 23.2)", () => 
       status: "WORKED_OFF_DAY",
       departureState: "LEFT",
       earlyLeaveMinutes: 0,
+      offDayKind: "OFF_DAY", // a plain day off, not a holiday
     });
     expect(new Date(day.items[0].arrivalAt).toISOString()).toBe(at("10:00").toISOString());
     expect(new Date(day.items[0].departureAt).toISOString()).toBe(at("15:20").toISOString());
@@ -229,7 +230,40 @@ describe.skipIf(!hasDb)("short-hours and overtime reports (PRD 9, 23.2)", () => 
       .set({ Authorization: `Bearer ${token}` });
     expect(csv.status).toBe(200);
     expect(csv.text).toContain("Амралтын өдөр ажилласан");
+    expect(csv.text).not.toContain("Баярын өдөр");
     expect(csv.text).toContain("10:00");
     expect(csv.text).toContain("15:20");
+  });
+
+  it("a holiday is told apart from a plain day off: «Баярын өдөр ажилласан»", async () => {
+    const w = await k.world();
+    const admin = (await signIn(h, w.admin)).accessToken;
+    const holiday = await k.post(admin, "/v1/holidays", {
+      name: "Баярын өдөр",
+      fromDate: WORK_DATE,
+      toDate: WORK_DATE,
+      repeatsYearly: false,
+      confirmRecompute: true,
+    });
+    expect(holiday.status).toBe(201);
+    k.setClock("11:00");
+    await k.send(await k.emp(w), [k.ev(w)]);
+    k.setClock("14:30");
+    await k.send(await k.emp(w), [k.ev(w, { type: "EXIT" })]);
+    k.setClock("16:00");
+    await k.tick(w.tenant.id);
+    const token = (await signIn(h, w.hr)).accessToken;
+    const from = `from=${WORK_DATE}&to=${WORK_DATE}`;
+    const list = await k.get(token, `/v1/attendance/off-day-work?${from}`);
+    expect(list.body.items[0]).toMatchObject({ employeeId: w.employee.id, offDayKind: "HOLIDAY" });
+    const csv = await h
+      .http()
+      .get(`/v1/exports/off-day-work?format=csv&${from}`)
+      .set({ Authorization: `Bearer ${token}` });
+    expect(csv.text).toContain("Баярын өдөр ажилласан");
+    expect(csv.text).not.toContain("Амралтын өдөр ажилласан");
+    const day = (await k.get(token, `/v1/attendance/daily?date=${WORK_DATE}&status=WORKED_OFF_DAY`))
+      .body;
+    expect(day.items[0]).toMatchObject({ offDayKind: "HOLIDAY", status: "WORKED_OFF_DAY" });
   });
 });

@@ -150,7 +150,8 @@ export class TimeReportService {
         `SELECT e.id AS "employeeId", e.employee_no AS "employeeNo", e.full_name AS "fullName",
                 d.name AS "departmentName", pl.name AS "primaryLocationName",
                 r.work_date::text AS date, r.arrival_at AS "arrivalAt",
-                r.departure_at AS "departureAt", r.departure_state AS "departureState"
+                r.departure_at AS "departureAt", r.departure_state AS "departureState",
+                r.off_day_kind AS "offDayKind"
           ${body}
           ORDER BY r.work_date, e.employee_no
           LIMIT $${params.length - 1} OFFSET $${params.length}`,

@@ -1,7 +1,7 @@
 # Timekeeper Work
 ## Technical Architecture Document
 
-Version: 0.32 (draft for review)
+Version: 0.33 (draft for review)
 Status: Draft — based on PRD v1.9 (`docs/Timekeeper_Work_PRD.md`)
 Audience: engineering lead, backend / mobile / web developers, QA
 Scope: the **pilot tier** (1–2 tenants, ~4 months, ~640 employees), built by **one full-stack developer** (decision v0.2, see Section 14). The production tier is covered only where a decision now would be expensive to undo later.
@@ -911,4 +911,8 @@ Migrations `0010_time_rules` and `0011_shifts` add the storage for attendance ru
 
 - Domain `deriveOffDayDeparture`; the engine stores the departure of a `WORKED_OFF_DAY` result like any other (no schema change) and derives no overtime or early leave from it. `GET /v1/attendance/off-day-work`, the `off-day-work` export, the `WORKED_OFF_DAY` count and filter of the daily list, the web chip and the third list on `/reports`.
 - Not done: telling a holiday from a plain day off in the label, and any pay or time-off handling (outside the app by decision).
+
+# 48. Implementation Status (holiday vs day off, PRD v1.31)
+
+- Migration `0027` adds `attendance_result.off_day_kind` (`HOLIDAY` | `OFF_DAY`), set by the engine from the expectation reason of a `WORKED_OFF_DAY` day (derived, rebuilt by recompute). The daily list, `GET /v1/attendance/off-day-work`, the `off-day-work` export and the web screens show «Баярын өдөр ажилласан» or «Амралтын өдөр ажилласан».
 

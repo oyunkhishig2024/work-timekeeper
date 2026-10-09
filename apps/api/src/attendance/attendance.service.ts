@@ -705,8 +705,8 @@ export class AttendanceService {
           `INSERT INTO attendance_result (tenant_id, employee_id, work_date, status, location_id, expected_start,
                                           expected_cutoff, arrival_at, late_minutes, reason_name, missing, computed_at,
                                           source, system_status, system_arrival_at, flagged_events, correction_id, reason_note,
-                                          departure_at, departure_state, early_leave_minutes, overtime_minutes)
-           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22)
+                                          departure_at, departure_state, early_leave_minutes, overtime_minutes, off_day_kind)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23)
            ON CONFLICT (tenant_id, employee_id, work_date) DO UPDATE SET
              status = EXCLUDED.status, location_id = EXCLUDED.location_id, expected_start = EXCLUDED.expected_start,
              expected_cutoff = EXCLUDED.expected_cutoff, arrival_at = EXCLUDED.arrival_at,
@@ -716,7 +716,7 @@ export class AttendanceService {
              flagged_events = EXCLUDED.flagged_events, correction_id = EXCLUDED.correction_id,
              reason_note = EXCLUDED.reason_note, departure_at = EXCLUDED.departure_at,
              departure_state = EXCLUDED.departure_state, early_leave_minutes = EXCLUDED.early_leave_minutes,
-             overtime_minutes = EXCLUDED.overtime_minutes`,
+             overtime_minutes = EXCLUDED.overtime_minutes, off_day_kind = EXCLUDED.off_day_kind`,
           [
             tenantId,
             e.id,
@@ -742,6 +742,12 @@ export class AttendanceService {
             departure.state,
             leftEarly,
             overtime,
+            // a holiday or a plain day off, when someone came on a day nobody is expected (PRD 14.2)
+            !expectation.expected &&
+            derived.status === "WORKED_OFF_DAY" &&
+            (expectation.reason === "HOLIDAY" || expectation.reason === "OFF_DAY")
+              ? expectation.reason
+              : null,
           ],
         );
         if (before !== derived.status) {

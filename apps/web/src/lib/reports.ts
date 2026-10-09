@@ -35,6 +35,7 @@ export interface OffDayRow {
   arrivalAt: string | null;
   departureAt: string | null;
   departureState: "LEFT" | "INSIDE" | "UNKNOWN" | null;
+  offDayKind: "HOLIDAY" | "OFF_DAY" | null;
 }
 
 export interface TimeReport {

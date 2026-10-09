@@ -4,7 +4,13 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { ApiRequestError, download } from "@/lib/api";
 import { fetchOrganization, formatTime, type Organization } from "@/lib/attendance";
-import { departureText, fetchDepartments, fetchLocations, type Option } from "@/lib/daily";
+import {
+  departureText,
+  fetchDepartments,
+  fetchLocations,
+  offDayLabel,
+  type Option,
+} from "@/lib/daily";
 import {
   exportPath,
   fetchTimeReport,
@@ -22,7 +28,7 @@ import { fieldClass, secondaryButton } from "../modal";
 const KIND_LABEL: Record<ReportKind, string> = {
   short: "Дутуу цаг",
   overtime: "Илүү цаг",
-  offday: "Амралтын өдөр ажилласан",
+  offday: "Баяр, амралтын өдөр ажилласан",
 };
 const btn =
   "min-h-11 rounded-md border border-slate-300 bg-white px-3 text-sm font-medium hover:bg-slate-100";
@@ -224,7 +230,15 @@ export function ReportsScreen() {
           <table className="w-full min-w-[640px] text-left text-sm">
             <thead className="bg-slate-50 text-slate-700">
               <tr>
-                {["Огноо", "Ажилтан", "Нэгж", "Ирсэн цаг", "Гарсан цаг", "Тайлбар"].map((h) => (
+                {[
+                  "Огноо",
+                  "Ажилтан",
+                  "Нэгж",
+                  "Өдрийн төрөл",
+                  "Ирсэн цаг",
+                  "Гарсан цаг",
+                  "Тайлбар",
+                ].map((h) => (
                   <th key={h} scope="col" className="px-3 py-2 font-medium">
                     {h}
                   </th>
@@ -243,11 +257,14 @@ export function ReportsScreen() {
                     <div className="text-xs text-slate-500">{r.employeeNo}</div>
                   </td>
                   <td className="px-3 py-2">{r.departmentName ?? "—"}</td>
+                  <td className="px-3 py-2">
+                    {r.offDayKind === "HOLIDAY" ? "Баярын өдөр" : "Амралтын өдөр"}
+                  </td>
                   <td className="px-3 py-2">{formatTime(r.arrivalAt, org.timeZone) ?? "—"}</td>
                   <td className="px-3 py-2">
                     {departureText(r, (iso) => formatTime(iso, org.timeZone))}
                   </td>
-                  <td className="px-3 py-2">Амралтын өдөр ажилласан</td>
+                  <td className="px-3 py-2">{offDayLabel(r.offDayKind)}</td>
                 </tr>
               ))}
             </tbody>

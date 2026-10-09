@@ -4,6 +4,7 @@ import {
   dailyHref,
   dailyQuery,
   departureText,
+  offDayLabel,
   isReasonAssignable,
   overlapNames,
   parseDailyState,
@@ -139,5 +140,13 @@ describe("personalHoursProblem", () => {
     expect(personalHoursProblem({ ...ok, endTime: "06:30" })).toMatch(/Дуусах цаг/);
     expect(personalHoursProblem({ ...ok, startTime: "" })).toMatch(/цагаа/);
     expect(personalHoursProblem({ ...ok, toDate: "2026-12-01" })).toMatch(/31 хоног/);
+  });
+});
+
+describe("offDayLabel", () => {
+  it("tells a holiday from a plain day off", () => {
+    expect(offDayLabel("HOLIDAY")).toBe("Баярын өдөр ажилласан");
+    expect(offDayLabel("OFF_DAY")).toBe("Амралтын өдөр ажилласан");
+    expect(offDayLabel(null)).toBe("Амралтын өдөр ажилласан");
   });
 });

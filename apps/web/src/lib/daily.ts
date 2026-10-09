@@ -23,6 +23,8 @@ export interface DailyItem {
   departureState: "LEFT" | "INSIDE" | "UNKNOWN" | null;
   /** Minutes the employee left before the end of the duty, beyond the tolerance (PRD 23.2); 0 = not early. */
   earlyLeaveMinutes: number;
+  /** On a WORKED_OFF_DAY row: a holiday or a plain day off (PRD 14.2). */
+  offDayKind: "HOLIDAY" | "OFF_DAY" | null;
   lateMinutes: number;
   reasonName: string | null;
   reasonNote: string | null;
@@ -123,7 +125,7 @@ export const FILTER_LABEL: Record<DailyFilterStatus, string> = {
   PENDING: "Цаг болоогүй",
   INACTIVE: "Байршил идэвхгүй",
   EARLY_LEAVE: "Эрт гарсан",
-  WORKED_OFF_DAY: "Амралтын өдөр ажилласан",
+  WORKED_OFF_DAY: "Баяр, амралтын өдөр ажилласан",
 };
 
 export const CORRECTION_REASONS: Array<[string, string]> = [
@@ -203,4 +205,9 @@ export function personalHoursProblem(f: {
   }
   if (f.endTime <= f.startTime) return "Дуусах цаг эхлэх цагаас хойш байх ёстой.";
   return null;
+}
+
+/** «Баярын өдөр ажилласан» or «Амралтын өдөр ажилласан»: the two kinds of day someone came on are told apart (PRD 14.2). */
+export function offDayLabel(kind: "HOLIDAY" | "OFF_DAY" | null | undefined): string {
+  return kind === "HOLIDAY" ? "Баярын өдөр ажилласан" : "Амралтын өдөр ажилласан";
 }

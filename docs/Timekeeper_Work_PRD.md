@@ -1,7 +1,7 @@
 # Timekeeper Work
 ## Product Requirements Document (PRD)
 
-Version: 1.30
+Version: 1.31
 Product: Timekeeper Work
 Owner: Onki
 Status: Requirements Specification (pre-development review + CTO review + stakeholder decisions applied)
@@ -695,7 +695,7 @@ Org Admin manages a **Holiday Calendar** per tenant:
 - The system does **not** ship holiday dates as authoritative; Org Admin confirms the list each year. A calendar view shows holidays, weekends and exceptions together for the next 12 months.
 - Effect on attendance: employees on the standard schedule are **not expected** on a holiday or day off (6.1) and are excluded from counts. Shift templates marked "observes public holidays" behave the same; other shifts (e.g. 24 h guards) still work and are counted (23.2).
 - **Worked on a day off:** if a not-expected employee still enters the geofence, the arrival is recorded and shown as **"Ажилласан (амралтын өдөр)"** for information; it does not count as Цагтаа/Хоцорсон and creates no overtime in V1.
-- **Worked on a day off [CHANGED v1.30]:** the label is **«Амралтын өдөр ажилласан»**. It is only a record: the app notes the **arrival and the departure** (the same rules as 23.2, a stay of up to 24 h; «Байгаа» while inside, «Тодорхойгүй» when the phone went silent) and nothing is derived from them: **no overtime, no short hours, no late or left-early**. What the day means (time off, pay, nothing) is decided by HR outside the app. The daily list has the chip **Амралтын өдөр ажилласан** (apart from the expected ones, not part of «Бүгд»), the row says so, and the week/month list «Амралтын өдөр ажилласан» (20) and its Excel / CSV / PDF show date, arrival, departure for HR.
+- **Worked on a day off [CHANGED v1.31]:** the label tells the two kinds of day apart: **«Баярын өдөр ажилласан»** when the date is a holiday (14.2) and **«Амралтын өдөр ажилласан»** on an ordinary day off (a weekly day off or a day-off exception). A working-day exception that makes the date a non-working day counts as a plain day off. It is only a record: the app notes the **arrival and the departure** (the same rules as 23.2, a stay of up to 24 h; «Байгаа» while inside, «Тодорхойгүй» when the phone went silent) and nothing is derived from them: **no overtime, no short hours, no late or left-early**. What the day means (time off, pay, nothing) is decided by HR outside the app. The daily list has the chip **Амралтын өдөр ажилласан** (apart from the expected ones, not part of «Бүгд»), the row says so, and the week/month list «Амралтын өдөр ажилласан» (20) and its Excel / CSV / PDF show date, arrival, departure for HR.
 - **Changing holidays after the fact:** adding or removing a holiday for a past or current date requires an explicit **Recompute** confirmation showing how many employee-days change; it is audited and blocked for closed periods (25.5).
 
 ## 14.3 Example for tenant 310
@@ -960,7 +960,7 @@ Reports:
 | Weekly Report     | 7 days (Mon–Sun)      | Per-employee counts of Цагтаа / Хоцорсон / Шалтгаантай / Ирээгүй + totals |
 | Monthly Report    | Calendar month        | Same as weekly plus on-time % per employee, location and department      |
 | Short-hours (Дутуу цаг) **[v1.28]** | Week (Mon–Sun), month or custom (≤ 93 days) | Per employee: days expected / attended, late days and minutes, left-early days and minutes, **short minutes = late + left-early**, no-show days. Only employees with something to report. Excel / CSV / PDF and on screen |
-| Worked on a day off **[v1.30]** | Week, month or custom (≤ 93 days) | One row per employee and date: arrival and departure with the label «Амралтын өдөр ажилласан». Nothing is counted as overtime or short hours. Excel / CSV / PDF and on screen |
+| Worked on a day off **[v1.30]** | Week, month or custom (≤ 93 days) | One row per employee and date: the kind of day (Баярын өдөр / Амралтын өдөр), arrival and departure with the label «Баярын өдөр ажилласан» or «Амралтын өдөр ажилласан». Nothing is counted as overtime or short hours. Excel / CSV / PDF and on screen |
 | Overtime (Илүү цаг) **[v1.28]** | Week, month or custom (≤ 93 days) | Per employee: days attended, days with overtime, **overtime minutes** (stayed later than the end of the duty by more than the tolerance, counted from the end). Excel / CSV / PDF and on screen |
 | Reason Report     | Custom                | See 11.1                                                                |
 | Location Summary  | Day / week / month    | Totals and percentages per location (see Section 8)                    |
@@ -1241,6 +1241,7 @@ Added in v1.2 **[v1.2]**:
 | 1.28    | (1) The shift roster calendar screen ("Ээлжийн календарь") is removed from the admin menu; shift templates, patterns, assignments and overrides stay in the API (23) and a simpler screen can follow. (2) Employee app "Миний ирц": history is grouped into month folders (the newest open), weeks inside, with month and week totals; `GET /v1/me/attendance` returns a period summary and the departure, early-leave and overtime of each day. (3) Short-hours and overtime reports for a week, a month or any period (20, 23.2); overtime counted from the end of the duty beyond the tolerance. |
 | 1.29 | Overtime across midnight (23.2, 6.4): the departure window after the end of the duty grows from 4 h to 12 h (a last exit at 01:40 after a 17:30 end is 8 h 10 min of overtime, not Тодорхойгүй); an ENTER more than 3 h after an EXIT after the end is the next visit; a person still inside shows Байгаа while the phone is heard from (heartbeat within an hour), Тодорхойгүй only when it is silent. |
 | 1.30 | Worked on a day off (14.2, 20, 23.2): a holiday or a day off with an arrival is recorded with the arrival and departure and the label «Амралтын өдөр ажилласан»; no overtime, short-hours or left-early is derived and HR decides what it means. New daily chip and a week/month list with Excel / CSV / PDF (`/v1/attendance/off-day-work`, `/v1/exports/off-day-work`). |
+| 1.31 | A holiday and an ordinary day off are told apart (14.2, 20): the daily list, the day-off list and its export say «Баярын өдөр ажилласан» or «Амралтын өдөр ажилласан» (the export has a «Өдрийн төрөл» column); the chip and totals stay one group («Баяр, амралтын өдөр ажилласан»). |
 
 ---
 

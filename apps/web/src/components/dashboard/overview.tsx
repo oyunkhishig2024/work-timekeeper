@@ -68,7 +68,8 @@ function Notes({ summary }: { summary: Summary }) {
   const notes: string[] = [];
   if (summary.total === 0)
     notes.push("Энэ өдөр ажиллах ёстой хүн байхгүй (амралт, баяр эсвэл хуваарьгүй).");
-  if (summary.workedOffDay > 0) notes.push(`Амралтын өдөр ажилласан: ${summary.workedOffDay}`);
+  if (summary.workedOffDay > 0)
+    notes.push(`Баяр, амралтын өдөр ажилласан: ${summary.workedOffDay}`);
   if (summary.notConfigured > 0)
     notes.push(`Тохиргоо дутуу (тоонд ороогүй): ${summary.notConfigured}`);
   if (summary.flagged > 0)
