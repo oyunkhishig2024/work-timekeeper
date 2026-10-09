@@ -63,6 +63,10 @@ get the actions and the export (a Manager's export depends on a tenant setting, 
 
 - **Ажлын цаг тогтоох** (same selection strip): fixes hours for the chosen employees over a range of dates (PRD 14.4), with one or more places (the first ticked is the main one). Overlaps are named; deleting is only in the API for now.
 
+## Reports (`/reports`, PRD 20, 23.2)
+
+**Дутуу цаг** and **Илүү цаг** per employee for a **7 хоног** (Monday to Sunday) or a **Сар** (calendar month), with ‹ Өмнөх / Энэ / Дараах › and the branch and department filters (`?type=&period=&date=&location=&department=`). The table shows days attended, late and left-early days with their time, the short time (late + left-early, ц:мм), no-show days, or the overtime days and time. Excel / CSV / PDF export the same report (`/v1/exports/short-hours`, `/v1/exports/overtime`).
+
 Not here yet: ending or changing a reason from this screen (use the reason assignments API).
 
 ## Review (`/review`, `/device-alerts`; PRD 6.7)

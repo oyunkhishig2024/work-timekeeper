@@ -14,6 +14,7 @@ import { DeviceAlertsService } from "./device-alerts.service";
 import { CorrectionsService } from "./corrections.service";
 import { AttendanceService } from "./attendance.service";
 import { DailyAttendanceService } from "./daily.service";
+import { TimeReportService } from "./time-report.service";
 
 @Module({
   imports: [AuthModule, ScheduleModule, DevicesModule],
@@ -27,10 +28,11 @@ import { DailyAttendanceService } from "./daily.service";
   providers: [
     AttendanceService,
     DailyAttendanceService,
+    TimeReportService,
     CorrectionsService,
     AnomaliesService,
     DeviceAlertsService,
   ],
-  exports: [AttendanceService, DailyAttendanceService],
+  exports: [AttendanceService, DailyAttendanceService, TimeReportService],
 })
 export class AttendanceModule {}

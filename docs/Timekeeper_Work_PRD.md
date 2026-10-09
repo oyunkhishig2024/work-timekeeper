@@ -1,7 +1,7 @@
 # Timekeeper Work
 ## Product Requirements Document (PRD)
 
-Version: 1.27
+Version: 1.28
 Product: Timekeeper Work
 Owner: Onki
 Status: Requirements Specification (pre-development review + CTO review + stakeholder decisions applied)
@@ -958,6 +958,8 @@ Reports:
 | Daily Attendance  | One day               | Employee, department, location, status, arrival time, departure time, late min, reason  |
 | Weekly Report     | 7 days (Mon–Sun)      | Per-employee counts of Цагтаа / Хоцорсон / Шалтгаантай / Ирээгүй + totals |
 | Monthly Report    | Calendar month        | Same as weekly plus on-time % per employee, location and department      |
+| Short-hours (Дутуу цаг) **[v1.28]** | Week (Mon–Sun), month or custom (≤ 93 days) | Per employee: days expected / attended, late days and minutes, left-early days and minutes, **short minutes = late + left-early**, no-show days. Only employees with something to report. Excel / CSV / PDF and on screen |
+| Overtime (Илүү цаг) **[v1.28]** | Week, month or custom (≤ 93 days) | Per employee: days attended, days with overtime, **overtime minutes** (stayed later than the end of the duty by more than the tolerance, counted from the end). Excel / CSV / PDF and on screen |
 | Reason Report     | Custom                | See 11.1                                                                |
 | Location Summary  | Day / week / month    | Totals and percentages per location (see Section 8)                    |
 
@@ -1088,6 +1090,8 @@ The 310 organization prepares compliant phones for employees before the pilot. R
 - **Back-to-back shifts and 24 h shifts:** a day's arrival is matched to the **nearest shift start** within its window; one arrival can never satisfy two shifts. For a 24 h shift (08:00 → 08:00 next day) the arrival is judged only at the start; the shift end (08:00 next day) is recorded as the departure when the device leaves the geofence after the shift end (or after the min-stay rule, 6.4).
 - **Departure and leaving early [CHANGED v1.27]:** the daily list shows a **departure time** (Гарсан цаг) next to the arrival: the last EXIT of the duty place after the confirmed arrival. A short walk out and back (lunch) changes nothing, because the later ENTER makes the person "Байгаа" (still there) again. When the duty ended more than an hour ago and the phone never reported leaving (battery, location off) it shows **Тодорхойгүй**: the system never guesses a departure. The same two columns are in the Excel / CSV / PDF export.
 - **Left early (Эрт гарсан) [v1.27]:** an employee counted as attended (Цагтаа or Хоцорсон, no reason covering the day) whose last event is an EXIT more than the **early-leave tolerance** (13, default 15 min) before the end of the duty (the end of the working day, the shift, or the personal hours, 14.4) is **Эрт гарсан**, with the minutes missing: end of duty − departure. It is an indicator next to the status, not a status: the day stays Цагтаа / Хоцорсон. It is never set for someone still inside, whose departure is Тодорхойгүй, or who has a reason; it disappears if the person comes back. The daily list has an **Эрт гарсан** chip (with its count), a minutes note in the departure column and a column in the export. The Org Admin gets **one generic notice per day** ("Эрт гарсан ажилтан байна", no names) once a duty has ended with someone who left early; the names are in the daily list. Overtime and a weekly/monthly short-hours report stay **V2**. Using the departure to judge people widens the purpose of the location data: the employee consent text (Appendix A, item 4) must say so and be approved before real use.
+- **Overtime (Илүү цаг) [v1.28]:** an employee counted as attended (no reason) whose last event is an EXIT more than the same tolerance (13, default 15 min) **after** the end of the duty has **overtime** = departure − end of duty (minutes, counted from the end). Only a phone that reported leaving counts; the departure window is 4 h after the end of the duty, so a stay longer than that is shown as Тодорхойгүй, not guessed. A day is never both left-early and overtime. Overtime on a day off (Амралтын өдөр ажилласан) is not counted yet.
+- **Short-hours and overtime reports [v1.28]:** per employee for a week, a month or a custom period (≤ 93 days) in scope (20): short minutes = late minutes + left-early minutes (a no-show day is a day, not minutes); overtime minutes as above. On screen (Тайлан) and as Excel / CSV / PDF, with the branch and department filters. The numbers come from the derived daily results, so a correction by HR is included.
 - **Minimum geofence stay (6.4)** applies unchanged to shift arrivals.
 - **Reasons and shifts (11):** a reason applies per calendar date range; a reason covering the shift's work date makes the shift **Шалтгаантай** (6.6). A reason ending the day before the shift start does not affect it.
 - **Public holidays:** a template with "observes public holidays" off (default for 24 h guard templates) means the employee works and is counted on holidays; with it on, the employee is not expected on holidays.
@@ -1103,7 +1107,7 @@ The 310 organization prepares compliant phones for employees before the pilot. R
 
 - **Shift Templates:** Org Admin and HR create/edit templates and patterns (HR can assign; Org Admin can also manage templates; changes are effective-dated and audited).
 - **Assign shifts:** per employee, per team (bulk), or via Excel import (columns: Employee Number, Pattern or Template, Cycle Start Date, From Date, optional To Date). Import follows the dry-run rules in 12.3.
-- **Roster view:** a calendar grid (employees × dates) shows each employee's expected shift/off day for the next 31 days; HR can add an override by clicking a cell. Conflicts (overlapping shifts for one employee, a shift overlapping a reason or temporary assignment) are flagged on save.
+- **Roster view [REMOVED from the admin UI, v1.28]:** a calendar grid (employees × dates) shows each employee's expected shift/off day for the next 31 days; HR can add an override by clicking a cell. Conflicts (overlapping shifts for one employee, a shift overlapping a reason or temporary assignment) are flagged on save.
 - **Validation:** an employee cannot have overlapping assignments; a 24 h shift followed immediately by another shift is allowed but flagged; each assignment's template must be valid for the employee's expected location.
 
 ## 23.5 Architecture Requirement
@@ -1232,6 +1236,7 @@ Added in v1.2 **[v1.2]**:
 | 1.25    | Departure time shown to HR (6.4, 9, 23.2): the daily list and its export have an arrival and a departure column. Departure = the last EXIT of the duty place after the arrival; "Байгаа" while inside; "Тодорхойгүй" when the phone never reported leaving after the duty ended. Left-early detection stays V2. Appendix A, item 4 (purpose) must be reworded and approved before real use. |
 | 1.26    | Personal Hours (14.4, 6.1): HR fixes the hours, and optionally several places, of chosen employees for up to 31 days, replacing the week, a holiday or a shift for those dates; with several places one day at different branches is one full day. Built as `/v1/personal-hours`, a dialog on the daily list and `getExpectation` in the domain package. |
 | 1.27    | Left-early detection (23.2, 13, 9): an attended employee whose last exit is more than the early-leave tolerance (rule, default 15 min) before the end of their duty is flagged Эрт гарсан with the minutes missing; daily-list chip, column and export; one generic Org Admin notice per day. Departure Тодорхойгүй or still inside is never flagged. Overtime and short-hours reports stay V2. |
+| 1.28    | (1) The shift roster calendar screen ("Ээлжийн календарь") is removed from the admin menu; shift templates, patterns, assignments and overrides stay in the API (23) and a simpler screen can follow. (2) Employee app "Миний ирц": history is grouped into month folders (the newest open), weeks inside, with month and week totals; `GET /v1/me/attendance` returns a period summary and the departure, early-leave and overtime of each day. (3) Short-hours and overtime reports for a week, a month or any period (20, 23.2); overtime counted from the end of the duty beyond the tolerance. |
 
 ---
 

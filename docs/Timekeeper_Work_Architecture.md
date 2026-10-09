@@ -1,7 +1,7 @@
 # Timekeeper Work
 ## Technical Architecture Document
 
-Version: 0.29 (draft for review)
+Version: 0.30 (draft for review)
 Status: Draft — based on PRD v1.9 (`docs/Timekeeper_Work_PRD.md`)
 Audience: engineering lead, backend / mobile / web developers, QA
 Scope: the **pilot tier** (1–2 tenants, ~4 months, ~640 employees), built by **one full-stack developer** (decision v0.2, see Section 14). The production tier is covered only where a decision now would be expensive to undo later.
@@ -895,4 +895,10 @@ Migrations `0010_time_rules` and `0011_shifts` add the storage for attendance ru
 - The engine sets it with the departure on every recompute (attended days without a reason only). One generic `EARLY_LEAVE` notice per day (`dedupe_key = EARLY_LEAVE:<date>`) once the duty has ended, only for today and yesterday so a rebuild of old days does not notify.
 - Daily list: `status=EARLY_LEAVE` filter and count, `earlyLeaveMinutes`, export column and filter; web chip and note.
 - Not done: overtime, a weekly/monthly short-hours report, the tolerance in the web settings (prototype only), and approval before real use (consent text, PRD Appendix A).
+
+# 45. Implementation Status (overtime, short-hours reports, month folders, PRD v1.28)
+
+- Domain `overtimeMinutes` (beside `earlyLeaveMinutes`, same tolerance); migration `0026` adds `attendance_result.overtime_minutes`. `TimeReportService` (`GET /v1/attendance/time-report`) groups the derived results per employee; `short-hours` and `overtime` exports reuse it. `GET /v1/me/attendance` adds a `summary` and the departure, early-leave and overtime of each day, so the phone can show month folders (asking for one month when it opens) without adding days up.
+- Web: `/reports` screen with a week/month switch. Prototype: the roster calendar menu is gone; "Миний ирц" has month folders with weeks inside.
+- Not done: overtime on days off, overtime approval, a separate overtime threshold from the early-leave tolerance, a screen for shift assignments after the roster calendar was dropped (the API remains), the mobile app itself (not built).
 

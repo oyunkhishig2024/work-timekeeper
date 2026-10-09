@@ -109,7 +109,8 @@ Events count until 4 h after the end of the duty; an hour after the end without 
 
 `earlyLeaveMinutes({expectation, departure})` (PRD 23.2): minutes before the end of the duty when the state is `LEFT` and the exit was more than
 `expectation.earlyLeaveToleranceMinutes` (a rule, default 15) early; 0 otherwise, and always 0 for `INSIDE`, `UNKNOWN` and a day nobody is expected.
-The engine only asks for days that count as attended with no reason.
+The engine only asks for days that count as attended with no reason. `overtimeMinutes` (PRD 23.2) is the mirror: minutes after the end of the duty
+when the exit was more than the same tolerance after it (counted from the end), 0 otherwise.
 
 ## Location inactive (attendance/inactive.ts)
 

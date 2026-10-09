@@ -19,6 +19,7 @@ import {
   applyCorrection,
   deriveDeparture,
   earlyLeaveMinutes,
+  overtimeMinutes,
   type AttendanceStatus,
   type Correction,
   type DerivedAttendance,
@@ -638,6 +639,10 @@ export class AttendanceService {
           expectation.expected && (derived.status === "ON_TIME" || derived.status === "LATE")
             ? earlyLeaveMinutes({ expectation, departure })
             : 0;
+        const overtime =
+          expectation.expected && (derived.status === "ON_TIME" || derived.status === "LATE")
+            ? overtimeMinutes({ expectation, departure })
+            : 0;
         if (
           leftEarly > 0 &&
           expectation.expected &&
@@ -678,8 +683,8 @@ export class AttendanceService {
           `INSERT INTO attendance_result (tenant_id, employee_id, work_date, status, location_id, expected_start,
                                           expected_cutoff, arrival_at, late_minutes, reason_name, missing, computed_at,
                                           source, system_status, system_arrival_at, flagged_events, correction_id, reason_note,
-                                          departure_at, departure_state, early_leave_minutes)
-           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21)
+                                          departure_at, departure_state, early_leave_minutes, overtime_minutes)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22)
            ON CONFLICT (tenant_id, employee_id, work_date) DO UPDATE SET
              status = EXCLUDED.status, location_id = EXCLUDED.location_id, expected_start = EXCLUDED.expected_start,
              expected_cutoff = EXCLUDED.expected_cutoff, arrival_at = EXCLUDED.arrival_at,
@@ -688,7 +693,8 @@ export class AttendanceService {
              system_status = EXCLUDED.system_status, system_arrival_at = EXCLUDED.system_arrival_at,
              flagged_events = EXCLUDED.flagged_events, correction_id = EXCLUDED.correction_id,
              reason_note = EXCLUDED.reason_note, departure_at = EXCLUDED.departure_at,
-             departure_state = EXCLUDED.departure_state, early_leave_minutes = EXCLUDED.early_leave_minutes`,
+             departure_state = EXCLUDED.departure_state, early_leave_minutes = EXCLUDED.early_leave_minutes,
+             overtime_minutes = EXCLUDED.overtime_minutes`,
           [
             tenantId,
             e.id,
@@ -713,6 +719,7 @@ export class AttendanceService {
             departure.departureAt,
             departure.state,
             leftEarly,
+            overtime,
           ],
         );
         if (before !== derived.status) {
@@ -870,12 +877,32 @@ export class AttendanceService {
     return this.db.withTenant(auth.tenantId, async (tx) => {
       const { rows } = await tx.query(
         `SELECT work_date::text AS date, status, arrival_at AS "arrivalAt", late_minutes AS "lateMinutes",
-                reason_name AS "reasonName", expected_start AS "expectedStart"
+                reason_name AS "reasonName", expected_start AS "expectedStart",
+                departure_at AS "departureAt", departure_state AS "departureState",
+                early_leave_minutes AS "earlyLeaveMinutes", overtime_minutes AS "overtimeMinutes"
            FROM attendance_result WHERE employee_id = $1 AND work_date BETWEEN $2 AND $3
           ORDER BY work_date DESC`,
         [auth.employeeId, from, to],
       );
-      return { from, to, items: rows };
+      // The totals of the period, so the phone can show a month or a week header without adding days up (PRD 9).
+      const sum = (pick: (r: (typeof rows)[number]) => number) =>
+        rows.reduce((n, r) => n + pick(r), 0);
+      const days = (status: string) => rows.filter((r) => r.status === status).length;
+      return {
+        from,
+        to,
+        summary: {
+          onTime: days("ON_TIME"),
+          late: days("LATE"),
+          noShow: days("NO_SHOW"),
+          excused: days("EXCUSED"),
+          lateMinutes: sum((r) => Number(r.lateMinutes)),
+          earlyLeaveMinutes: sum((r) => Number(r.earlyLeaveMinutes)),
+          shortMinutes: sum((r) => Number(r.lateMinutes) + Number(r.earlyLeaveMinutes)),
+          overtimeMinutes: sum((r) => Number(r.overtimeMinutes)),
+        },
+        items: rows,
+      };
     });
   }
 }

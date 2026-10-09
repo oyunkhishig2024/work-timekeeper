@@ -15,6 +15,19 @@ const period = z
   .object({ from: isoDate, to: isoDate })
   .refine((v) => v.to >= v.from, "to is before from");
 
+/** Short-hours and overtime reports for a week, a month or any period of at most 93 days (PRD 9, 23.2). */
+const timeReportExport = z
+  .object({
+    format,
+    from: isoDate,
+    to: isoDate,
+    locationId: id.optional(),
+    departmentId: id.optional(),
+    q: z.string().trim().min(1).max(100).optional(),
+  })
+  .refine((v) => v.to >= v.from, "to is before from")
+  .refine((v) => (Date.parse(v.to) - Date.parse(v.from)) / 86_400_000 < 93, "At most 93 days");
+
 const SCHEMAS: Record<ReportName, z.ZodTypeAny> = {
   "reason-report": z
     .object({
@@ -72,6 +85,8 @@ const SCHEMAS: Record<ReportName, z.ZodTypeAny> = {
     departmentId: id.optional(),
     q: z.string().trim().min(1).max(100).optional(),
   }),
+  "short-hours": timeReportExport,
+  overtime: timeReportExport,
   "shift-roster": z
     .object({
       format,

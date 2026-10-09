@@ -1,0 +1,129 @@
+import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { hasDb } from "../db/helpers";
+import { attendanceKit, WORK_DATE } from "./attendance-kit";
+import { createEmployee, createUser, type Harness, signIn, startHarness } from "./harness";
+
+describe.skipIf(!hasDb)("short-hours and overtime reports (PRD 9, 23.2)", () => {
+  let h: Harness;
+  let k: ReturnType<typeof attendanceKit>;
+  beforeAll(async () => {
+    h = await startHarness();
+    k = attendanceKit(h);
+  });
+  afterAll(async () => {
+    await h.close();
+  });
+
+  /** A late-and-early employee, an overtime employee, and one who never came (the duty is 08:00-17:00). */
+  async function day() {
+    const w = await k.world();
+    const never = await createEmployee(h, w.tenant, { name: "Цэцэг Бат" });
+    k.setClock("08:50");
+    await k.send(await k.emp(w), [k.ev(w)]); // 50 min late
+    k.setClock("08:55");
+    await k.send(await k.second(w), [k.ev(w)]); // also late: 55 min
+    k.setClock("16:00");
+    await k.send(await k.emp(w), [k.ev(w, { type: "EXIT" })]); // 60 min early
+    k.setClock("18:30");
+    await k.send(await k.second(w), [k.ev(w, { type: "EXIT" })]); // 90 min of overtime
+    k.setClock("19:00");
+    await k.tick(w.tenant.id);
+    return { w, never };
+  }
+  const report = async (
+    w: Awaited<ReturnType<typeof k.world>>,
+    kind: string,
+    extra = "",
+    token?: string,
+  ) => {
+    const t = token ?? (await signIn(h, w.hr)).accessToken;
+    return k.get(
+      t,
+      `/v1/attendance/time-report?kind=${kind}&from=${WORK_DATE}&to=${WORK_DATE}${extra}`,
+    );
+  };
+
+  it("short hours: late + early-leave minutes per employee, and the no-show days", async () => {
+    const { w, never } = await day();
+    const res = await report(w, "short");
+    expect(res.status).toBe(200);
+    const items = res.body.items as Array<Record<string, unknown>>;
+    const mine = items.find((r) => r.employeeId === w.employee.id)!;
+    expect(mine).toMatchObject({
+      attendedDays: 1,
+      lateDays: 1,
+      lateMinutes: 50,
+      earlyLeaveDays: 1,
+      earlyLeaveMinutes: 60,
+      shortMinutes: 110,
+      noShowDays: 0,
+    });
+    const other = items.find((r) => r.employeeId === w.second.employee.id)!;
+    expect(other).toMatchObject({ lateMinutes: 55, earlyLeaveMinutes: 0, shortMinutes: 55 });
+    expect(items.find((r) => r.employeeId === never.id)).toMatchObject({
+      attendedDays: 0,
+      noShowDays: 1,
+      shortMinutes: 0,
+    });
+    expect(res.body.total).toBe(3);
+  });
+
+  it("overtime: only those who stayed after the end, with the minutes", async () => {
+    const { w } = await day();
+    const res = await report(w, "overtime");
+    const items = res.body.items as Array<Record<string, unknown>>;
+    expect(items).toHaveLength(1);
+    expect(items[0]).toMatchObject({
+      employeeId: w.second.employee.id,
+      overtimeDays: 1,
+      overtimeMinutes: 90,
+    });
+    // the daily screen and the employee's own history carry the same numbers
+    const own = await k.get(
+      await k.second(w),
+      `/v1/me/attendance?from=${WORK_DATE}&to=${WORK_DATE}`,
+    );
+    expect(own.body.items[0]).toMatchObject({ overtimeMinutes: 90, departureState: "LEFT" });
+    expect(own.body.summary).toMatchObject({ late: 1, overtimeMinutes: 90, shortMinutes: 55 });
+  });
+
+  it("is limited to the data scope, validates the period, and exports Excel/CSV/PDF", async () => {
+    const { w } = await day();
+    expect(
+      (await report(w, "short", "&locationId=00000000-0000-4000-8000-000000000000")).body.total,
+    ).toBe(0);
+    const mgr = (
+      await signIn(h, await createUser(h, w.tenant, { username: "mgr", role: "MANAGER" }))
+    ).accessToken;
+    expect((await report(w, "short", "", mgr)).body.total).toBe(0); // no scope assigned
+    expect(
+      (
+        await k.get(
+          (await signIn(h, w.hr)).accessToken,
+          `/v1/attendance/time-report?kind=short&from=2026-01-01&to=2026-06-01`,
+        )
+      ).status,
+    ).toBe(400);
+    const token = (await signIn(h, w.hr)).accessToken;
+    const csv = await h
+      .http()
+      .get(`/v1/exports/short-hours?format=csv&from=${WORK_DATE}&to=${WORK_DATE}`)
+      .set({ Authorization: `Bearer ${token}` });
+    expect(csv.status).toBe(200);
+    expect(csv.text).toContain("Дутуу цаг (ц:мм)");
+    expect(csv.text).toContain("1:50"); // 110 min
+    const ot = await h
+      .http()
+      .get(`/v1/exports/overtime?format=csv&from=${WORK_DATE}&to=${WORK_DATE}`)
+      .set({ Authorization: `Bearer ${token}` });
+    expect(ot.text).toContain("Илүү цаг (ц:мм)");
+    expect(ot.text).toContain("1:30");
+    for (const format of ["xlsx", "pdf"]) {
+      const file = await h
+        .http()
+        .get(`/v1/exports/overtime?format=${format}&from=${WORK_DATE}&to=${WORK_DATE}`)
+        .set({ Authorization: `Bearer ${token}` });
+      expect(file.status).toBe(200);
+    }
+  });
+});

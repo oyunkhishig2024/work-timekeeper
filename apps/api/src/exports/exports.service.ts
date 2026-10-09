@@ -5,6 +5,7 @@ import { DatabaseService } from "../database/database.service";
 import { AuditService } from "../audit/audit.service";
 import type { AuthContext, RequestMeta } from "../auth/auth.types";
 import { DailyAttendanceService } from "../attendance/daily.service";
+import { TimeReportService } from "../attendance/time-report.service";
 import { EmployeesService, type EmployeeFilter } from "../employees/employees.service";
 import { ReasonsService } from "../reasons/reasons.service";
 import { HolidaysService } from "../schedule/holidays.service";
@@ -23,7 +24,9 @@ export type ReportName =
   | "holidays"
   | "shift-roster"
   | "shift-assignments"
-  | "daily-attendance";
+  | "daily-attendance"
+  | "short-hours"
+  | "overtime";
 
 export interface ExportResult {
   body: Buffer;
@@ -41,6 +44,9 @@ const STATUS_TEXT: Record<string, string> = {
   DISABLED: "Идэвхгүй",
   ARCHIVED: "Архивласан",
 };
+/** 95 → "1:35": hours and minutes for reports that add time up. */
+const hm = (minutes: number): string =>
+  `${Math.floor(minutes / 60)}:${String(minutes % 60).padStart(2, "0")}`;
 const yesNo = (v: unknown) => (v ? "Тийм" : "Үгүй");
 const ATTENDANCE_TEXT: Record<string, string> = {
   ON_TIME: "Цагтаа",
@@ -80,6 +86,7 @@ export class ExportsService {
     private readonly shifts: ShiftsService,
     private readonly roster: RosterService,
     private readonly daily: DailyAttendanceService,
+    private readonly timeReport: TimeReportService,
   ) {}
 
   async export(
@@ -265,6 +272,78 @@ export class ExportsService {
             lateMinutes: r.status === "LATE" ? Number(r.lateMinutes) : "",
             reason: [r.reasonName, r.reasonNote].filter(Boolean).join(": "),
             source: r.source === "CORRECTED" ? "Засварласан" : "Автомат",
+          })),
+        };
+      }
+      case "short-hours":
+      case "overtime": {
+        const from = str("from")!;
+        const to = str("to")!;
+        const short = report === "short-hours";
+        const data = await this.timeReport.report(auth, {
+          kind: short ? "short" : "overtime",
+          from,
+          to,
+          locationId: str("locationId"),
+          departmentId: str("departmentId"),
+          q: str("q"),
+          limit: MAX_EXPORT_ROWS + 1,
+          offset: 0,
+        });
+        const items = data.items as Array<Record<string, unknown>>;
+        const common: Column[] = [
+          { key: "employeeNo", header: "Код", width: 1 },
+          { key: "fullName", header: "Овог нэр", width: 2 },
+          { key: "rank", header: "Цол", width: 1 },
+          { key: "position", header: "Албан тушаал", width: 2 },
+          { key: "departmentName", header: "Нэгж", width: 1 },
+          { key: "primaryLocationName", header: "Үндсэн салбар", width: 1 },
+        ];
+        const base = (r: Record<string, unknown>) => ({
+          employeeNo: String(r.employeeNo),
+          fullName: String(r.fullName),
+          rank: (r.rank as string | null) ?? "",
+          position: (r.position as string | null) ?? "",
+          departmentName: (r.departmentName as string | null) ?? "",
+          primaryLocationName: (r.primaryLocationName as string | null) ?? "",
+        });
+        return {
+          title: short ? "Дутуу цагийн тайлан" : "Илүү цагийн тайлан",
+          subtitle: [org, `Хугацаа: ${from} — ${to}`, ...(await this.names(auth, f))],
+          columns: short
+            ? [
+                ...common,
+                { key: "expectedDays", header: "Ажиллах өдөр", width: 1 },
+                { key: "attendedDays", header: "Ирсэн өдөр", width: 1 },
+                { key: "lateDays", header: "Хоцорсон (өдөр)", width: 1 },
+                { key: "lateMinutes", header: "Хоцорсон (мин)", width: 1 },
+                { key: "earlyLeaveDays", header: "Эрт гарсан (өдөр)", width: 1 },
+                { key: "earlyLeaveMinutes", header: "Эрт гарсан (мин)", width: 1 },
+                { key: "shortMinutes", header: "Дутуу цаг (мин)", width: 1 },
+                { key: "shortHm", header: "Дутуу цаг (ц:мм)", width: 1 },
+                { key: "noShowDays", header: "Ирээгүй (өдөр)", width: 1 },
+              ]
+            : [
+                ...common,
+                { key: "attendedDays", header: "Ирсэн өдөр", width: 1 },
+                { key: "overtimeDays", header: "Илүү цагтай өдөр", width: 1 },
+                { key: "overtimeMinutes", header: "Илүү цаг (мин)", width: 1 },
+                { key: "overtimeHm", header: "Илүү цаг (ц:мм)", width: 1 },
+              ],
+          rows: items.map((r) => ({
+            ...base(r),
+            expectedDays: Number(r.expectedDays),
+            attendedDays: Number(r.attendedDays),
+            lateDays: Number(r.lateDays),
+            lateMinutes: Number(r.lateMinutes),
+            earlyLeaveDays: Number(r.earlyLeaveDays),
+            earlyLeaveMinutes: Number(r.earlyLeaveMinutes),
+            shortMinutes: Number(r.shortMinutes),
+            shortHm: hm(Number(r.shortMinutes)),
+            noShowDays: Number(r.noShowDays),
+            overtimeDays: Number(r.overtimeDays),
+            overtimeMinutes: Number(r.overtimeMinutes),
+            overtimeHm: hm(Number(r.overtimeMinutes)),
           })),
         };
       }

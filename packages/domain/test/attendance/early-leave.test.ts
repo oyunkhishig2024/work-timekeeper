@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { earlyLeaveMinutes, type Departure, type Expectation } from "../../src";
+import { earlyLeaveMinutes, overtimeMinutes, type Departure, type Expectation } from "../../src";
 
 const t = (hhmm: string) => new Date(`2026-10-06T${hhmm}:00Z`);
 const expected: Expectation = {
@@ -42,5 +42,31 @@ describe("earlyLeaveMinutes (PRD 23.2)", () => {
     expect(run({ state: "UNKNOWN", departureAt: null })).toBe(0);
     expect(run({ state: null, departureAt: null })).toBe(0);
     expect(run(left("12:00"), { expected: false, reason: "HOLIDAY" })).toBe(0);
+  });
+});
+
+describe("overtimeMinutes (PRD 23.2)", () => {
+  const over = (departure: Departure, expectation: Expectation = expected) =>
+    overtimeMinutes({ expectation, departure });
+  it("counts the minutes after the end of the duty once past the tolerance", () => {
+    expect(over(left("19:30"))).toBe(150);
+    expect(over(left("17:16"))).toBe(16);
+    expect(over(left("17:15"))).toBe(0); // exactly the tolerance
+    expect(over(left("17:00"))).toBe(0);
+    expect(over(left("14:00"))).toBe(0);
+  });
+  it("never guesses: still inside, unknown, no arrival, or a day nobody is expected", () => {
+    expect(over({ state: "INSIDE", departureAt: null })).toBe(0);
+    expect(over({ state: "UNKNOWN", departureAt: null })).toBe(0);
+    expect(over({ state: null, departureAt: null })).toBe(0);
+    expect(over(left("19:00"), { expected: false, reason: "HOLIDAY" })).toBe(0);
+  });
+  it("a day is never both early and overtime", () => {
+    for (const hhmm of ["12:00", "16:50", "17:10", "18:00", "20:59"]) {
+      const d = left(hhmm);
+      expect(earlyLeaveMinutes({ expectation: expected, departure: d }) > 0 && over(d) > 0).toBe(
+        false,
+      );
+    }
   });
 });

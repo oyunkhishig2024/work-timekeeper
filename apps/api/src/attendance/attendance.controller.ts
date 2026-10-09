@@ -7,6 +7,7 @@ import { AnomaliesService } from "./anomalies.service";
 import { DeviceAlertsService } from "./device-alerts.service";
 import { AttendanceService } from "./attendance.service";
 import { DailyAttendanceService } from "./daily.service";
+import { TimeReportService } from "./time-report.service";
 import { CORRECTION_REASONS, CorrectionsService } from "./corrections.service";
 
 const id = z.string().uuid();
@@ -60,6 +61,18 @@ const dailyQuery = z.object({
   limit: z.coerce.number().int().min(1).max(500).default(100),
   offset: z.coerce.number().int().min(0).default(0),
 });
+const timeReportQuery = z
+  .object({
+    kind: z.enum(["short", "overtime"]),
+    from: isoDate,
+    to: isoDate,
+    q: z.string().trim().min(1).max(100).optional(),
+    locationId: id.optional(),
+    departmentId: id.optional(),
+    limit: z.coerce.number().int().min(1).max(500).default(100),
+    offset: z.coerce.number().int().min(0).default(0),
+  })
+  .refine((v) => v.to >= v.from, "to is before from");
 const recomputeSchema = z
   .object({ from: isoDate, to: isoDate, employeeId: id.optional() })
   .strict();
@@ -102,12 +115,20 @@ export class AttendanceController {
   constructor(
     private readonly attendance: AttendanceService,
     private readonly dailyList: DailyAttendanceService,
+    private readonly timeReport: TimeReportService,
   ) {}
 
   @Roles("ORG_ADMIN", "HR", "MANAGER")
   @Get("daily")
   daily(@CurrentAuth() auth: AuthContext, @Query() query: unknown) {
     return this.dailyList.daily(auth, dailyQuery.parse(query));
+  }
+
+  /** Short-hours (`kind=short`) and overtime (`kind=overtime`) per employee for a week, a month or any period (≤ 93 days). */
+  @Roles("ORG_ADMIN", "HR", "MANAGER")
+  @Get("time-report")
+  timeReportList(@CurrentAuth() auth: AuthContext, @Query() query: unknown) {
+    return this.timeReport.report(auth, timeReportQuery.parse(query));
   }
 
   @Roles("ORG_ADMIN", "HR", "MANAGER")
