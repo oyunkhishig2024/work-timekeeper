@@ -8,6 +8,7 @@ export interface DiagEntry {
 
 const KEY = "diag.v1";
 export const MAX_DIAG = 80;
+const REPEAT_MS = 60_000;
 
 /**
  * A small log kept on the phone (the last `MAX_DIAG` lines) so what the app did in the background can be read on the phone's
@@ -26,6 +27,9 @@ export class DiagLog {
     const entry: DiagEntry = { t: this.now(), m: message.slice(0, 200) };
     const next = this.chain.then(async () => {
       const list = await this.readNow();
+      // The same line again within a minute adds nothing (and a loop must never push out the lines that matter).
+      const last = list.at(-1);
+      if (last && last.m === entry.m && entry.t - last.t < REPEAT_MS) return;
       list.push(entry);
       await this.store.setItem(KEY, JSON.stringify(list.slice(-MAX_DIAG)));
     });

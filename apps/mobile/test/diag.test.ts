@@ -13,6 +13,22 @@ describe("DiagLog", () => {
     expect(lines.at(-1)!.m).toBe("line 20");
   });
 
+  it("does not repeat the same line within a minute", async () => {
+    let t = 1000;
+    const log = new DiagLog(new MemoryStore(), () => t);
+    await log.log("plan: watching 1 place(s)");
+    t += 5000;
+    await log.log("plan: watching 1 place(s)");
+    await log.log("geofence ENTER reported by the phone");
+    t += 70_000;
+    await log.log("geofence ENTER reported by the phone");
+    expect((await log.read()).map((l) => l.m)).toEqual([
+      "geofence ENTER reported by the phone",
+      "geofence ENTER reported by the phone",
+      "plan: watching 1 place(s)",
+    ]);
+  });
+
   it("survives a broken store", async () => {
     const store = new MemoryStore();
     store.data.set("diag.v1", "{not json");

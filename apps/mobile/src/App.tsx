@@ -33,6 +33,7 @@ export default function App() {
   const [watching, setWatching] = useState(0);
   const [sync, setSync] = useState<SyncState>("SYNCED");
   const lastPlan = useRef(0);
+  const lastWatched = useRef<number | null>(null);
 
   // ------------------------------------------------------------------ where the person is in the sign-in flow
 
@@ -107,7 +108,8 @@ export default function App() {
       try {
         const n = await expoGeofence.apply(next);
         setWatching(n);
-        void diag.log(`plan: watching ${n} place(s)`);
+        if (lastWatched.current !== n) void diag.log(`plan: watching ${n} place(s)`);
+        lastWatched.current = n;
       } catch (e) {
         setWatching(0); // no "always" permission yet: the Phone tab shows what is missing
         void diag.log(`plan: could not watch places (${e instanceof Error ? e.message : "error"})`);
@@ -134,6 +136,8 @@ export default function App() {
       clearInterval(timer);
     };
   }, [stage, upload, refreshPlan]);
+
+  const onChecked = useCallback(() => void refreshPlan(), [refreshPlan]);
 
   // ------------------------------------------------------------------ screens
 
@@ -185,7 +189,7 @@ export default function App() {
         ) : tab === "history" ? (
           <HistoryScreen today={plan?.days[0]?.date ?? new Date().toISOString().slice(0, 10)} />
         ) : (
-          <DeviceScreen onChecked={() => void refreshPlan()} onSignOut={() => void signOut()} />
+          <DeviceScreen onChecked={onChecked} onSignOut={() => void signOut()} />
         );
       break;
   }

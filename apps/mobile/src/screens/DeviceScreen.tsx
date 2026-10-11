@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Linking, ScrollView, Text, View } from "react-native";
 import { mn } from "@/i18n/mn";
 import { confirmBattery, gatherHealth, requestLocationPermissions } from "@/platform/health";
@@ -17,13 +17,17 @@ export function DeviceScreen({
 }) {
   const [checks, setChecks] = useState<HealthCheck[] | null>(null);
   const [lines, setLines] = useState<DiagEntry[]>([]);
+  // The parent passes a new function on every render; depending on it here made `load` run again and again (each run asks the
+  // server for the plan, which re-renders the parent). Keep the latest one in a ref instead.
+  const onCheckedRef = useRef(onChecked);
+  onCheckedRef.current = onChecked;
 
   const load = useCallback(async () => {
     const next = await gatherHealth();
     setChecks(next);
     setLines((await diag.read()).slice(0, 40));
-    onChecked(allHealthy(next));
-  }, [onChecked]);
+    onCheckedRef.current(allHealthy(next));
+  }, []);
 
   useEffect(() => {
     void load();
