@@ -34,6 +34,7 @@
         "expo-location",
         {
           "isAndroidBackgroundLocationEnabled": true,
+          "isAndroidForegroundServiceEnabled": true,
           "isIosBackgroundLocationEnabled": true,
           "locationAlwaysAndWhenInUsePermission": "Ирцийг ажлын байрны орчимд автоматаар бүртгэхийн тулд байршлыг үргэлж ашиглахыг зөвшөөрнө үү. Байршлыг зөвхөн ажлын цагаар, ажлын байрны орчимд ашиглана.",
           "locationWhenInUsePermission": "Ирцийг бүртгэхийн тулд байршлыг ашиглана."

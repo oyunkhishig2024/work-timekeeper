@@ -4,10 +4,41 @@ import type { Plan } from "@/lib/api";
 import { captureEvent } from "@/services/geofence-capture";
 import { flushOutbox } from "@/services/sync";
 import { regionsChanged, regionsFromPlan, type Region } from "@/services/plan";
+import {
+  applyReported,
+  emptyState,
+  evaluateFix,
+  distanceM,
+  forRegions,
+  type PresenceState,
+} from "@/services/presence";
 import { api, diag, newId, outbox, storage } from "./runtime";
 
 export const GEOFENCE_TASK = "tkw-geofence";
+/** The fallback: ordinary position fixes in the background (a visible notification keeps the service alive), judged by `presence.ts`. */
+export const LOCATION_TASK = "tkw-location";
 const REGIONS_KEY = "geofence.regions.v1";
+const PRESENCE_KEY = "presence.v1";
+const LAST_NOTE_KEY = "presence.lastNote";
+
+async function readRegions(): Promise<Region[]> {
+  const raw = await storage.getItem(REGIONS_KEY);
+  try {
+    return raw ? (JSON.parse(raw) as Region[]) : [];
+  } catch {
+    return [];
+  }
+}
+async function readPresence(): Promise<PresenceState> {
+  const raw = await storage.getItem(PRESENCE_KEY);
+  try {
+    return raw ? (JSON.parse(raw) as PresenceState) : emptyState();
+  } catch {
+    return emptyState();
+  }
+}
+const writePresence = (state: PresenceState) =>
+  storage.setItem(PRESENCE_KEY, JSON.stringify(state));
 
 /**
  * Our own seam over the geofencing library (Architecture 7.2, 7.3): the rest of the app only knows these two calls, so Spike 1 can
@@ -37,13 +68,38 @@ export const expoGeofence: GeofenceService = {
     }
     const running = await Location.hasStartedGeofencingAsync(GEOFENCE_TASK);
     await diag.log(`geofence running: ${running ? "yes" : "NO"}`);
+    await writePresence(forRegions(await readPresence(), regions));
+    try {
+      if (!(await Location.hasStartedLocationUpdatesAsync(LOCATION_TASK))) {
+        await Location.startLocationUpdatesAsync(LOCATION_TASK, {
+          accuracy: Location.Accuracy.Balanced,
+          timeInterval: 30_000,
+          distanceInterval: 25,
+          pausesUpdatesAutomatically: false,
+          showsBackgroundLocationIndicator: false,
+          foregroundService: {
+            notificationTitle: "Timekeeper Work",
+            notificationBody: "Ирцийн бүртгэл ажиллаж байна",
+          },
+        });
+        await diag.log("position watching started (foreground service)");
+      }
+    } catch (e) {
+      await diag.log(
+        `position watching could not start (${e instanceof Error ? e.message : "error"})`,
+      );
+    }
     return regions.length;
   },
   async stop() {
     if (await Location.hasStartedGeofencingAsync(GEOFENCE_TASK)) {
       await Location.stopGeofencingAsync(GEOFENCE_TASK);
     }
+    if (await Location.hasStartedLocationUpdatesAsync(LOCATION_TASK)) {
+      await Location.stopLocationUpdatesAsync(LOCATION_TASK);
+    }
     await storage.removeItem(REGIONS_KEY);
+    await storage.removeItem(PRESENCE_KEY);
   },
 };
 
@@ -76,6 +132,9 @@ TaskManager.defineTask(GEOFENCE_TASK, async ({ data, error }) => {
   const type = eventType === Location.LocationGeofencingEventType.Enter ? "ENTER" : "EXIT";
   if (!region.identifier) return;
   await diag.log(`geofence ${type} reported by the phone`);
+  const verdict = applyReported(await readPresence(), { type, locationId: region.identifier });
+  await writePresence(verdict.state);
+  if (!verdict.emit) return;
   await outbox.enqueue(
     captureEvent({
       type,
@@ -88,4 +147,65 @@ TaskManager.defineTask(GEOFENCE_TASK, async ({ data, error }) => {
   // upload at once; if the phone is offline the event waits in the outbox for the next try
   const sent = await flushOutbox(outbox, api);
   await diag.log(`geofence ${type}: upload ${sent.state}`);
+});
+
+// The fallback: the phone judges entering and leaving from ordinary position fixes. Also defined at start-up, for the same reason.
+TaskManager.defineTask(LOCATION_TASK, async ({ data, error }) => {
+  if (error) {
+    await diag.log(`position error: ${error.message}`);
+    return;
+  }
+  const { locations } = (data ?? {}) as { locations?: Location.LocationObject[] };
+  if (!locations || locations.length === 0) return;
+  const regions = await readRegions();
+  if (regions.length === 0) return;
+
+  let state = await readPresence();
+  const before = JSON.stringify(state);
+  let fired = false;
+  for (const l of locations) {
+    const fix = {
+      lat: l.coords.latitude,
+      lng: l.coords.longitude,
+      ...(l.coords.accuracy != null ? { accuracyM: l.coords.accuracy } : {}),
+    };
+    const result = evaluateFix(state, regions, fix);
+    state = result.state;
+    for (const t of result.transitions) {
+      fired = true;
+      await diag.log(`position says ${t.type}`);
+      await outbox.enqueue(
+        captureEvent({
+          type: t.type,
+          locationId: t.locationId,
+          now: l.timestamp || Date.now(),
+          newId,
+          fix: { ...fix, mocked: l.mocked === true },
+        }),
+      );
+    }
+  }
+  if (JSON.stringify(state) !== before) await writePresence(state);
+
+  // One short line now and then (distance to the nearest place, no coordinates), to read what the phone sees during a test.
+  const last = locations[locations.length - 1]!;
+  const nearest = Math.min(
+    ...regions.map((r) =>
+      distanceM(
+        { lat: last.coords.latitude, lng: last.coords.longitude },
+        { lat: r.latitude, lng: r.longitude },
+      ),
+    ),
+  );
+  const lastNote = Number((await storage.getItem(LAST_NOTE_KEY)) ?? 0);
+  if (Date.now() - lastNote > 120_000) {
+    await storage.setItem(LAST_NOTE_KEY, String(Date.now()));
+    await diag.log(
+      `position: ${Math.round(nearest)} m from the nearest place (±${Math.round(last.coords.accuracy ?? 0)} m)`,
+    );
+  }
+  if (fired) {
+    const sent = await flushOutbox(outbox, api);
+    await diag.log(`position event: upload ${sent.state}`);
+  }
 });

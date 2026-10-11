@@ -102,3 +102,7 @@ src/
 ## On-phone log
 
 The «Утас» tab ends with «Сүүлийн үйлдлүүд»: the last 80 lines of what the app did (app start and open, plan loaded and how many places are watched, geofence ENTER/EXIT reported by the phone and the upload result, device rejoin, session ended, sign-out). Written by `DiagLog` (`src/services/diag.ts`), also from the background geofence task; no coordinates or names. Signing out asks for confirmation.
+
+## Position watching (fallback for phones whose geofencing never reports)
+
+On a pilot test two Xiaomi/Redmi phones never delivered a single system geofence ENTER/EXIT. So while a place is in the plan the app also asks for ordinary position fixes in the background (task `tkw-location`, `startLocationUpdatesAsync`, Balanced accuracy, every 30 s or 25 m, with a visible foreground-service notification «Ирцийн бүртгэл ажиллаж байна»; needs `isAndroidForegroundServiceEnabled`). `src/services/presence.ts` (pure, tested) turns the fixes into events: first trustworthy fix inside a place → ENTER (also when the app is first opened inside), EXIT only after two fixes in a row beyond radius + margin, fixes with accuracy over 150 m ignored. System geofence reports and fixes share one persisted state (`presence.v1`), so an ENTER/EXIT is sent once. Only events go to the server; positions stay on the phone (coordinates of the last fix go with an event as evidence, as before). It costs more battery than geofencing: measure it in the pilot. **The consent text must say that the phone checks its position while an expected place is watched.**
