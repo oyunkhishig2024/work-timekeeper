@@ -27,6 +27,8 @@ docker compose --env-file infra/deploy/.env -f infra/deploy/docker-compose.yml u
 
 Migrations run automatically (`migrate` service) before the API starts.
 
+`baseline-310.sql` (run by `setup.sh`, safe to repeat) gives tenant 310 the default reasons, attendance rules, a Mon–Fri 08:30–17:30 working week and a DRAFT consent text. Without a working week nobody is expected and phones watch no places. There is no admin screen for the working week yet; change it with SQL (a new `working_week_version`).
+
 ## Mobile app
 
 Set `EXPO_PUBLIC_API_URL` in `apps/mobile/eas.json` (profile `preview`) to `https://<address>` before building.
