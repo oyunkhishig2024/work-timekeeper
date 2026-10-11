@@ -26,6 +26,7 @@ const REFRESH_KEY = "tk.refresh";
  */
 let accessToken: string | null = null;
 let user: SessionUser | null = null;
+let requires: string[] = [];
 let refreshing: Promise<boolean> | null = null;
 const listeners = new Set<() => void>();
 
@@ -38,6 +39,9 @@ export function subscribeSession(listener: () => void): () => void {
 
 export const currentUser = (): SessionUser | null => user;
 
+/** Setup steps the account must finish before the app works: "PASSWORD_CHANGE", "TOTP_SETUP". */
+export const currentRequires = (): readonly string[] => requires;
+
 function storage(): Storage | null {
   try {
     return typeof sessionStorage === "undefined" ? null : sessionStorage;
@@ -49,6 +53,7 @@ function storage(): Storage | null {
 function accept(tokens: Tokens): void {
   accessToken = tokens.accessToken;
   user = tokens.user;
+  requires = tokens.requires ?? [];
   storage()?.setItem(REFRESH_KEY, tokens.refreshToken);
   emit();
 }
@@ -56,6 +61,7 @@ function accept(tokens: Tokens): void {
 function clear(): void {
   accessToken = null;
   user = null;
+  requires = [];
   storage()?.removeItem(REFRESH_KEY);
   emit();
 }
@@ -133,4 +139,29 @@ export async function logout(): Promise<void> {
     // the session is dropped locally either way
   }
   clear();
+}
+
+/** Required first-login step: replaces the temporary password. The old sessions end; a fresh one is kept. */
+export async function changePassword(currentPassword: string, newPassword: string): Promise<void> {
+  accept(
+    await api<Tokens>("/v1/auth/password/change", {
+      method: "POST",
+      body: { currentPassword, newPassword },
+    }),
+  );
+}
+
+/** Starts authenticator-app enrolment; the seed stays inactive until a code from the app is confirmed. */
+export function totpSetup(): Promise<{ secret: string; otpauthUri: string }> {
+  return api("/v1/auth/totp/setup", { method: "POST" });
+}
+
+/** Confirms enrolment with a code; returns the one-time recovery codes. */
+export async function totpEnable(code: string): Promise<string[]> {
+  const res = await api<Tokens & { recoveryCodes: string[] }>("/v1/auth/totp/enable", {
+    method: "POST",
+    body: { code },
+  });
+  accept(res);
+  return res.recoveryCodes;
 }

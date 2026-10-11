@@ -41,7 +41,8 @@ done
 [ "${ok:-0}" = 1 ] || { echo "API did not become ready: ${COMPOSE[*]} logs api"; exit 1; }
 
 "${COMPOSE[@]}" exec -T postgres psql -U timekeeper -d timekeeper -v ON_ERROR_STOP=1 \
-  -c "INSERT INTO tenant (code, name) VALUES ('310','310') ON CONFLICT (code) DO NOTHING;"
+  -c "INSERT INTO tenant (code, name) VALUES ('310','310') ON CONFLICT (code) DO NOTHING;" \
+  -c "SELECT seed_default_reasons((SELECT id FROM tenant WHERE code='310'))" >/dev/null
 echo
 echo "Create the first Organization Admin (replace the name):"
 echo "  ${COMPOSE[*]} exec api node apps/api/dist/cli/create-user.js --org 310 --username admin --name \"Admin\" --role ORG_ADMIN"

@@ -125,3 +125,7 @@ Checked by hand in headless Chromium against a real API (dashboard with two bran
 through the browser's push pipeline shown as a notification, unreadable payload, inbox, mark read, session restore after reload,
 sign-out). **Not verified:** a real subscription through Google / Mozilla / Apple push services (the sandbox cannot reach them),
 and installed-PWA behaviour on iOS.
+
+## First sign-in (`/setup`)
+
+An account created by the CLI or by an admin has a temporary password. After signing in the app sends it to `/setup`: replace the password, then (Org Admin and HR) scan the QR code with an authenticator app and confirm a code; the one-time recovery codes are shown once. `AppShell` redirects there while the session's `requires` list is not empty.

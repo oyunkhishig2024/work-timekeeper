@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, type ReactNode } from "react";
-import { logout, type SessionUser } from "@/lib/session";
+import { currentRequires, logout, type SessionUser } from "@/lib/session";
 import { useSession } from "./use-session";
 
 /** The review lists share one menu entry. */
@@ -21,9 +21,10 @@ export function AppShell({ children }: { children: (user: SessionUser) => ReactN
   const pathname = usePathname();
   useEffect(() => {
     if (session.status === "out") router.replace("/login");
+    else if (session.status === "in" && currentRequires().length > 0) router.replace("/setup");
   }, [session.status, router]);
 
-  if (session.status !== "in") {
+  if (session.status !== "in" || currentRequires().length > 0) {
     return <p className="p-8 text-slate-600">Ачаалж байна…</p>;
   }
   return (
