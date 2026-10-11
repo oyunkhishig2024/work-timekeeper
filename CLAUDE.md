@@ -20,4 +20,5 @@
 - Org Admin notifications and Web Push: see `apps/api/src/notifications/README.md`. Call `notifyOrgAdmins(tx, ...)` inside the transaction of the event; push texts must stay generic (no personal data).
 - Admin web app (sign-in, service worker, push subscription): see `apps/web/README.md`. `public/sw.js` must keep no fetch handler / no caching and only open same-origin links.
 - Mobile app (Expo, employees and staff record their own attendance): see `apps/mobile/README.md`. Logic stays plain TypeScript with tests; background geofencing is unverified until Spike 1 on real phones. Attendance rules still live in `packages/domain`, never in the app.
+- Production server package (Docker, Caddy HTTPS, one-command setup): see `infra/deploy/README.md`. The image is built without `apps/mobile`; keep it building with `pnpm install --frozen-lockfile --filter @timekeeper/api... --filter @timekeeper/web...`.
 - Before finishing a change run: `pnpm format:check && pnpm lint && pnpm typecheck && pnpm test && pnpm build`.
