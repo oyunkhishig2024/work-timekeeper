@@ -13,7 +13,7 @@ const KEY = "tkw.installKey";
  * hardware with Play Integrity / App Attest proof (Architecture 7.6, PRD 6.7); until those native bridges exist this is a random
  * value kept in the secure keystore. The server records such registrations as UNVERIFIED.
  */
-async function installKey(): Promise<string> {
+export async function installKey(): Promise<string> {
   const existing = await SecureStore.getItemAsync(KEY);
   if (existing) return existing;
   const created = Crypto.randomUUID();

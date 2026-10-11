@@ -190,6 +190,14 @@ export class ApiClient {
     return this.request<DeviceState>("/v1/devices/me");
   }
 
+  /** A new login on an already registered phone joins that device again (the install key proves it is the same phone). */
+  rebindDevice(attestationKeyId: string) {
+    return this.request<{ bound: boolean }>("/v1/devices/rebind", {
+      method: "POST",
+      body: { attestationKeyId },
+    });
+  }
+
   registerDevice(input: RegisterInput) {
     return this.request<unknown>("/v1/devices/register", { method: "POST", body: input });
   }

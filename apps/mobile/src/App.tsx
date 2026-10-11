@@ -4,6 +4,7 @@ import { ActivityIndicator, AppState, Pressable, Text, View } from "react-native
 import type { AuthResult, Plan } from "@/lib/api";
 import { ApiError, NetworkError, SessionEndedError } from "@/lib/errors";
 import { mn } from "@/i18n/mn";
+import { installKey } from "@/platform/device";
 import { expoGeofence } from "@/platform/geofence";
 import { api, outbox, setSessionEndedHandler, tokenStore } from "@/platform/runtime";
 import { flushOutbox } from "@/services/sync";
@@ -40,7 +41,12 @@ export default function App() {
     if (auth?.requires.includes("TOTP_SETUP")) return setStage("totp");
     try {
       const state = await api.myDevice();
-      setStage(state.device?.status === "ACTIVE" ? "main" : "register");
+      if (state.device?.status === "ACTIVE") {
+        // A fresh login belongs to no device until the app proves it is the registered phone; without this its heartbeats and
+        // events are ignored by the server.
+        await api.rebindDevice(await installKey()).catch(() => undefined);
+        setStage("main");
+      } else setStage("register");
     } catch (e) {
       if (e instanceof ApiError && e.code === "EMPLOYEE_ONLY") return setStage("unlinked");
       if (e instanceof ApiError && e.code === "SETUP_REQUIRED") return setStage("password");
@@ -70,7 +76,12 @@ export default function App() {
   // ------------------------------------------------------------------ the work of the main screens
 
   const upload = useCallback(async () => {
-    const result = await flushOutbox(outbox, api);
+    let result = await flushOutbox(outbox, api);
+    if (result.state === "BLOCKED") {
+      // Refused because this session belongs to no device (a fresh login): rejoin the registered device and try once more.
+      const joined = await api.rebindDevice(await installKey()).catch(() => null);
+      if (joined?.bound) result = await flushOutbox(outbox, api);
+    }
     setSync(result.state === "EMPTY" || result.state === "DONE" ? "SYNCED" : result.state);
     if (result.state === "SIGNED_OUT") setStage("login");
     if (result.state !== "OFFLINE") void api.heartbeat().catch(() => undefined);

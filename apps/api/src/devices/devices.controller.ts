@@ -17,6 +17,7 @@ const replacementQrSchema = z.object({
   consentOverrideReason: z.string().trim().min(5).max(500).optional(),
 });
 const regenerateQrSchema = z.object({ expiresInHours: hours.optional() }).strict();
+const rebindSchema = z.object({ attestationKeyId: z.string().min(1).max(200) }).strict();
 const registerSchema = z.object({
   qrToken: z.string().min(10).max(300),
   platform: z.enum(["ANDROID", "IOS"]),
@@ -104,6 +105,13 @@ export class DevicesController {
   @Post("devices/register")
   register(@CurrentAuth() auth: AuthContext, @Body() body: unknown, @Meta() meta: RequestMeta) {
     return this.devices.register(auth, registerSchema.parse(body), meta);
+  }
+
+  @Roles("EMPLOYEE", "HR", "MANAGER", "ORG_ADMIN")
+  @Post("devices/rebind")
+  @HttpCode(200)
+  rebind(@CurrentAuth() auth: AuthContext, @Body() body: unknown) {
+    return this.devices.rebindSession(auth, rebindSchema.parse(body).attestationKeyId);
   }
 
   @Roles("EMPLOYEE", "HR", "MANAGER", "ORG_ADMIN")

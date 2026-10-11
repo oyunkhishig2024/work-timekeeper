@@ -355,6 +355,32 @@ export class DevicesService {
     }
   }
 
+  /**
+   * A login on an already registered phone starts a session that belongs to no device, so its heartbeats and events would be
+   * ignored. The app proves it is that phone with its install key; the current session then joins the active device (and takes
+   * the phone's long lifetime). A key that does not match changes nothing.
+   */
+  async rebindSession(auth: AuthContext, attestationKeyId: string): Promise<{ bound: boolean }> {
+    if (!auth.employeeId) throw forbidden("Only employee accounts have a device.");
+    const employeeId = auth.employeeId;
+    return this.db.withTenant(auth.tenantId, async (tx) => {
+      const device = await tx.query<{ id: string }>(
+        `SELECT id FROM device WHERE employee_id = $1 AND status = 'ACTIVE' AND attestation_key_id = $2`,
+        [employeeId, attestationKeyId],
+      );
+      if (device.rowCount === 0) return { bound: false };
+      await tx.query(
+        "UPDATE auth_session SET device_id = $2, expires_at = GREATEST(expires_at, $3) WHERE id = $1 AND revoked_at IS NULL",
+        [
+          auth.sessionId,
+          device.rows[0]!.id,
+          new Date(this.clock.now().getTime() + this.config.EMPLOYEE_SESSION_DAYS * 86_400_000),
+        ],
+      );
+      return { bound: true };
+    });
+  }
+
   /** The signed-in employee's current device and whether it is still valid. */
   async myDevice(auth: AuthContext) {
     if (!auth.employeeId) throw forbidden("Only employee accounts have a device.");

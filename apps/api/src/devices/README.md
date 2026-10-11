@@ -29,6 +29,8 @@ accounts answers `409 DEVICE_CONFLICT`.
 
 `GET /devices/me` — the employee's current device and consent state.
 
+`POST /devices/rebind` `{attestationKeyId}` — a login on an already registered phone starts a session that belongs to no device (events answer `403 DEVICE_REQUIRED`, heartbeats do nothing). The app sends its install key at start and sign-in; when it matches the ACTIVE device the current session joins it (`{bound: true}`), otherwise nothing changes (`{bound: false}`).
+
 ## Device management
 
 `POST /devices/:id/disable` `{reason: LOST|STOLEN|OTHER, note?}` — the device stops being accepted and its sessions end at once.
