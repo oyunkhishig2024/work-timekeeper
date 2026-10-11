@@ -33,7 +33,10 @@ export const expoGeofence: GeofenceService = {
     if (!same || !(await Location.hasStartedGeofencingAsync(GEOFENCE_TASK))) {
       await Location.startGeofencingAsync(GEOFENCE_TASK, regions);
       await storage.setItem(REGIONS_KEY, JSON.stringify(regions));
+      await diag.log(`geofence registered with the system: ${regions.length} region(s)`);
     }
+    const running = await Location.hasStartedGeofencingAsync(GEOFENCE_TASK);
+    await diag.log(`geofence running: ${running ? "yes" : "NO"}`);
     return regions.length;
   },
   async stop() {

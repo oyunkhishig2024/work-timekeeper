@@ -31,6 +31,8 @@ const kv: KeyValueStore = {
 };
 export const storage = kv;
 
+/** Changes with every fix that matters for a test on phones, so the on-phone log shows which build is installed. */
+export const BUILD_ID = "2026-10-11-d";
 export const appVersion: string = Constants.expoConfig?.version ?? "0.0.0";
 export const apiUrl: string =
   process.env.EXPO_PUBLIC_API_URL ??

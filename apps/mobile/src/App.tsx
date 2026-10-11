@@ -6,7 +6,14 @@ import { ApiError, NetworkError, SessionEndedError } from "@/lib/errors";
 import { mn } from "@/i18n/mn";
 import { installKey } from "@/platform/device";
 import { expoGeofence } from "@/platform/geofence";
-import { api, diag, outbox, setSessionEndedHandler, tokenStore } from "@/platform/runtime";
+import {
+  api,
+  BUILD_ID,
+  diag,
+  outbox,
+  setSessionEndedHandler,
+  tokenStore,
+} from "@/platform/runtime";
 import { flushOutbox } from "@/services/sync";
 import { DeviceScreen } from "@/screens/DeviceScreen";
 import { HistoryScreen } from "@/screens/HistoryScreen";
@@ -60,7 +67,7 @@ export default function App() {
 
   useEffect(() => {
     setSessionEndedHandler(() => setStage("login"));
-    void diag.log("app started");
+    void diag.log(`app started, build ${BUILD_ID}`);
     void (async () => {
       if (!(await tokenStore.read())) return setStage("login");
       await afterAuth();
