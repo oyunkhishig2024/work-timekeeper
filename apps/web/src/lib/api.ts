@@ -16,6 +16,8 @@ type TokenProvider = {
   accessToken(): string | null;
   /** Gets a new access token with the refresh token; false when the session is over. */
   refresh(): Promise<boolean>;
+  /** The session is over (the server refuses even a fresh token): drop it so the app shows the sign-in page. */
+  expire(): void;
 };
 
 let provider: TokenProvider | null = null;
@@ -54,6 +56,10 @@ export async function api<T>(path: string, opts: RequestOptions = {}): Promise<T
   const data: unknown = text ? safeJson(text) : null;
   if (!res.ok) {
     const problem = (data ?? {}) as { code?: string; detail?: string };
+    // A refused token ends the session; a wrong password (INVALID_CREDENTIALS) does not.
+    if (res.status === 401 && opts.auth !== false && problem.code !== "INVALID_CREDENTIALS") {
+      provider?.expire();
+    }
     throw new ApiRequestError(
       res.status,
       problem.code ?? "REQUEST_FAILED",

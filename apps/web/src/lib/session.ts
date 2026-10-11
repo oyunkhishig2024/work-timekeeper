@@ -91,7 +91,7 @@ async function refresh(): Promise<boolean> {
   return refreshing;
 }
 
-setTokenProvider({ accessToken: () => accessToken, refresh });
+setTokenProvider({ accessToken: () => accessToken, refresh, expire: clear });
 
 /** On page load: continue the session of this tab, if any. */
 export async function restoreSession(): Promise<SessionUser | null> {
