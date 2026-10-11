@@ -126,9 +126,9 @@ through the browser's push pipeline shown as a notification, unreadable payload,
 sign-out). **Not verified:** a real subscription through Google / Mozilla / Apple push services (the sandbox cannot reach them),
 and installed-PWA behaviour on iOS.
 
-## Locations (`/locations`)
+## Branches and departments (`/locations`)
 
-Org Admin adds and edits the places where attendance is recorded (name, coordinates, radius 100–500 m, active flag). Coordinates can be pasted from Google Maps or taken from the browser's position.
+Org Admin also manages departments (Хэлтэс, нэгж) on the same page. Org Admin adds and edits the places where attendance is recorded (name, coordinates, radius 100–500 m, active flag). Coordinates can be pasted from Google Maps or taken from the browser's position.
 
 ## First sign-in (`/setup`)
 

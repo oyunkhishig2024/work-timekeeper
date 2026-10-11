@@ -33,3 +33,16 @@ export function parseCoordinates(text: string): { lat: number; lng: number } | n
   const lng = Number(match[2]);
   return lat >= -90 && lat <= 90 && lng >= -180 && lng <= 180 ? { lat, lng } : null;
 }
+
+export interface DepartmentRow {
+  id: string;
+  name: string;
+  active: boolean;
+  activeEmployees: number | null;
+}
+
+export const fetchAllDepartments = () => api<DepartmentRow[]>("/v1/departments");
+export const createDepartment = (name: string) =>
+  api<DepartmentRow>("/v1/departments", { method: "POST", body: { name } });
+export const updateDepartment = (id: string, input: { name?: string; active?: boolean }) =>
+  api<DepartmentRow>(`/v1/departments/${id}`, { method: "PATCH", body: input });

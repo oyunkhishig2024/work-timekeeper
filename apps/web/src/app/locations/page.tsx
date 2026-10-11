@@ -1,6 +1,7 @@
 "use client";
 
 import { AppShell } from "@/components/app-shell";
+import { DepartmentsSection } from "@/components/locations/departments-section";
 import { LocationsScreen } from "@/components/locations/locations-screen";
 
 export default function LocationsPage() {
@@ -8,7 +9,10 @@ export default function LocationsPage() {
     <AppShell>
       {(user) =>
         user.role === "ORG_ADMIN" ? (
-          <LocationsScreen />
+          <>
+            <LocationsScreen />
+            <DepartmentsSection />
+          </>
         ) : (
           <p className="text-slate-700">Байршлыг зөвхөн Байгууллагын админ тохируулна.</p>
         )

@@ -43,9 +43,9 @@ export function LocationsScreen() {
   return (
     <div>
       <div className="flex items-center justify-between gap-3">
-        <h1 className="text-2xl font-semibold">Байршил</h1>
+        <h1 className="text-2xl font-semibold">Салбар (байршил)</h1>
         <button type="button" className={primary} onClick={() => setEditing("new")}>
-          Байршил нэмэх
+          Салбар нэмэх
         </button>
       </div>
       <p className="mt-2 text-sm text-slate-600">
@@ -59,7 +59,7 @@ export function LocationsScreen() {
       {rows === null ? (
         <p className="mt-4 text-slate-600">Ачаалж байна…</p>
       ) : rows.length === 0 ? (
-        <p className="mt-4 text-slate-600">Байршил алга. «Байршил нэмэх» дарна уу.</p>
+        <p className="mt-4 text-slate-600">Байршил алга. «Салбар нэмэх» дарна уу.</p>
       ) : (
         <ul className="mt-4 divide-y divide-slate-200 rounded-lg border border-slate-200 bg-white">
           {rows.map((row) => (
