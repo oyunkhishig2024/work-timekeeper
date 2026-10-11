@@ -52,6 +52,7 @@ export function AppShell({ children }: { children: (user: SessionUser) => ReactN
             ["/dashboard", "Хянах самбар"],
             ["/daily", "Өдрийн ирц"],
             ["/employees", "Ажилтнууд"],
+            ...(session.user.role === "ORG_ADMIN" ? [["/locations", "Байршил"]] : []),
             ["/reports", "Тайлан"],
             ["/review", "Хяналт"],
             ["/notifications", "Мэдэгдэл"],

@@ -126,6 +126,10 @@ through the browser's push pipeline shown as a notification, unreadable payload,
 sign-out). **Not verified:** a real subscription through Google / Mozilla / Apple push services (the sandbox cannot reach them),
 and installed-PWA behaviour on iOS.
 
+## Locations (`/locations`)
+
+Org Admin adds and edits the places where attendance is recorded (name, coordinates, radius 100–500 m, active flag). Coordinates can be pasted from Google Maps or taken from the browser's position.
+
 ## First sign-in (`/setup`)
 
 An account created by the CLI or by an admin has a temporary password. After signing in the app sends it to `/setup`: replace the password, then (Org Admin and HR) scan the QR code with an authenticator app and confirm a code; the one-time recovery codes are shown once. `AppShell` redirects there while the session's `requires` list is not empty.
