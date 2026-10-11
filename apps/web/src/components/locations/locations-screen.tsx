@@ -109,6 +109,7 @@ function LocationDialog({
   const [active, setActive] = useState(row?.active ?? true);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [accuracy, setAccuracy] = useState<number | null>(null);
 
   const useMyPosition = () => {
     setError(null);
@@ -117,7 +118,10 @@ function LocationDialog({
       return;
     }
     navigator.geolocation.getCurrentPosition(
-      (pos) => setCoords(`${pos.coords.latitude.toFixed(6)}, ${pos.coords.longitude.toFixed(6)}`),
+      (pos) => {
+        setCoords(`${pos.coords.latitude.toFixed(6)}, ${pos.coords.longitude.toFixed(6)}`);
+        setAccuracy(Math.round(pos.coords.accuracy));
+      },
       () => setError("Байршлыг авч чадсангүй. Хөтчид байршил ашиглахыг зөвшөөрнө үү."),
       { enableHighAccuracy: true, timeout: 15000 },
     );
@@ -192,6 +196,16 @@ function LocationDialog({
             Эсвэл Google Maps дээр газрыг баруун товшиж, эхний мөрийн тоог хуулна.
           </span>
         </div>
+        {accuracy !== null && (
+          <p
+            role="status"
+            className={`text-sm ${accuracy > 100 ? "font-medium text-red-700" : "text-slate-600"}`}
+          >
+            Нарийвчлал: ±{accuracy} м.
+            {accuracy > 100 &&
+              " Энэ байршил хэт ойролцоо биш байна (компьютер Wi-Fi-аар тооцдог). Утсаараа, яг тэр газраас дахин авна уу."}
+          </p>
+        )}
         <label className="block text-sm font-medium">
           Радиус, метр (100–500)
           <input
