@@ -109,6 +109,15 @@ export class SessionService {
     ]);
   }
 
+  /** Ends a session because its refresh token was exchanged for a new one (not a logout), and remembers when. */
+  async rotate(db: Db, sessionId: string): Promise<void> {
+    const now = this.clock.now();
+    await db.query(
+      "UPDATE auth_session SET revoked_at = $2, rotated_at = $2 WHERE id = $1 AND revoked_at IS NULL",
+      [sessionId, now],
+    );
+  }
+
   async revokeFamily(db: Db, familyId: string): Promise<void> {
     await db.query(
       "UPDATE auth_session SET revoked_at = $2 WHERE family_id = $1 AND revoked_at IS NULL",

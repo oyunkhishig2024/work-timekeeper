@@ -166,7 +166,8 @@ describe.skipIf(!hasDb)("authentication (PRD 15.2)", () => {
       expect(second.refreshToken).not.toBe(first.refreshToken);
       expect((await h.http().get("/v1/auth/me").set(bearer(second.accessToken))).status).toBe(200);
 
-      // Replaying the first (already used) token is theft: everything in the family is revoked.
+      // Replaying the first (already used) token long after it was replaced is theft: everything in the family is revoked.
+      h.clock.advanceSeconds(600);
       const replay = await h
         .http()
         .post("/v1/auth/refresh")
@@ -178,6 +179,40 @@ describe.skipIf(!hasDb)("authentication (PRD 15.2)", () => {
       ).toBe(401);
       expect((await h.http().get("/v1/auth/me").set(bearer(second.accessToken))).status).toBe(401);
       expect(await auditActions(h, tenant.id)).toContain("auth.refresh_token_reuse_detected");
+    });
+
+    it("a token replaced a moment ago may be retried once (lost answer, two refreshes at once); a logout stays final", async () => {
+      const tenant = await createTenant(h);
+      const user = await createUser(h, tenant, { username: "m5", role: "MANAGER" });
+      const first = await signIn(h, user);
+
+      const second = (
+        await h.http().post("/v1/auth/refresh").send({ refreshToken: first.refreshToken })
+      ).body as TokenBody;
+      // The answer never reached the phone, so it asks again with the old token a few seconds later.
+      h.clock.advanceSeconds(20);
+      const retry = await h
+        .http()
+        .post("/v1/auth/refresh")
+        .send({ refreshToken: first.refreshToken });
+      expect(retry.status).toBe(200);
+      expect(retry.body.refreshToken).not.toBe(second.refreshToken);
+      expect((await h.http().get("/v1/auth/me").set(bearer(retry.body.accessToken))).status).toBe(
+        200,
+      );
+      expect(await auditActions(h, tenant.id)).toContain("auth.refresh_token_retry");
+
+      // After a logout the same trick does not work.
+      const fresh = await signIn(h, user);
+      const next = (
+        await h.http().post("/v1/auth/refresh").send({ refreshToken: fresh.refreshToken })
+      ).body as TokenBody;
+      await h.http().post("/v1/auth/logout").set(bearer(next.accessToken));
+      const afterLogout = await h
+        .http()
+        .post("/v1/auth/refresh")
+        .send({ refreshToken: fresh.refreshToken });
+      expect(afterLogout.status).toBe(401);
     });
 
     it("staff sessions expire after 30 minutes idle; each refresh extends them", async () => {

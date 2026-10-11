@@ -166,11 +166,12 @@ export class AuthService {
       family_id: string;
       device_id: string | null;
       revoked_at: Date | null;
+      rotated_at: Date | null;
       expires_at: Date;
     };
     const outcome = await this.db.withTenant<Outcome<AuthTokens>>(tenantId, async (tx) => {
       const found = await tx.query<SessionRow>(
-        `SELECT id, user_id, family_id, device_id, revoked_at, expires_at FROM auth_session
+        `SELECT id, user_id, family_id, device_id, revoked_at, rotated_at, expires_at FROM auth_session
           WHERE refresh_hash = $1 FOR UPDATE`,
         [hashRefreshToken(refreshToken)],
       );
@@ -180,6 +181,24 @@ export class AuthService {
 
       const user = await this.findUserById(tx, session.user_id, false);
       if (session.revoked_at) {
+        // Replaced moments ago, and the family is still alive: a retry, not theft. Hand out a fresh token in the same family.
+        const graceMs = this.config.REFRESH_REUSE_GRACE_SECONDS * 1000;
+        const recentlyRotated =
+          session.rotated_at !== null &&
+          this.clock.now().getTime() - session.rotated_at.getTime() <= graceMs;
+        if (recentlyRotated && user && user.status === "ACTIVE") {
+          const alive = await tx.query(
+            "SELECT 1 FROM auth_session WHERE family_id = $1 AND revoked_at IS NULL AND expires_at > $2 LIMIT 1",
+            [session.family_id, this.clock.now()],
+          );
+          if ((alive.rowCount ?? 0) > 0) {
+            await this.auditEvent(tx, user, "auth.refresh_token_retry", meta);
+            return {
+              kind: "ok",
+              value: await this.sessions.issue(tx, user, session.family_id, session.device_id),
+            };
+          }
+        }
         await this.sessions.revokeFamily(tx, session.family_id);
         if (user) await this.auditEvent(tx, user, "auth.refresh_token_reuse_detected", meta);
         return { kind: "fail", error: invalid };
@@ -188,7 +207,7 @@ export class AuthService {
         return { kind: "fail", error: invalid };
       }
 
-      await this.sessions.revoke(tx, session.id);
+      await this.sessions.rotate(tx, session.id);
       return {
         kind: "ok",
         value: await this.sessions.issue(tx, user, session.family_id, session.device_id),

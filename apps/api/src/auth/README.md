@@ -36,7 +36,7 @@ POST /users/:id/totp-reset        Org Admin (lost phone)
   Per-IP rate limit on the auth routes (10/min by default).
 - Access token: JWT HS256, 15 minutes. Every request also checks the session and user in the database, so
   disabling a user or revoking a session takes effect immediately (PRD 12.2).
-- Refresh token: opaque `<tenantId>.<random>`, SHA-256 hash stored, rotated on every use. Staff sessions
+- Refresh token: opaque `<tenantId>.<random>`, SHA-256 hash stored, rotated on every use. A token replaced less than `REFRESH_REUSE_GRACE_SECONDS` (default 300) ago may be presented once more without ending the login (a phone retrying after a lost answer, or the app and its background task refreshing together): it gets a fresh token in the same family (`auth.refresh_token_retry`). Older replays are theft and revoke the family; a logout is always final (`rotated_at`, migration 0029). Staff sessions
   expire after 30 minutes idle (sliding); employee sessions after 30 days. Replaying a used token revokes
   the whole token family and is audited.
 - TOTP (RFC 6238, SHA-1, 30 s, 6 digits): required for Org Admin and HR, optional for Manager. Seeds are

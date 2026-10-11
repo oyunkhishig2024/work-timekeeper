@@ -23,6 +23,12 @@ const envSchema = z.object({
   STAFF_SESSION_IDLE_MINUTES: z.coerce.number().int().min(5).default(30),
   /** Mobile (employee) refresh tokens are long-lived but rotate on every use. */
   EMPLOYEE_SESSION_DAYS: z.coerce.number().int().min(1).default(30),
+  /**
+   * A refresh token that was replaced less than this many seconds ago may still be presented once more without ending the whole
+   * login (a phone retrying after a lost answer, or the app and its background task refreshing together). Older replays still
+   * count as theft and revoke the family. 0 turns the grace off.
+   */
+  REFRESH_REUSE_GRACE_SECONDS: z.coerce.number().int().min(0).max(1800).default(300),
   LOGIN_MAX_FAILURES: z.coerce.number().int().min(3).default(5),
   LOGIN_LOCK_MINUTES: z.coerce.number().int().min(1).default(15),
   /** Per-IP rate limit for the auth endpoints. */
