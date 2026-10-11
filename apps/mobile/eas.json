@@ -20,7 +20,7 @@
         "buildType": "apk"
       },
       "env": {
-        "EXPO_PUBLIC_API_URL": "https://CHANGE-ME.example"
+        "EXPO_PUBLIC_API_URL": "https://165-232-161-114.sslip.io"
       }
     },
     "production": {
