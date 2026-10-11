@@ -4,7 +4,7 @@ import type { Plan } from "@/lib/api";
 import { captureEvent } from "@/services/geofence-capture";
 import { flushOutbox } from "@/services/sync";
 import { regionsChanged, regionsFromPlan, type Region } from "@/services/plan";
-import { api, newId, outbox, storage } from "./runtime";
+import { api, diag, newId, outbox, storage } from "./runtime";
 
 export const GEOFENCE_TASK = "tkw-geofence";
 const REGIONS_KEY = "geofence.regions.v1";
@@ -62,13 +62,17 @@ async function quickFix() {
 // Must be defined when the module loads (index.ts imports this file first): the operating system can start the app in the
 // background just to deliver a geofence event, before any screen exists.
 TaskManager.defineTask(GEOFENCE_TASK, async ({ data, error }) => {
-  if (error) return;
+  if (error) {
+    await diag.log(`geofence error: ${error.message}`);
+    return;
+  }
   const { eventType, region } = data as {
     eventType: Location.LocationGeofencingEventType;
     region: Location.LocationRegion;
   };
   const type = eventType === Location.LocationGeofencingEventType.Enter ? "ENTER" : "EXIT";
   if (!region.identifier) return;
+  await diag.log(`geofence ${type} reported by the phone`);
   await outbox.enqueue(
     captureEvent({
       type,
@@ -79,5 +83,6 @@ TaskManager.defineTask(GEOFENCE_TASK, async ({ data, error }) => {
     }),
   );
   // upload at once; if the phone is offline the event waits in the outbox for the next try
-  await flushOutbox(outbox, api);
+  const sent = await flushOutbox(outbox, api);
+  await diag.log(`geofence ${type}: upload ${sent.state}`);
 });

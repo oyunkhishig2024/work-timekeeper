@@ -3,6 +3,7 @@ import Constants from "expo-constants";
 import * as Crypto from "expo-crypto";
 import * as SecureStore from "expo-secure-store";
 import { ApiClient, type TokenStore, type Tokens } from "@/lib/api";
+import { DiagLog } from "@/services/diag";
 import { Outbox, type KeyValueStore } from "@/services/outbox";
 
 const TOKENS_KEY = "tkw.tokens";
@@ -47,8 +48,13 @@ export const api = new ApiClient({
   baseUrl: apiUrl,
   tokens: tokenStore,
   appVersion,
-  onSessionEnded: () => onSessionEnded(),
+  onSessionEnded: () => {
+    void diag.log("session ended: the server refused the refresh token");
+    onSessionEnded();
+  },
 });
 export const outbox = new Outbox(kv);
+/** What the app did, readable on the phone's «Утас» tab (also written by the background geofence task). */
+export const diag = new DiagLog(kv);
 
 export const newId = (): string => Crypto.randomUUID();

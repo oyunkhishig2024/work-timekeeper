@@ -98,3 +98,7 @@ src/
   version" screen (`GET /app/config`, force-upgrade) are not built; OEM-specific instructions are not content-driven yet.
 - TOTP set-up and recovery-code screens, "forgot password", push notifications to the phone.
 - Release builds, store listings, crash reporting.
+
+## On-phone log
+
+The «Утас» tab ends with «Сүүлийн үйлдлүүд»: the last 80 lines of what the app did (app start and open, plan loaded and how many places are watched, geofence ENTER/EXIT reported by the phone and the upload result, device rejoin, session ended, sign-out). Written by `DiagLog` (`src/services/diag.ts`), also from the background geofence task; no coordinates or names. Signing out asks for confirmation.

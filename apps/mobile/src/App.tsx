@@ -1,12 +1,12 @@
 import { StatusBar } from "expo-status-bar";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { ActivityIndicator, AppState, Pressable, Text, View } from "react-native";
+import { ActivityIndicator, Alert, AppState, Pressable, Text, View } from "react-native";
 import type { AuthResult, Plan } from "@/lib/api";
 import { ApiError, NetworkError, SessionEndedError } from "@/lib/errors";
 import { mn } from "@/i18n/mn";
 import { installKey } from "@/platform/device";
 import { expoGeofence } from "@/platform/geofence";
-import { api, outbox, setSessionEndedHandler, tokenStore } from "@/platform/runtime";
+import { api, diag, outbox, setSessionEndedHandler, tokenStore } from "@/platform/runtime";
 import { flushOutbox } from "@/services/sync";
 import { DeviceScreen } from "@/screens/DeviceScreen";
 import { HistoryScreen } from "@/screens/HistoryScreen";
@@ -59,19 +59,29 @@ export default function App() {
 
   useEffect(() => {
     setSessionEndedHandler(() => setStage("login"));
+    void diag.log("app started");
     void (async () => {
       if (!(await tokenStore.read())) return setStage("login");
       await afterAuth();
     })();
   }, [afterAuth]);
 
-  const signOut = useCallback(async () => {
+  const doSignOut = useCallback(async () => {
+    void diag.log("sign-out confirmed by the person");
     await expoGeofence.stop().catch(() => undefined);
     await api.logout();
     setPlan(null);
     setWatching(0);
     setStage("login");
   }, []);
+
+  /** Signing out also stops the automatic recording, so it asks first. */
+  const signOut = useCallback(async () => {
+    Alert.alert(mn.login.signOutTitle, mn.login.signOutText, [
+      { text: mn.common.cancel, style: "cancel" },
+      { text: mn.login.signOut, style: "destructive", onPress: () => void doSignOut() },
+    ]);
+  }, [doSignOut]);
 
   // ------------------------------------------------------------------ the work of the main screens
 
@@ -80,8 +90,10 @@ export default function App() {
     if (result.state === "BLOCKED") {
       // Refused because this session belongs to no device (a fresh login): rejoin the registered device and try once more.
       const joined = await api.rebindDevice(await installKey()).catch(() => null);
+      void diag.log(`rejoin device: ${joined?.bound ? "ok" : "not possible"}`);
       if (joined?.bound) result = await flushOutbox(outbox, api);
     }
+    if (result.state !== "EMPTY") void diag.log(`upload: ${result.state}`);
     setSync(result.state === "EMPTY" || result.state === "DONE" ? "SYNCED" : result.state);
     if (result.state === "SIGNED_OUT") setStage("login");
     if (result.state !== "OFFLINE") void api.heartbeat().catch(() => undefined);
@@ -93,12 +105,16 @@ export default function App() {
       lastPlan.current = Date.now();
       setPlan(next);
       try {
-        setWatching(await expoGeofence.apply(next));
-      } catch {
+        const n = await expoGeofence.apply(next);
+        setWatching(n);
+        void diag.log(`plan: watching ${n} place(s)`);
+      } catch (e) {
         setWatching(0); // no "always" permission yet: the Phone tab shows what is missing
+        void diag.log(`plan: could not watch places (${e instanceof Error ? e.message : "error"})`);
       }
-    } catch {
+    } catch (e) {
       // offline: the geofences already registered keep working
+      void diag.log(`plan: not loaded (${e instanceof Error ? e.message : "error"})`);
     }
   }, []);
 
@@ -108,6 +124,7 @@ export default function App() {
     void refreshPlan();
     const sub = AppState.addEventListener("change", (state) => {
       if (state !== "active") return;
+      void diag.log("app opened");
       void upload();
       if (Date.now() - lastPlan.current > PLAN_REFRESH_MS) void refreshPlan();
     });

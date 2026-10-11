@@ -2,6 +2,8 @@ import { useCallback, useEffect, useState } from "react";
 import { Linking, ScrollView, Text, View } from "react-native";
 import { mn } from "@/i18n/mn";
 import { confirmBattery, gatherHealth, requestLocationPermissions } from "@/platform/health";
+import { diag } from "@/platform/runtime";
+import type { DiagEntry } from "@/services/diag";
 import { allHealthy, type HealthCheck } from "@/services/health";
 import { Badge, Button, Card, Muted, Screen, Title } from "./ui";
 
@@ -14,10 +16,12 @@ export function DeviceScreen({
   onSignOut: () => void;
 }) {
   const [checks, setChecks] = useState<HealthCheck[] | null>(null);
+  const [lines, setLines] = useState<DiagEntry[]>([]);
 
   const load = useCallback(async () => {
     const next = await gatherHealth();
     setChecks(next);
+    setLines((await diag.read()).slice(0, 40));
     onChecked(allHealthy(next));
   }, [onChecked]);
 
@@ -71,6 +75,19 @@ export function DeviceScreen({
           </Card>
         ))}
         {checks && allHealthy(checks) && <Muted>{mn.health.allGood}</Muted>}
+        <Title>{mn.diag.title}</Title>
+        <Muted>{mn.diag.help}</Muted>
+        <Card>
+          {lines.length === 0 ? (
+            <Muted>{mn.diag.empty}</Muted>
+          ) : (
+            lines.map((l) => (
+              <Text key={`${l.t}-${l.m}`} style={{ fontSize: 12 }}>
+                {new Date(l.t).toLocaleString("sv-SE").slice(5, 19)} {l.m}
+              </Text>
+            ))
+          )}
+        </Card>
         <Button label={mn.login.signOut} kind="secondary" onPress={onSignOut} />
       </ScrollView>
     </Screen>
