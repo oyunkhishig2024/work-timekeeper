@@ -61,7 +61,10 @@
       "expo-dev-client"
     ],
     "extra": {
-      "apiUrl": "http://localhost:3001"
+      "apiUrl": "http://localhost:3001",
+      "eas": {
+        "projectId": "8d605149-a25e-479e-8d3d-597ad0b15af0"
+      }
     },
     "icon": "./assets/icon.png",
     "runtimeVersion": {
