@@ -1,4 +1,5 @@
 import * as Location from "expo-location";
+import { PermissionsAndroid, Platform } from "react-native";
 import * as TaskManager from "expo-task-manager";
 import type { Plan } from "@/lib/api";
 import { captureEvent } from "@/services/geofence-capture";
@@ -20,6 +21,22 @@ export const LOCATION_TASK = "tkw-location";
 const REGIONS_KEY = "geofence.regions.v1";
 const PRESENCE_KEY = "presence.v1";
 const LAST_NOTE_KEY = "presence.lastNote";
+
+/**
+ * Android 13+ shows no notification (so also not the one that keeps the position watching alive) unless the app asks for the
+ * permission. Without it the person also cannot switch notifications on in the phone settings.
+ */
+async function ensureNotificationPermission(): Promise<void> {
+  if (Platform.OS !== "android" || Number(Platform.Version) < 33) return;
+  const permission = "android.permission.POST_NOTIFICATIONS" as const;
+  try {
+    if (await PermissionsAndroid.check(permission)) return;
+    const answer = await PermissionsAndroid.request(permission);
+    await diag.log(`notification permission: ${answer}`);
+  } catch (e) {
+    await diag.log(`notification permission: ${e instanceof Error ? e.message : "error"}`);
+  }
+}
 
 async function readRegions(): Promise<Region[]> {
   const raw = await storage.getItem(REGIONS_KEY);
@@ -69,6 +86,7 @@ export const expoGeofence: GeofenceService = {
     const running = await Location.hasStartedGeofencingAsync(GEOFENCE_TASK);
     await diag.log(`geofence running: ${running ? "yes" : "NO"}`);
     await writePresence(forRegions(await readPresence(), regions));
+    await ensureNotificationPermission();
     try {
       if (!(await Location.hasStartedLocationUpdatesAsync(LOCATION_TASK))) {
         await Location.startLocationUpdatesAsync(LOCATION_TASK, {
