@@ -52,6 +52,21 @@ describe("evaluateFix", () => {
     expect(run(walk)).toEqual(["ENTER", "-", "-", "EXIT", "-", "-", "ENTER"]);
   });
 
+  it("coming back after a departure needs two coarse fixes in a row, or one exact fix", () => {
+    const away = [at(50), at(900), at(900)]; // ENTER, then EXIT after two clear fixes
+    expect(run([...away, at(100, 90)])).toEqual(["ENTER", "-", "EXIT", "-"]); // one coarse fix inside: not yet
+    expect(run([...away, at(100, 90), at(100, 90)])).toEqual(["ENTER", "-", "EXIT", "-", "ENTER"]);
+    expect(run([...away, at(100, 10)])).toEqual(["ENTER", "-", "EXIT", "ENTER"]); // one exact fix is enough
+    expect(run([...away, at(100, 90), at(900, 90), at(100, 90)])).toEqual([
+      "ENTER",
+      "-",
+      "EXIT",
+      "-",
+      "-",
+      "-",
+    ]); // a stray fix breaks the run
+  });
+
   it("one stray fix outside does not end the stay", () => {
     expect(run([at(50), at(900), at(60), at(900), at(60)])).toEqual(["ENTER", "-", "-", "-", "-"]);
   });

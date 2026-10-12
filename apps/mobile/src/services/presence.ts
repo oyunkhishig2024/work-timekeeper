@@ -10,6 +10,8 @@ export interface Position {
 export interface PresenceState {
   inside: Record<string, boolean>;
   outsideStreak: Record<string, number>;
+  /** Fixes in a row inside the place while the phone is thought to be outside (older saved states do not have it). */
+  insideStreak?: Record<string, number>;
 }
 
 export interface Transition {
@@ -21,10 +23,17 @@ export interface Transition {
 export const MAX_ACCURACY_M = 150;
 /** Leaving needs this many fixes in a row clearly outside, so one stray GPS jump cannot end the day. */
 export const EXIT_CONFIRMATIONS = 2;
+/** Coming back needs this many fixes in a row inside, unless a fix is this exact (metres) or better. */
+export const ENTER_CONFIRMATIONS = 2;
+export const EXACT_FIX_M = 30;
 /** "Clearly outside" is the radius plus this margin (or the fix's own inaccuracy when that is larger). */
 export const EXIT_MARGIN_M = 25;
 
-export const emptyState = (): PresenceState => ({ inside: {}, outsideStreak: {} });
+export const emptyState = (): PresenceState => ({
+  inside: {},
+  outsideStreak: {},
+  insideStreak: {},
+});
 
 /** Metres between two points (haversine). */
 export function distanceM(a: Position, b: { lat: number; lng: number }): number {
@@ -41,7 +50,11 @@ export function forRegions(state: PresenceState, regions: readonly Region[]): Pr
   const ids = new Set(regions.map((r) => r.identifier));
   const keep = <T>(m: Record<string, T>) =>
     Object.fromEntries(Object.entries(m).filter(([id]) => ids.has(id)));
-  return { inside: keep(state.inside), outsideStreak: keep(state.outsideStreak) };
+  return {
+    inside: keep(state.inside),
+    outsideStreak: keep(state.outsideStreak),
+    insideStreak: keep(state.insideStreak ?? {}),
+  };
 }
 
 /**
@@ -61,7 +74,10 @@ export function evaluateFix(
   const next: PresenceState = {
     inside: { ...state.inside },
     outsideStreak: { ...state.outsideStreak },
+    insideStreak: { ...(state.insideStreak ?? {}) },
   };
+  const inStreak: Record<string, number> = next.insideStreak ?? {};
+  next.insideStreak = inStreak;
   for (const region of regions) {
     const id = region.identifier;
     const d = distanceM(fix, { lat: region.latitude, lng: region.longitude });
@@ -69,7 +85,10 @@ export function evaluateFix(
     const clearlyOutside = d > region.radius + Math.max(EXIT_MARGIN_M, fix.accuracyM ?? 0);
     const was = next.inside[id];
 
+    const exact = fix.accuracyM !== undefined && fix.accuracyM <= EXACT_FIX_M;
+
     if (was === true) {
+      inStreak[id] = 0;
       if (clearlyOutside) {
         const streak = (next.outsideStreak[id] ?? 0) + 1;
         if (streak >= EXIT_CONFIRMATIONS) {
@@ -79,11 +98,18 @@ export function evaluateFix(
         } else next.outsideStreak[id] = streak;
       } else next.outsideStreak[id] = 0;
     } else if (insideNow) {
-      next.inside[id] = true;
-      next.outsideStreak[id] = 0;
-      transitions.push({ type: "ENTER", locationId: id });
-    } else if (was === undefined && clearlyOutside) {
-      next.inside[id] = false;
+      // First trustworthy fix of the day (nothing known yet): an arrival at once. After a departure a coarse fix near the edge
+      // must be confirmed by a second one, so a jump of the network position cannot fake a return.
+      const streak = (inStreak[id] ?? 0) + 1;
+      if (was === undefined || exact || streak >= ENTER_CONFIRMATIONS) {
+        next.inside[id] = true;
+        next.outsideStreak[id] = 0;
+        inStreak[id] = 0;
+        transitions.push({ type: "ENTER", locationId: id });
+      } else inStreak[id] = streak;
+    } else {
+      inStreak[id] = 0;
+      if (was === undefined && clearlyOutside) next.inside[id] = false;
     }
   }
   return { state: next, transitions };
@@ -101,6 +127,7 @@ export function applyReported(
     state: {
       inside: { ...state.inside, [transition.locationId]: nowInside },
       outsideStreak: { ...state.outsideStreak, [transition.locationId]: 0 },
+      insideStreak: { ...(state.insideStreak ?? {}), [transition.locationId]: 0 },
     },
     emit: true,
   };

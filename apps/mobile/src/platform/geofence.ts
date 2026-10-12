@@ -39,6 +39,17 @@ async function ensureNotificationPermission(): Promise<void> {
   }
 }
 
+/**
+ * The system can start the position task and the geofence task at the same moment; both read the presence state, decide and write
+ * it back. Run them one after the other, or both report the same ENTER (seen on a phone: two ENTER events one second apart).
+ */
+let chain: Promise<unknown> = Promise.resolve();
+function inOrder<T>(work: () => Promise<T>): Promise<T> {
+  const run = chain.then(work, work);
+  chain = run.catch(() => undefined);
+  return run;
+}
+
 async function readRegions(): Promise<Region[]> {
   const raw = await storage.getItem(REGIONS_KEY);
   try {
@@ -95,8 +106,8 @@ export const expoGeofence: GeofenceService = {
         await Location.stopLocationUpdatesAsync(LOCATION_TASK);
       }
       await Location.startLocationUpdatesAsync(LOCATION_TASK, {
-        accuracy: Location.Accuracy.Balanced,
-        timeInterval: 30_000,
+        accuracy: Location.Accuracy.High,
+        timeInterval: 60_000,
         distanceInterval: 0,
         pausesUpdatesAutomatically: false,
         showsBackgroundLocationIndicator: false,
@@ -143,7 +154,12 @@ async function quickFix() {
 
 // Must be defined when the module loads (index.ts imports this file first): the operating system can start the app in the
 // background just to deliver a geofence event, before any screen exists.
-TaskManager.defineTask(GEOFENCE_TASK, async ({ data, error }) => {
+TaskManager.defineTask(GEOFENCE_TASK, ({ data, error }) => inOrder(() => onGeofence(data, error)));
+
+async function onGeofence(
+  data: unknown,
+  error: TaskManager.TaskManagerError | null,
+): Promise<void> {
   if (error) {
     await diag.log(`geofence error: ${error.message}`);
     return;
@@ -170,10 +186,15 @@ TaskManager.defineTask(GEOFENCE_TASK, async ({ data, error }) => {
   // upload at once; if the phone is offline the event waits in the outbox for the next try
   const sent = await flushOutbox(outbox, api);
   await diag.log(`geofence ${type}: upload ${sent.state}`);
-});
+}
 
 // The fallback: the phone judges entering and leaving from ordinary position fixes. Also defined at start-up, for the same reason.
-TaskManager.defineTask(LOCATION_TASK, async ({ data, error }) => {
+TaskManager.defineTask(LOCATION_TASK, ({ data, error }) => inOrder(() => onPosition(data, error)));
+
+async function onPosition(
+  data: unknown,
+  error: TaskManager.TaskManagerError | null,
+): Promise<void> {
   if (error) {
     await diag.log(`position error: ${error.message}`);
     return;
@@ -239,4 +260,4 @@ TaskManager.defineTask(LOCATION_TASK, async ({ data, error }) => {
     const sent = await flushOutbox(outbox, api);
     await diag.log(`position event: upload ${sent.state}`);
   }
-});
+}
