@@ -1,13 +1,18 @@
+import * as Device from "expo-device";
 import * as Location from "expo-location";
 import { Platform } from "react-native";
 import { evaluateHealth, type HealthCheck } from "@/services/health";
 import { storage } from "./runtime";
 
-const BATTERY_KEY = "health.battery.confirmed";
+const confirmedKey = (key: string) => `health.${key}.confirmed`;
 
-export async function confirmBattery(): Promise<void> {
-  await storage.setItem(BATTERY_KEY, "1");
+/** The person says they did a setting that the app cannot read (battery, Autostart). */
+export async function confirmManual(key: string): Promise<void> {
+  await storage.setItem(confirmedKey(key), "1");
 }
+
+const isXiaomiFamily = (): boolean =>
+  /xiaomi|redmi|poco/i.test(`${Device.manufacturer ?? ""} ${Device.brand ?? ""}`);
 
 /** Reads the permissions and settings of this phone and evaluates the health checks (PRD 6.8). */
 export async function gatherHealth(): Promise<HealthCheck[]> {
@@ -24,7 +29,11 @@ export async function gatherHealth(): Promise<HealthCheck[]> {
     backgroundLocation: background.granted,
     preciseLocation: foreground.granted && precise,
     locationServicesOn: services,
-    batteryConfirmed: (await storage.getItem(BATTERY_KEY)) === "1",
+    batteryConfirmed: (await storage.getItem(confirmedKey("battery"))) === "1",
+    autostart: {
+      needed: Platform.OS === "android" && isXiaomiFamily(),
+      confirmed: (await storage.getItem(confirmedKey("autostart"))) === "1",
+    },
   });
 }
 

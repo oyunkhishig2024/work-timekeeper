@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Linking, ScrollView, Text, View } from "react-native";
 import { mn } from "@/i18n/mn";
-import { confirmBattery, gatherHealth, requestLocationPermissions } from "@/platform/health";
+import { confirmManual, gatherHealth, requestLocationPermissions } from "@/platform/health";
 import { diag } from "@/platform/runtime";
 import type { DiagEntry } from "@/services/diag";
 import { allHealthy, type HealthCheck } from "@/services/health";
@@ -35,7 +35,7 @@ export function DeviceScreen({
 
   async function fix(check: HealthCheck) {
     if (check.manual) {
-      await confirmBattery();
+      await confirmManual(check.key);
     } else if (check.key === "location_always") {
       await requestLocationPermissions();
     } else {

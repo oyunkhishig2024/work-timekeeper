@@ -104,6 +104,19 @@ describe("evaluateHealth", () => {
     }
     expect(allHealthy(evaluateHealth({ ...good, foregroundLocation: false }))).toBe(false);
   });
+  it("the Autostart check appears only for Xiaomi-family phones and has to be confirmed by hand", () => {
+    expect(evaluateHealth(good).some((c) => c.key === "autostart")).toBe(false);
+    const xiaomi = { ...good, autostart: { needed: true, confirmed: false } };
+    const check = evaluateHealth(xiaomi).find((c) => c.key === "autostart");
+    expect(check).toMatchObject({ ok: false, manual: true });
+    expect(allHealthy(evaluateHealth(xiaomi))).toBe(false);
+    expect(
+      allHealthy(evaluateHealth({ ...good, autostart: { needed: true, confirmed: true } })),
+    ).toBe(true);
+    expect(evaluateHealth({ ...xiaomi, platform: "IOS" }).some((c) => c.key === "autostart")).toBe(
+      false,
+    );
+  });
   it("the battery check exists on Android only, and is a manual confirmation", () => {
     expect(evaluateHealth(good).find((c) => c.key === "battery")?.manual).toBe(true);
     expect(

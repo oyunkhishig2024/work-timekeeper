@@ -55,6 +55,9 @@ export const mn = {
     battery: "Батарейны хязгаарлалт унтраах",
     batteryHint:
       "Тохиргоо → Апп → Timekeeper Work → Батарей → Хязгаарлалтгүй. Апп унтрахаас сэргийлнэ",
+    autostart: "Автомат эхлэх (Autostart) асаах",
+    autostartHint:
+      "Xiaomi/Redmi утсанд: Тохиргоо → Апп → Зөвшөөрөл → Autostart → Timekeeper Work-ийг асаана. Үгүй бол апп бүртгэх үед гацна",
     grant: "Зөвшөөрөх",
     confirm: "Хийсэн",
     openSettings: "Тохиргоо нээх",

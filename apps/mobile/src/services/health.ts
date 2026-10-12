@@ -11,10 +11,15 @@ export interface HealthInput {
   locationServicesOn: boolean;
   /** Android battery optimisation cannot be read by the app: the person confirms it by hand. */
   batteryConfirmed: boolean;
+  /**
+   * Xiaomi, Redmi and POCO phones tie the permission `RECEIVE_BOOT_COMPLETED` to their «Autostart» switch. With it off the system
+   * refuses background jobs and the app stops as soon as a position or geofence event arrives. Cannot be read: confirmed by hand.
+   */
+  autostart?: { needed: boolean; confirmed: boolean };
 }
 
 export interface HealthCheck {
-  key: "location_always" | "location_precise" | "location_services" | "battery";
+  key: "location_always" | "location_precise" | "location_services" | "battery" | "autostart";
   ok: boolean;
   title: string;
   hint: string;
@@ -50,6 +55,15 @@ export function evaluateHealth(i: HealthInput): HealthCheck[] {
       ok: i.batteryConfirmed,
       title: mn.health.battery,
       hint: mn.health.batteryHint,
+      manual: true,
+    });
+  }
+  if (i.platform === "ANDROID" && i.autostart?.needed) {
+    checks.push({
+      key: "autostart",
+      ok: i.autostart.confirmed,
+      title: mn.health.autostart,
+      hint: mn.health.autostartHint,
       manual: true,
     });
   }
