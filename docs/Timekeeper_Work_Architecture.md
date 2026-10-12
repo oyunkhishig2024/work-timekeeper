@@ -1,7 +1,7 @@
 # Timekeeper Work
 ## Technical Architecture Document
 
-Version: 0.35 (draft for review)
+Version: 0.36 (draft for review)
 Status: Draft — based on PRD v1.9 (`docs/Timekeeper_Work_PRD.md`)
 Audience: engineering lead, backend / mobile / web developers, QA
 Scope: the **pilot tier** (1–2 tenants, ~4 months, ~640 employees), built by **one full-stack developer** (decision v0.2, see Section 14). The production tier is covered only where a decision now would be expensive to undo later.
@@ -926,3 +926,14 @@ Migrations `0010_time_rules` and `0011_shifts` add the storage for attendance ru
 - `apps/mobile`: Expo SDK 57 / TypeScript. Logic (API client with one shared token refresh, outbox, uploader, plan, health, history groups) is plain TypeScript with 42 unit tests and a contract test against the real API; the screens and the `expo-location` geofence bridge compile and bundle (Metro/Hermes) but have not run on a device. New server route `GET /v1/mobile/plan` (`MobilePlanService`).
 - Open: Spike 1 (geofence delivery on real phones), Spike 2 (attestation), encrypted outbox, background upload and heartbeat, force-upgrade, TOTP set-up in the app, store releases.
 
+
+
+## 51. Spike 1 first result (pilot, Redmi/Xiaomi Android phones) **[v0.36]**
+
+Two Android phones (Redmi Note 8 / MIUI 12.5.2 on Android 11, and a newer Xiaomi phone), `expo-location` geofencing plus background position updates, app built with EAS (preview APK), server on one VPS behind Caddy.
+
+- **System geofencing delivered nothing** at first: every background event crashed the app (`requested job be persisted without holding RECEIVE_BOOT_COMPLETED permission`, thrown by `expo-task-manager` natively). The permission must be declared (`app.json`) **and** on MIUI the «Autostart» switch must be on (the old Redmi Note 8 still crashed until then and was left out of the test).
+- With the permission fixed, **both** mechanisms work on the newer phone: the system geofence reported ENTER and the position task followed a 1.2 km walk minute by minute (±7–24 m with `Accuracy.High`, one fix per 60 s, foreground service).
+- Balanced accuracy (±75–100 m) produced LOW_ACCURACY flags and a false return 95 s after a departure; fixed by GPS accuracy and a two-fix confirmation for returns (`presence.ts`). Two background tasks ran at once and sent a duplicate ENTER; fixed by running them in order.
+- Offline: events waited in the outbox and were uploaded later with their real time; a login on an already registered phone starts a session bound to no device until the app proves its install key (`POST /devices/rebind`); a refresh token replaced less than 5 minutes ago may be retried (`REFRESH_REUSE_GRACE_SECONDS`).
+- Open: battery cost of GPS every 60 s over a work day; iOS (not tested); phones of other makers; Redmi Note 8 with Autostart on; Play Integrity attestation.
