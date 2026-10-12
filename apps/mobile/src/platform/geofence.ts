@@ -21,6 +21,7 @@ export const LOCATION_TASK = "tkw-location";
 const REGIONS_KEY = "geofence.regions.v1";
 const PRESENCE_KEY = "presence.v1";
 const LAST_NOTE_KEY = "presence.lastNote";
+const CALLED_KEY = "presence.lastCalled";
 
 /**
  * Android 13+ shows no notification (so also not the one that keeps the position watching alive) unless the app asks for the
@@ -88,20 +89,24 @@ export const expoGeofence: GeofenceService = {
     await writePresence(forRegions(await readPresence(), regions));
     await ensureNotificationPermission();
     try {
-      if (!(await Location.hasStartedLocationUpdatesAsync(LOCATION_TASK))) {
-        await Location.startLocationUpdatesAsync(LOCATION_TASK, {
-          accuracy: Location.Accuracy.Balanced,
-          timeInterval: 30_000,
-          distanceInterval: 25,
-          pausesUpdatesAutomatically: false,
-          showsBackgroundLocationIndicator: false,
-          foregroundService: {
-            notificationTitle: "Timekeeper Work",
-            notificationBody: "Ирцийн бүртгэл ажиллаж байна",
-          },
-        });
-        await diag.log("position watching started (foreground service)");
+      // Start again every time: a service started before the notification permission was granted (or one the system stopped) is
+      // still "registered" but delivers nothing. No distance filter: a phone standing still must still report its position.
+      if (await Location.hasStartedLocationUpdatesAsync(LOCATION_TASK)) {
+        await Location.stopLocationUpdatesAsync(LOCATION_TASK);
       }
+      await Location.startLocationUpdatesAsync(LOCATION_TASK, {
+        accuracy: Location.Accuracy.Balanced,
+        timeInterval: 30_000,
+        distanceInterval: 0,
+        pausesUpdatesAutomatically: false,
+        showsBackgroundLocationIndicator: false,
+        foregroundService: {
+          notificationTitle: "Timekeeper Work",
+          notificationBody: "Ирцийн бүртгэл ажиллаж байна",
+        },
+      });
+      const on = await Location.hasStartedLocationUpdatesAsync(LOCATION_TASK);
+      await diag.log(`position watching (re)started: ${on ? "yes" : "NO"}`);
     } catch (e) {
       await diag.log(
         `position watching could not start (${e instanceof Error ? e.message : "error"})`,
@@ -174,9 +179,17 @@ TaskManager.defineTask(LOCATION_TASK, async ({ data, error }) => {
     return;
   }
   const { locations } = (data ?? {}) as { locations?: Location.LocationObject[] };
+  const calledAt = Number((await storage.getItem(CALLED_KEY)) ?? 0);
+  if (Date.now() - calledAt > 120_000) {
+    await storage.setItem(CALLED_KEY, String(Date.now()));
+    await diag.log(`position task called (${locations?.length ?? 0} fix)`);
+  }
   if (!locations || locations.length === 0) return;
   const regions = await readRegions();
-  if (regions.length === 0) return;
+  if (regions.length === 0) {
+    await diag.log("position: no places stored on the phone");
+    return;
+  }
 
   let state = await readPresence();
   const before = JSON.stringify(state);
