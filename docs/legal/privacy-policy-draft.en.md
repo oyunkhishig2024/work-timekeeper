@@ -62,17 +62,17 @@ After these periods the data is deleted automatically (a daily job). Backups are
 
 ## 6. Where it is stored and who processes it
 
-Your data is stored and processed **outside Mongolia**, in [country/region, e.g. Singapore], on servers of [cloud provider name].
+Your data is stored and processed **outside Mongolia**, in Singapore, on servers of DigitalOcean.
 It is encrypted in transit and at rest. External services that may receive data, and what they receive:
 
-| Service                                           | Receives                                                                                  | Location               |
-| ------------------------------------------------- | ----------------------------------------------------------------------------------------- | ---------------------- |
-| [Cloud hosting provider]                          | all data above, encrypted (database, files, backups)                                      | [region]               |
-| Google Play services (location)                   | used on your phone to detect the workplace area; Google processes it under its own policy | on the device / Google |
-| Google Play Integrity (when enabled)              | device and app integrity signals; no attendance data                                      | Google                 |
-| Push notification service (Google FCM / Web Push) | a device token and generic notification text                                              | Google                 |
-| [Backup storage provider]                         | encrypted backups                                                                         | [region]               |
-| [Email/SMS provider, if used]                     | recipient address and message                                                             | [region]               |
+| Service                                           | Receives                                                                                     | Location               |
+| ------------------------------------------------- | -------------------------------------------------------------------------------------------- | ---------------------- |
+| DigitalOcean (cloud hosting)                      | all data above, encrypted (database, files, backups)                                         | Singapore              |
+| Google Play services (location)                   | used on your phone to detect the workplace area; Google processes it under its own policy    | on the device / Google |
+| Google Play Integrity (when enabled)              | device and app integrity signals; no attendance data                                         | Google                 |
+| Push notification service (Google FCM / Web Push) | a device token and generic notification text                                                 | Google                 |
+| Backup storage                                    | encrypted backups, kept on the same DigitalOcean server; [off-server copy provider, if used] | Singapore              |
+| [Email/SMS provider, if used]                     | recipient address and message                                                                | [region]               |
 
 We keep this list current. If the kinds of personal data change, you will be asked for a new consent.
 
@@ -103,7 +103,7 @@ consent again. The date above shows the latest version.
 ### Before publishing (not part of the policy)
 
 - [ ] Counsel approves the text, in Mongolian first; the English text is a translation.
-- [ ] Fill in the controller/operator identity, contact, region and provider names (the pilot server is a DigitalOcean droplet; confirm its region).
+- [ ] Fill in the controller/operator identity and contact. Hosting is DigitalOcean, Singapore region (confirm in the droplet details that it says SGP1).
 - [x] Retention in the product matches this text (coordinates 30 days, attendance and audit deletion jobs, anonymization action; checked in code and tests). Re-check if the periods change (`ATTENDANCE_RETENTION_DAYS`, `AUDIT_RETENTION_DAYS`) and confirm the backup period on the real server.
 - [ ] Put it on a public web page (Play Console requires a URL) that does not need a sign-in.
 - [ ] Use the same facts in Play Console's Data safety form (location: collected, not shared, required, encrypted in transit, deletable on request; device ID; app activity).
