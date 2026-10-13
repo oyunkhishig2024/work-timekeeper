@@ -65,6 +65,7 @@ const disableSchema = z
 const reactivateSchema = z
   .object({ departmentId: id, primaryLocationId: id, startDate: isoDate.optional() })
   .strict();
+const anonymizeSchema = z.object({ confirmEmployeeNo: z.string().trim().min(1).max(64) }).strict();
 const archiveSchema = z.object({ force: z.boolean().optional() }).strict();
 const accountSchema = z
   .object({
@@ -220,6 +221,24 @@ export class EmployeesController {
       auth,
       id.parse(employeeId),
       archiveSchema.parse(body ?? {}),
+      meta,
+    );
+  }
+
+  /** Irreversible: replaces the personal data of an archived employee (PRD 15.3). */
+  @Roles("ORG_ADMIN", "HR")
+  @Post(":employeeId/anonymize")
+  @HttpCode(200)
+  anonymize(
+    @CurrentAuth() auth: AuthContext,
+    @Param("employeeId") employeeId: string,
+    @Body() body: unknown,
+    @Meta() meta: RequestMeta,
+  ) {
+    return this.employees.anonymize(
+      auth,
+      id.parse(employeeId),
+      anonymizeSchema.parse(body ?? {}),
       meta,
     );
   }

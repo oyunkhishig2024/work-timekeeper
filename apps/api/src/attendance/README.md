@@ -123,3 +123,13 @@ who is expected, has no arrival yet (Хүлээгдэж байна / Ирээг�
 current duty. The day's status is unchanged. The INACTIVE list loads candidates first and pages afterwards (cap 2000).
 
 Export: `GET /v1/exports/daily-attendance?format=xlsx|csv|pdf&date=&status=&locationId=&departmentId=&q=` (same filters, Ulaanbaatar-time arrivals, audited).
+
+## Retention (PRD 15.3, 15.1)
+
+The worker ticker (`attendance.ticker.ts`) does three things on top of the status tick:
+
+- every hour `eraseOldCoordinates()`: `lat`/`lng` of events older than 30 days become NULL (the event stays);
+- once a day (5 minutes after the worker starts, then every 1440 ticks) `purgeExpired()`: deletes attendance data older than `ATTENDANCE_RETENTION_DAYS` (default 730: events, daily results and their status log, corrections, ended reason assignments, resolved device alerts, shift overrides) per tenant and audit rows older than `AUDIT_RETENTION_DAYS` (default 730, minimum 365);
+- the deletes run through the `SECURITY DEFINER` functions `purge_old_attendance(date)` (tenant from `current_tenant_id()`, granted to `app_user`) and `purge_old_audit(timestamptz)` (granted to `platform_admin`) of migration 0030, because the application roles have no `DELETE` on the append-only tables. Test: `test/e2e/retention.test.ts`.
+
+There is no heartbeat history: a heartbeat only updates `device.last_seen_at`.

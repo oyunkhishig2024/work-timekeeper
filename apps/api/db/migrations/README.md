@@ -27,6 +27,9 @@ SQL-first migrations run by [`node-pg-migrate`](https://github.com/salsita/node-
 | `0020_notifications_push`             | `push_subscription` (Web Push), `notification` (inbox + push outbox with retry state, one per user and event)                                                               |
 | `0021_reason_other_and_daily`         | `absence_reason.requires_description` + the 16th predefined reason «Бусад»; `attendance_result.reason_note`                                                                 |
 
+| `0030_retention` | `purge_old_attendance(date)` and `purge_old_audit(timestamptz)` (SECURITY DEFINER) for the retention deletes of the worker; owner DELETE policies |
+| `0031_employee_anonymized` | `employee.anonymized_at` (irreversible anonymization of an archived employee) |
+
 Still to come (in this order of need): export jobs.
 
 ## Rules enforced by the database for devices and consent (0008)

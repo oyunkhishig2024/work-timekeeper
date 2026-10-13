@@ -29,6 +29,10 @@ const envSchema = z.object({
    * count as theft and revoke the family. 0 turns the grace off.
    */
   REFRESH_REUSE_GRACE_SECONDS: z.coerce.number().int().min(0).max(1800).default(300),
+  /** PRD 15.3: attendance records (events, daily results, corrections) are deleted after this many days. */
+  ATTENDANCE_RETENTION_DAYS: z.coerce.number().int().min(30).default(730),
+  /** The audit log is deleted after this many days (PRD 15.1: at least 12 months). */
+  AUDIT_RETENTION_DAYS: z.coerce.number().int().min(365).default(730),
   LOGIN_MAX_FAILURES: z.coerce.number().int().min(3).default(5),
   LOGIN_LOCK_MINUTES: z.coerce.number().int().min(1).default(15),
   /** Per-IP rate limit for the auth endpoints. */

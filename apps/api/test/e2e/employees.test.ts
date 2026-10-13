@@ -747,6 +747,47 @@ describe.skipIf(!hasDb)("employees (PRD 12)", () => {
       expect(await auditActions(h, w.tenant.id)).toContain("employee.archived");
     });
 
+    it("anonymize: only an archived employee, with the code typed; replaces personal data; irreversible", async () => {
+      const w = await world();
+      const e = await w.create("E-1", "Secret Person");
+      expect(
+        (await post(w.hr, `/v1/employees/${e.id}/anonymize`, { confirmEmployeeNo: e.employeeNo }))
+          .body.code,
+      ).toBe("EMPLOYEE_NOT_ARCHIVED");
+      await post(w.hr, `/v1/employees/${e.id}/disable`);
+      await post(w.admin, `/v1/employees/${e.id}/archive`, { force: true });
+      const wrong = await post(w.hr, `/v1/employees/${e.id}/anonymize`, {
+        confirmEmployeeNo: "0000",
+      });
+      expect(wrong.body.code).toBe("CONFIRMATION_MISMATCH");
+
+      const done = await post(w.hr, `/v1/employees/${e.id}/anonymize`, {
+        confirmEmployeeNo: e.employeeNo,
+      });
+      expect(done.status).toBe(200);
+      expect(done.body).toMatchObject({ anonymized: true });
+      const row = await h.owner.query(
+        "SELECT full_name, employee_no, anonymized_at FROM employee WHERE id = $1",
+        [e.id],
+      );
+      expect(row.rows[0].full_name).not.toContain("Secret");
+      expect(row.rows[0].employee_no).toMatch(/^ANON-/u);
+      expect(row.rows[0].anonymized_at).not.toBeNull();
+      expect(
+        (await post(w.hr, `/v1/employees/${e.id}/anonymize`, { confirmEmployeeNo: e.employeeNo }))
+          .body.code,
+      ).toBe("EMPLOYEE_ANONYMIZED");
+      expect(
+        (
+          await post(w.hr, `/v1/employees/${e.id}/reactivate`, {
+            departmentId: w.hrDept,
+            primaryLocationId: w.central,
+          })
+        ).body.code,
+      ).toBe("EMPLOYEE_ANONYMIZED");
+      expect(await auditActions(h, w.tenant.id)).toContain("employee.anonymized");
+    });
+
     it("an employee cannot be deleted through the API", async () => {
       const w = await world();
       const e = await w.create("E-1", "Keeper");

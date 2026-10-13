@@ -1,9 +1,11 @@
 import {
+  Inject,
   Injectable,
   Logger,
   type OnApplicationBootstrap,
   type OnApplicationShutdown,
 } from "@nestjs/common";
+import { APP_CONFIG, type AppConfig } from "../common/config";
 import { AttendanceService } from "./attendance.service";
 
 const TICK_MS = 60_000;
@@ -20,7 +22,10 @@ export class AttendanceTicker implements OnApplicationBootstrap, OnApplicationSh
   private running = false;
   private ticks = 0;
 
-  constructor(private readonly attendance: AttendanceService) {}
+  constructor(
+    private readonly attendance: AttendanceService,
+    @Inject(APP_CONFIG) private readonly config: AppConfig,
+  ) {}
 
   onApplicationBootstrap(): void {
     this.timer = setInterval(() => void this.run(), TICK_MS);
@@ -41,6 +46,14 @@ export class AttendanceTicker implements OnApplicationBootstrap, OnApplicationSh
       if (this.ticks++ % 60 === 0) {
         const erased = await this.attendance.eraseOldCoordinates();
         if (erased > 0) this.log.log(`erased coordinates of ${erased} event(s)`);
+      }
+      // Retention deletes (PRD 15.3): once a day, and shortly after the worker starts.
+      if (this.ticks % 1440 === 5) {
+        const gone = await this.attendance.purgeExpired({
+          attendance: this.config.ATTENDANCE_RETENTION_DAYS,
+          audit: this.config.AUDIT_RETENTION_DAYS,
+        });
+        this.log.log(`retention: ${JSON.stringify(gone)}`);
       }
     } catch (error) {
       this.log.error(

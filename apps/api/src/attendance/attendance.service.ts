@@ -444,6 +444,42 @@ export class AttendanceService {
     return erased;
   }
 
+  /**
+   * Worker: deletes attendance data and audit rows past their retention (PRD 15.3, 15.1) through the maintenance
+   * functions of migration 0030. Safe to repeat. Returns what went.
+   */
+  async purgeExpired(days: { attendance: number; audit: number }) {
+    const now = this.clock.now();
+    const attendanceCutoff = new Date(now.getTime() - days.attendance * 86_400_000)
+      .toISOString()
+      .slice(0, 10);
+    const auditCutoff = new Date(now.getTime() - days.audit * 86_400_000);
+    const tenants = await this.db.asPlatform(async (tx) =>
+      (await tx.query<{ id: string }>("SELECT id FROM tenant")).rows.map((r) => r.id),
+    );
+    const attendance: Record<string, number> = {};
+    for (const tenantId of tenants) {
+      const counts = await this.db.withTenant(
+        tenantId,
+        async (tx) =>
+          (
+            await tx.query<{ purge_old_attendance: Record<string, number> }>(
+              "SELECT purge_old_attendance($1::date)",
+              [attendanceCutoff],
+            )
+          ).rows[0]!.purge_old_attendance,
+      );
+      for (const [k, v] of Object.entries(counts)) attendance[k] = (attendance[k] ?? 0) + Number(v);
+    }
+    const audit = await this.db.asPlatform(async (tx) =>
+      Number(
+        (await tx.query<{ n: string }>("SELECT purge_old_audit($1) AS n", [auditCutoff])).rows[0]!
+          .n,
+      ),
+    );
+    return { attendance, audit };
+  }
+
   /** The phone reports it is alive (PRD 5: heartbeat shows silent devices to HR). */
   async heartbeat(auth: AuthContext) {
     if (!auth.employeeId)

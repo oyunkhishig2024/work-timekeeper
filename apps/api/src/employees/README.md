@@ -93,3 +93,7 @@ Required: Овог, Нэр, Нэгж, Салбар (the department and location 
   is recorded in the audit log. A history table is needed before attendance reports are built on past dates.
 - Scheduled disabling on a future date; Device Readiness report; the import has no invite link / activation code flow yet (one-time passwords instead), and no "download the sheet again".
 - Concurrency control (`If-Match`) on edits; scope applies to employees only (not yet to attendance data, which does not exist yet).
+
+## Anonymize (PRD 15.3)
+
+`POST /v1/employees/:id/anonymize` `{ "confirmEmployeeNo": "<the employee code>" }` (Org Admin and HR). Only an **archived** employee; irreversible (`employee.anonymized_at`, migration 0031; reactivation is refused with `EMPLOYEE_ANONYMIZED`). Replaced: name («Нэргүйжүүлсэн»), employee code (`ANON-…`), rank and position titles, the login (username, password, 2FA, sessions, push subscriptions), device model and OS, reason and correction notes. Kept: the daily attendance numbers, the signed consent record (legal proof) and older audit rows (they leave with the audit retention). Audited as `employee.anonymized` without any name.

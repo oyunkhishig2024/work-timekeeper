@@ -495,6 +495,13 @@ export class EmployeesService {
       const employee = await this.loadVisible(tx, scope, id);
       if (employee.status === "ACTIVE")
         throw new ApiError(409, "EMPLOYEE_ALREADY_ACTIVE", "The employee is already active.");
+      const done = await tx.query("SELECT anonymized_at FROM employee WHERE id = $1", [id]);
+      if (done.rows[0]?.anonymized_at)
+        throw new ApiError(
+          409,
+          "EMPLOYEE_ANONYMIZED",
+          "An anonymized employee cannot be reactivated.",
+        );
       this.assertInScope(scope, input.departmentId, input.primaryLocationId);
       await this.assertActiveReferences(tx, input.departmentId, input.primaryLocationId);
 
@@ -582,6 +589,94 @@ export class EmployeesService {
         ...meta,
       });
       return { status: "ARCHIVED" as const };
+    });
+  }
+
+  /**
+   * Replaces the personal data of an archived employee (PRD 15.3): name, employee code, rank and position titles, the
+   * login (username, password, 2FA, sessions, push subscriptions), device model and free-text notes. The daily attendance
+   * numbers stay. Irreversible. The caller types the employee code to confirm. The signed consent record is kept as the
+   * legal proof; names inside older audit rows go with the audit retention.
+   */
+  async anonymize(
+    auth: AuthContext,
+    id: string,
+    input: { confirmEmployeeNo: string },
+    meta: RequestMeta,
+  ) {
+    return this.db.withTenant(auth.tenantId, async (tx) => {
+      const scope = await this.scopes.forUser(tx, auth);
+      const employee = await this.loadVisible(tx, scope, id);
+      if (employee.status !== "ARCHIVED") {
+        throw new ApiError(
+          409,
+          "EMPLOYEE_NOT_ARCHIVED",
+          "Only an archived employee can be anonymized.",
+        );
+      }
+      const current = (
+        await tx.query<{ employee_no: string; anonymized_at: Date | null }>(
+          "SELECT employee_no, anonymized_at FROM employee WHERE id = $1",
+          [id],
+        )
+      ).rows[0]!;
+      if (current.anonymized_at)
+        throw new ApiError(409, "EMPLOYEE_ANONYMIZED", "The employee is already anonymized.");
+      if (current.employee_no !== input.confirmEmployeeNo) {
+        throw new ApiError(
+          400,
+          "CONFIRMATION_MISMATCH",
+          "Type the employee code to confirm the anonymization.",
+        );
+      }
+      const alias = `ANON-${id.replace(/-/gu, "").slice(0, 11)}`;
+      await tx.query(
+        `UPDATE employee
+            SET first_name = 'Нэргүйжүүлсэн', last_name = '—', employee_no = $2,
+                device_model = NULL, os_version = NULL, anonymized_at = now()
+          WHERE id = $1`,
+        [id, alias],
+      );
+      await tx.query("UPDATE employee_rank_assignment SET title = '—' WHERE employee_id = $1", [
+        id,
+      ]);
+      await tx.query("UPDATE employee_position_assignment SET title = '—' WHERE employee_id = $1", [
+        id,
+      ]);
+      const users = await tx.query<{ id: string }>(
+        `UPDATE user_account
+            SET username = $2 || '-' || substr(id::text, 1, 8), password_hash = '!anonymized',
+                totp_secret_enc = NULL, totp_enabled = false, status = 'DISABLED'
+          WHERE employee_id = $1 RETURNING id`,
+        [id, alias.toLowerCase()],
+      );
+      for (const user of users.rows) {
+        await this.sessions.revokeAllForUser(tx, user.id);
+        await tx.query("DELETE FROM push_subscription WHERE user_id = $1", [user.id]);
+      }
+      await tx.query("UPDATE device SET model = NULL, os_version = NULL WHERE employee_id = $1", [
+        id,
+      ]);
+      await tx.query("UPDATE reason_assignment SET description = NULL WHERE employee_id = $1", [
+        id,
+      ]);
+      await tx.query(
+        `UPDATE attendance_correction
+            SET note = CASE WHEN reason_code = 'OTHER' THEN '[нэргүйжүүлсэн]' ELSE NULL END
+          WHERE employee_id = $1`,
+        [id],
+      );
+      await this.audit.record(tx, {
+        tenantId: auth.tenantId,
+        action: "employee.anonymized",
+        actorUserId: auth.userId,
+        actorRole: auth.role,
+        entityType: "employee",
+        entityId: id,
+        after: { alias },
+        ...meta,
+      });
+      return { status: "ARCHIVED" as const, anonymized: true as const };
     });
   }
 
