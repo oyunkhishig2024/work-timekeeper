@@ -14,14 +14,14 @@ Contact for privacy questions: [email] · [phone] · [address]. You can also ask
 
 ## 2. What we collect
 
-| Data                                                                                             | Why                                                                 | When                                                                          |
-| ------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------- | ----------------------------------------------------------------------------- |
-| Your name, employee code, department, branch, job title                                          | To identify you and show attendance to the right people             | When HR creates your record                                                   |
-| **Arrival and departure events** at your workplace: time, which place, and the location accuracy | To work out whether you were on time, late, left early or absent    | When your phone sees you enter or leave the workplace area                    |
+| Data                                                                                             | Why                                                                 | When                                                                        |
+| ------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------- | --------------------------------------------------------------------------- |
+| Your name, employee code, department, branch, job title                                          | To identify you and show attendance to the right people             | When HR creates your record                                                 |
+| **Arrival and departure events** at your workplace: time, which place, and the location accuracy | To work out whether you were on time, late, left early or absent    | When your phone sees you enter or leave the workplace area                  |
 | **Your phone's coordinates and accuracy at the moment of an event**                              | As evidence for the event                                           | With each event; the exact coordinates are erased after 30 days (section 5) |
-| Phone model, operating system version, app version, an app installation identifier               | To tie your account to one phone and to find compatibility problems | At registration and when the app starts                                       |
-| App status: whether location permission is on, battery-saver state, last time the app was active | To tell HR when attendance cannot be recorded                       | Regularly while the app runs                                                  |
-| Your sign-in name and a hashed password; sign-in times; consent record with date and version     | Account security and proof of consent                               | When you use the account                                                      |
+| Phone model, operating system version, app version, an app installation identifier               | To tie your account to one phone and to find compatibility problems | At registration and when the app starts                                     |
+| App status: whether location permission is on, battery-saver state, last time the app was active | To tell HR when attendance cannot be recorded                       | Regularly while the app runs                                                |
+| Your sign-in name and a hashed password; sign-in times; consent record with date and version     | Account security and proof of consent                               | When you use the account                                                    |
 
 **Location.** While a workplace is on your schedule for the day, the phone checks its position about every 5 minutes and the
 system's geofence service reports when you cross the workplace boundary. A notification «Ирцийн бүртгэл ажиллаж байна» (attendance
@@ -53,9 +53,9 @@ We do not sell personal data and do not share it with advertisers.
 | Data                                            | Kept for                                                   |
 | ----------------------------------------------- | ---------------------------------------------------------- |
 | Attendance records (arrival, departure, status) | 2 years                                                    |
-| Exact coordinates of an event | 30 days; afterwards only the workplace-level event stays |
-| App status | only the time the app was last active is kept (no history) |
-| Audit log of who looked at or changed data | 24 months |
+| Exact coordinates of an event                   | 30 days; afterwards only the workplace-level event stays   |
+| App status                                      | only the time the app was last active is kept (no history) |
+| Audit log of who looked at or changed data      | 24 months                                                  |
 | Archived employee data                          | as set by your employer and the law                        |
 
 After these periods the data is deleted automatically (a daily job). Backups are encrypted and kept for [14 days], so a deleted record can remain in a backup for up to that long. On request, HR can irreversibly anonymize the record of an employee who has left (name, code, titles, login and device details are replaced; the daily attendance totals and the signed consent record remain).
