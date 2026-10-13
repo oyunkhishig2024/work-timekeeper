@@ -6,11 +6,13 @@ import { fetchOrganization, type Organization } from "@/lib/attendance";
 import { fetchLocations, type Option } from "@/lib/daily";
 import type { SessionUser } from "@/lib/session";
 import { HolidaysSection } from "./holidays-section";
+import { ShiftsSection } from "./shifts-section";
 import { WeekSection } from "./week-section";
 
 const TABS = [
   ["week", "Ажлын цаг, дүрэм"],
   ["holidays", "Баяр, онцгой өдөр"],
+  ["shifts", "Ээлж"],
 ] as const;
 type Tab = (typeof TABS)[number][0];
 
@@ -18,7 +20,8 @@ type Tab = (typeof TABS)[number][0];
 export function ScheduleScreen({ user }: { user: SessionUser }) {
   const router = useRouter();
   const params = useSearchParams();
-  const tab: Tab = params.get("tab") === "holidays" ? "holidays" : "week";
+  const requested = params.get("tab");
+  const tab: Tab = requested === "holidays" || requested === "shifts" ? requested : "week";
   const canEdit = user.role === "ORG_ADMIN";
   const [org, setOrg] = useState<Organization | null>(null);
   const [locations, setLocations] = useState<Option[]>([]);
@@ -72,6 +75,12 @@ export function ScheduleScreen({ user }: { user: SessionUser }) {
           !error && <p className="text-slate-600">Ачаалж байна…</p>
         ) : tab === "week" ? (
           <WeekSection canEdit={canEdit} today={org.today} locations={locations} />
+        ) : tab === "shifts" ? (
+          <ShiftsSection
+            isOrgAdmin={user.role === "ORG_ADMIN"}
+            canAssign={user.role === "ORG_ADMIN" || user.role === "HR"}
+            today={org.today}
+          />
         ) : (
           <HolidaysSection canEdit={canEdit} today={org.today} locations={locations} />
         )}

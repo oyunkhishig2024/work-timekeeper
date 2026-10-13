@@ -207,3 +207,101 @@ export function scheduleError(code: string, fallback: string): string {
       return fallback;
   }
 }
+
+// ------------------------------------------------------------------------------------------- shifts (PRD 23)
+
+export interface ShiftTemplate {
+  id: string;
+  name: string;
+  startTime: string;
+  endTime: string;
+  durationMinutes: number;
+  endsNextDay: boolean;
+  graceMinutes: number;
+  observesHolidays: boolean;
+  active: boolean;
+  inUse: boolean;
+}
+
+export interface TemplateInput {
+  name: string;
+  startTime: string;
+  endTime: string;
+  graceMinutes: number;
+  observesHolidays: boolean;
+}
+
+export const fetchShiftTemplates = () => api<ShiftTemplate[]>("/v1/shift-templates");
+export const createShiftTemplate = (input: TemplateInput) =>
+  api<ShiftTemplate>("/v1/shift-templates", { method: "POST", body: input });
+export const newShiftTemplateVersion = (id: string, input: Omit<TemplateInput, "name">) =>
+  api<ShiftTemplate>(`/v1/shift-templates/${id}/new-version`, { method: "POST", body: input });
+export const patchShiftTemplate = (id: string, body: { name?: string; active?: boolean }) =>
+  api<ShiftTemplate>(`/v1/shift-templates/${id}`, { method: "PATCH", body });
+
+export interface ShiftPattern {
+  id: string;
+  name: string;
+  cycleLengthDays: number;
+  active: boolean;
+  /** One entry per day of the cycle: a template id, or null for a day off. */
+  days: Array<string | null>;
+  inUse: boolean;
+}
+
+export const fetchShiftPatterns = () => api<ShiftPattern[]>("/v1/shift-patterns");
+export const createShiftPattern = (input: { name: string; days: Array<string | null> }) =>
+  api<ShiftPattern>("/v1/shift-patterns", { method: "POST", body: input });
+export const patchShiftPattern = (id: string, body: { name?: string; active?: boolean }) =>
+  api<ShiftPattern>(`/v1/shift-patterns/${id}`, { method: "PATCH", body });
+
+export interface ShiftAssignment {
+  id: string;
+  employeeId: string;
+  employeeName: string;
+  employeeNo: string;
+  patternId: string | null;
+  patternName: string | null;
+  templateId: string | null;
+  templateName: string | null;
+  cycleStartDate: string | null;
+  fromDate: string;
+  toDate: string | null;
+}
+
+export const fetchShiftAssignments = () =>
+  api<ShiftAssignment[] | { items: ShiftAssignment[] }>("/v1/shift-assignments?limit=500").then(
+    (r) => (Array.isArray(r) ? r : r.items),
+  );
+export const createShiftAssignments = (input: {
+  employeeIds: string[];
+  patternId: string | null;
+  templateId: string | null;
+  cycleStartDate: string | null;
+  fromDate: string;
+  toDate: string | null;
+}) =>
+  api("/v1/shift-assignments", {
+    method: "POST",
+    body: {
+      items: input.employeeIds.map((employeeId) => ({ employeeId })),
+      ...(input.patternId
+        ? { patternId: input.patternId, cycleStartDate: input.cycleStartDate ?? input.fromDate }
+        : { templateId: input.templateId }),
+      fromDate: input.fromDate,
+      ...(input.toDate ? { toDate: input.toDate } : {}),
+    },
+  });
+export const endShiftAssignment = (id: string, toDate: string) =>
+  api(`/v1/shift-assignments/${id}/end`, { method: "POST", body: { toDate } });
+export const deleteShiftAssignment = (id: string) =>
+  api(`/v1/shift-assignments/${id}`, { method: "DELETE" });
+
+export const fetchShiftEmployees = () =>
+  api<{ items: Array<{ id: string; fullName: string; employeeNo: string }> }>(
+    "/v1/employees?status=ACTIVE&scheduleMode=SHIFT&limit=200&sort=employeeNo",
+  ).then((r) => r.items);
+
+/** "08:00 – 20:00" (a shift that ends the next day says so). */
+export const shiftTimes = (t: Pick<ShiftTemplate, "startTime" | "endTime" | "endsNextDay">) =>
+  `${t.startTime} – ${t.endTime}${t.endsNextDay ? " (маргааш)" : ""}`;
