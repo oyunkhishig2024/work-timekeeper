@@ -133,3 +133,7 @@ Org Admin also manages departments (Хэлтэс, нэгж) on the same page. Or
 ## First sign-in (`/setup`)
 
 An account created by the CLI or by an admin has a temporary password. After signing in the app sends it to `/setup`: replace the password, then (Org Admin and HR) scan the QR code with an authenticator app and confirm a code; the one-time recovery codes are shown once. `AppShell` redirects there while the session's `requires` list is not empty.
+
+## Schedule (`/schedule`, «Цагийн хуваарь»)
+
+Tab «Ажлын цаг, дүрэм»: the working week (7 days, times; organization-wide or one branch's own, with «use the default» for a branch) and the attendance rules (late tolerance, minimum stay, early-leave tolerance). A change is effective-dated and applies from the chosen date forward (default tomorrow; the past is never rewritten); a saved change that has not begun is shown as «Төлөвлөсөн өөрчлөлт». Tab «Баяр, онцгой өдөр»: holidays by year (add, edit, delete, copy the previous year; a holiday that starts today or earlier asks for confirmation because attendance is recomputed) and single-date exceptions (a working day, optionally with other hours, or a day off, for the organization or a branch; the next 180 days). Only the Org Admin changes; HR and Manager read. Shift templates, patterns and assignments are not on this screen yet.
