@@ -1,4 +1,4 @@
-import { Inject, Injectable, type OnModuleDestroy } from "@nestjs/common";
+import { Inject, Injectable, Logger, type OnModuleDestroy } from "@nestjs/common";
 import { Pool, type PoolClient } from "pg";
 import { APP_CONFIG, type AppConfig } from "../common/config";
 
@@ -11,10 +11,24 @@ export type Db = PoolClient;
  */
 @Injectable()
 export class DatabaseService implements OnModuleDestroy {
+  private readonly logger = new Logger(DatabaseService.name);
   private readonly pool: Pool;
 
   constructor(@Inject(APP_CONFIG) config: AppConfig) {
-    this.pool = new Pool({ connectionString: config.DATABASE_URL, max: 10 });
+    this.pool = new Pool({
+      connectionString: config.DATABASE_URL,
+      max: config.DB_POOL_MAX,
+      // Wait for a free connection at most this long, then fail (503 DB_BUSY) instead of queueing without limit.
+      connectionTimeoutMillis: config.DB_CONNECT_TIMEOUT_MS,
+      // Server-side limits per session: a runaway query or a forgotten open transaction is cancelled by PostgreSQL.
+      statement_timeout: config.DB_STATEMENT_TIMEOUT_MS,
+      idle_in_transaction_session_timeout: config.DB_IDLE_TX_TIMEOUT_MS,
+      application_name: "timekeeper",
+    });
+    // An error on an idle connection (database restart, network loss) must not crash the process.
+    this.pool.on("error", (error) => {
+      this.logger.error(`idle database connection failed: ${error.message}`);
+    });
   }
 
   async withTenant<T>(tenantId: string, fn: (db: Db) => Promise<T>): Promise<T> {
@@ -50,6 +64,13 @@ export class DatabaseService implements OnModuleDestroy {
 
   private async transaction<T>(fn: (db: Db) => Promise<T>): Promise<T> {
     const client = await this.pool.connect();
+    // The pool only watches idle connections; one in use that the server drops (idle-transaction timeout, restart) emits here.
+    const onClientError = (error: Error): void => {
+      failed = error;
+      this.logger.warn(`database connection failed during a request: ${error.message}`);
+    };
+    let failed: Error | undefined;
+    client.on("error", onClientError);
     try {
       await client.query("BEGIN");
       const result = await fn(client);
@@ -59,7 +80,8 @@ export class DatabaseService implements OnModuleDestroy {
       await client.query("ROLLBACK").catch(() => undefined);
       throw error;
     } finally {
-      client.release();
+      client.removeListener("error", onClientError);
+      client.release(failed);
     }
   }
 

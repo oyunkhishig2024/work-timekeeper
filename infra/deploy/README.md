@@ -27,6 +27,8 @@ docker compose --env-file infra/deploy/.env -f infra/deploy/docker-compose.yml u
 
 Migrations run automatically (`migrate` service) before the API starts.
 
+**Once, when updating a server installed before migration 0032:** run `sudo bash infra/deploy/app-login.sh` after `git pull` and before the rebuild. It adds `APP_DB_PASSWORD` to `.env` and sets the password of the limited database login `tk_app`. The API and worker connect as `tk_app` (not the database owner, so a leaked API credential cannot create, drop or read tables directly); only the `migrate` job uses the owner. Without that variable compose refuses to start with "run infra/deploy/app-login.sh first". A fresh install does this in `setup.sh`.
+
 `baseline-310.sql` (run by `setup.sh`, safe to repeat) gives tenant 310 the default reasons, attendance rules, a Mon–Fri 08:30–17:30 working week and a DRAFT consent text. Without a working week nobody is expected and phones watch no places.
 
 ## Mobile app

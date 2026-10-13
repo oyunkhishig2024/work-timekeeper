@@ -46,8 +46,20 @@ function pgProblem(code: string): { status: number; code: string; detail: string
       code: "TRY_AGAIN",
       detail: "The server was busy with a conflicting change. Try again.",
     };
+  if (code === "57014" || code === "25P03")
+    return {
+      status: 503,
+      code: "QUERY_TIMEOUT",
+      detail: "The request took too long and was stopped. Try again.",
+    };
   return null;
 }
+
+/** The connection pool gave up waiting for a free database connection (DB_CONNECT_TIMEOUT_MS), or the server dropped it. */
+const isPoolTimeout = (e: unknown): boolean =>
+  e instanceof Error &&
+  (e.message === "timeout exceeded when trying to connect" ||
+    e.message === "Connection terminated unexpectedly");
 
 /** Renders every error as RFC 7807 problem+json with a stable `code`, and the id of the request (`requestId`). */
 @Catch()
@@ -97,6 +109,17 @@ export class ProblemFilter implements ExceptionFilter {
             ),
           ),
         });
+      return;
+    }
+
+    if (isPoolTimeout(exception)) {
+      this.logger.warn(`database pool exhausted, request ${requestId ?? "-"}`);
+      res.setHeader("Retry-After", "2").status(503).type("application/problem+json").json({
+        title: "Service Unavailable",
+        status: 503,
+        code: "DB_BUSY",
+        detail: "The server is busy. Try again in a moment.",
+      });
       return;
     }
 

@@ -1,3 +1,4 @@
+-- Up Migration
 -- PRD 14.3 (v1.26): hours fixed by HR for one employee over a range of dates, with one or more places.
 -- They replace the working week, a holiday or a shift for those dates in getExpectation.
 
@@ -40,3 +41,7 @@ CREATE TABLE personal_hours_location (
   FOREIGN KEY (tenant_id, location_id) REFERENCES location (tenant_id, id)
 );
 SELECT apply_tenant_rls('personal_hours_location');
+
+-- Down Migration
+DROP TABLE personal_hours_location;
+DROP TABLE personal_hours;

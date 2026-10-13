@@ -21,6 +21,7 @@ if [ ! -f "$ENV_FILE" ]; then
   {
     echo "DOMAIN=$DOMAIN"
     echo "POSTGRES_PASSWORD=$(openssl rand -hex 24)"
+    echo "APP_DB_PASSWORD=$(openssl rand -hex 24)"
     echo "JWT_SECRET=$(openssl rand -base64 48 | tr -d '\n')"
     echo "DATA_ENCRYPTION_KEY=$(openssl rand -base64 32)"
     echo "ATTESTATION_MODE=disabled"
@@ -28,6 +29,8 @@ if [ ! -f "$ENV_FILE" ]; then
   echo "Wrote $ENV_FILE (keep a private copy: losing DATA_ENCRYPTION_KEY makes stored 2FA secrets unreadable)."
 fi
 
+"${COMPOSE[@]}" up -d --build postgres migrate
+bash infra/deploy/app-login.sh >/dev/null
 "${COMPOSE[@]}" up -d --build
 
 echo "Waiting for the API..."

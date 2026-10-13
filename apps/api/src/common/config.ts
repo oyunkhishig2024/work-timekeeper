@@ -14,6 +14,11 @@ const envSchema = z.object({
     .string()
     .url()
     .default("postgres://timekeeper:timekeeper@localhost:5432/timekeeper"),
+  // Pool limits: a slow query or a burst must fail fast instead of piling up (see apps/api/src/database).
+  DB_POOL_MAX: z.coerce.number().int().min(1).max(100).default(10),
+  DB_CONNECT_TIMEOUT_MS: z.coerce.number().int().min(100).default(5000),
+  DB_STATEMENT_TIMEOUT_MS: z.coerce.number().int().min(100).default(30000),
+  DB_IDLE_TX_TIMEOUT_MS: z.coerce.number().int().min(100).default(60000),
   /** Signs access tokens (HS256). Generate with: openssl rand -base64 48 */
   JWT_SECRET: z.string().min(32, "JWT_SECRET must be at least 32 characters"),
   /** Encrypts TOTP secrets at rest and keys recovery-code hashes. Generate with: openssl rand -base64 32 */

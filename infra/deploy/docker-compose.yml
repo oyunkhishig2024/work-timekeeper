@@ -1,6 +1,11 @@
 # Production stack: PostgreSQL, API, worker, admin web app, Caddy (HTTPS). Run from the repository root:
 #   docker compose --env-file infra/deploy/.env -f infra/deploy/docker-compose.yml up -d --build
 # Only ports 80 and 443 are open to the internet (Caddy). Everything else stays on the internal network.
+# The API and worker use the limited login tk_app (password APP_DB_PASSWORD, created by app-login.sh); only the migration
+# job connects as the database owner.
+x-app-db: &app-db
+  DATABASE_URL: postgres://tk_app:${APP_DB_PASSWORD:?run infra/deploy/app-login.sh first}@postgres:5432/timekeeper
+
 x-app: &app
   build:
     context: ../..
@@ -9,7 +14,6 @@ x-app: &app
   env_file: .env
   environment:
     NODE_ENV: production
-    DATABASE_URL: postgres://timekeeper:${POSTGRES_PASSWORD}@postgres:5432/timekeeper
     STORAGE_DIR: /data/storage
     TRUST_PROXY: "1"
   volumes:
@@ -37,6 +41,9 @@ services:
   migrate:
     <<: *app
     restart: "no"
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: postgres://timekeeper:${POSTGRES_PASSWORD}@postgres:5432/timekeeper
     command: ["pnpm", "--filter", "@timekeeper/api", "db:migrate"]
     depends_on:
       postgres:
@@ -44,10 +51,22 @@ services:
 
   api:
     <<: *app
+    environment:
+      <<: *app-db
+      NODE_ENV: production
+      STORAGE_DIR: /data/storage
+      TRUST_PROXY: "1"
     command: ["node", "apps/api/dist/main.js"]
 
   worker:
     <<: *app
+    environment:
+      <<: *app-db
+      NODE_ENV: production
+      STORAGE_DIR: /data/storage
+      TRUST_PROXY: "1"
+      # Background jobs (recompute, retention deletes) may legitimately run longer than a web request.
+      DB_STATEMENT_TIMEOUT_MS: "300000"
     command: ["node", "apps/api/dist/worker.js"]
 
   web:

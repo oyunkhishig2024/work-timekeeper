@@ -1,3 +1,4 @@
+-- Up Migration
 -- PRD 6.3 / 23.2 (v1.24): the no-show cut-off and the early-arrival window are gone. An employee with no arrival
 -- and no reason is Ирээгүй only once the duty is over, and arriving earlier than the start is never a problem.
 -- Nothing in these columns is used any more.
@@ -30,3 +31,33 @@ $$;
 ALTER TABLE shift_template
   DROP COLUMN cutoff_minutes,
   DROP COLUMN early_window_minutes;
+
+-- Down Migration
+ALTER TABLE shift_template
+  ADD COLUMN cutoff_minutes integer NOT NULL DEFAULT 120 CHECK (cutoff_minutes BETWEEN 0 AND 1440),
+  ADD COLUMN early_window_minutes integer NOT NULL DEFAULT 120 CHECK (early_window_minutes BETWEEN 0 AND 720);
+ALTER TABLE attendance_rule_version
+  ADD COLUMN cutoff_minutes integer NOT NULL DEFAULT 120 CHECK (cutoff_minutes BETWEEN 0 AND 1440),
+  ADD COLUMN early_window_minutes integer NOT NULL DEFAULT 120 CHECK (early_window_minutes BETWEEN 0 AND 720);
+
+CREATE OR REPLACE FUNCTION guard_shift_template_in_use() RETURNS trigger
+LANGUAGE plpgsql
+AS $$
+BEGIN
+  IF (NEW.start_time, NEW.duration_minutes, NEW.grace_minutes, NEW.cutoff_minutes,
+      NEW.early_window_minutes, NEW.observes_holidays)
+     IS DISTINCT FROM
+     (OLD.start_time, OLD.duration_minutes, OLD.grace_minutes, OLD.cutoff_minutes,
+      OLD.early_window_minutes, OLD.observes_holidays)
+  THEN
+    IF EXISTS (SELECT 1 FROM shift_pattern_day WHERE tenant_id = OLD.tenant_id AND template_id = OLD.id)
+       OR EXISTS (SELECT 1 FROM shift_assignment WHERE tenant_id = OLD.tenant_id AND template_id = OLD.id)
+       OR EXISTS (SELECT 1 FROM shift_override WHERE tenant_id = OLD.tenant_id AND template_id = OLD.id)
+    THEN
+      RAISE EXCEPTION 'SHIFT_TEMPLATE_IN_USE: create a new template instead of changing "%"', OLD.name
+        USING ERRCODE = 'TK005';
+    END IF;
+  END IF;
+  RETURN NEW;
+END
+$$;

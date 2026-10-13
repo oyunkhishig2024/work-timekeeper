@@ -27,6 +27,8 @@ SQL-first migrations run by [`node-pg-migrate`](https://github.com/salsita/node-
 | `0020_notifications_push`             | `push_subscription` (Web Push), `notification` (inbox + push outbox with retry state, one per user and event)                                                               |
 | `0021_reason_other_and_daily`         | `absence_reason.requires_description` + the 16th predefined reason «Бусад»; `attendance_result.reason_note`                                                                 |
 
+| `0032_app_login_role` | login role `tk_app` (not superuser, owns nothing, member of `app_user` / `platform_admin`); the API and worker connect as it. The password is set by `infra/deploy/app-login.sh` or the test setup, never in a migration |
+| `0033_indexes` | indexes for foreign keys / filters found without one (event time and location, result location, QR and alert by employee, audit log by time alone) |
 | `0030_retention` | `purge_old_attendance(date)` and `purge_old_audit(timestamptz)` (SECURITY DEFINER) for the retention deletes of the worker; owner DELETE policies |
 | `0031_employee_anonymized` | `employee.anonymized_at` (irreversible anonymization of an archived employee) |
 
@@ -95,7 +97,17 @@ pnpm --filter @timekeeper/api exec node-pg-migrate create my_change -m db/migrat
 - Effective-dated tables use `btree_gist` exclusion constraints to forbid overlaps.
 - UUID primary keys use `gen_random_uuid()` (v4); index locality matters little at pilot volume.
 
+## Down migrations
+
+Every migration has a `-- Down Migration` section. `test/db/migrations-roundtrip.test.ts` applies all of them, undoes all of them and
+applies them again in a scratch database and compares the schema, so a missing or wrong Down fails the test run. A Down that
+would break older rules removes the rows that cannot satisfy them (for example 0025 deletes `EARLY_LEAVE` notices) and
+drops data held only by the dropped column. Never run Down on production without a fresh backup.
+
 ## Testing
+
+The whole API suite connects as the limited login `tk_app` (the same role as production), so a missing grant shows up in
+tests. `test/db/app-login-role.test.ts` checks what that login cannot do; `test/db/pool.test.ts` checks the pool limits.
 
 `apps/api/test/db` runs against a real PostgreSQL when `TEST_DATABASE_URL` is set (CI does; locally
 `pnpm db:up` creates `timekeeper_test`). **The schema is dropped and rebuilt on every run**, so the database

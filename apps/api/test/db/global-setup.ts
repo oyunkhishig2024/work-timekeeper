@@ -29,4 +29,10 @@ export default async function setup(): Promise<void> {
     ignorePattern: "(README\\.md|\\..*)",
     log: () => {},
   });
+
+  // The API connects as the limited login tk_app (migration 0032); give it a password for the test run.
+  const owner = new Client({ connectionString: url });
+  await owner.connect();
+  await owner.query("ALTER ROLE tk_app PASSWORD 'tk_app_test'");
+  await owner.end();
 }
