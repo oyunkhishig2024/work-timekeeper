@@ -67,7 +67,8 @@ services:
     environment:
       DOMAIN: ${DOMAIN}
     volumes:
-      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      # CADDYFILE=./Caddyfile.cloudflare in .env when the domain is behind Cloudflare (docs/security/cloudflare-digitalocean-caddy.md)
+      - ${CADDYFILE:-./Caddyfile}:/etc/caddy/Caddyfile:ro
       - caddy_data:/data
     depends_on:
       - api

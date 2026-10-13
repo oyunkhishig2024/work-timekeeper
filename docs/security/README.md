@@ -1,13 +1,14 @@
 # Security: abuse, WAF and DDoS
 
-| Document                                                                       | What it is                                                                                                                       |
-| ------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------- |
-| [waf-hostinger-cloudflare.md](waf-hostinger-cloudflare.md)                     | How the WAF is put in front of the whole stack (Cloudflare in front of the Hostinger VPS), step by step, with the rules as files |
-| [ddos-response-plan.md](ddos-response-plan.md)                                 | The playbook for the day the service goes down under a flood: who is told, what is switched, where traffic goes                  |
-| [../../apps/api/src/security/README.md](../../apps/api/src/security/README.md) | The adaptive rate limiting inside the API (behaviour-based throttle -> temporary ban)                                            |
-| `infra/cloudflare/`                                                            | `waf-rules.json` (rules as data) and `apply.sh` (apply / emergency switches through the Cloudflare API)                          |
-| `infra/nginx/timekeeper-api.conf`                                              | Reverse-proxy config for the VPS: real client IP, coarse limits, slow-client protection                                          |
-| `infra/hostinger/allow-cloudflare-only.sh`                                     | Firewall script: web ports reachable only from Cloudflare                                                                        |
+| Document                                                                       | What it is                                                                                                                                          |
+| ------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------- |
+| [waf-hostinger-cloudflare.md](waf-hostinger-cloudflare.md)                     | How the WAF is put in front of the whole stack (Cloudflare in front of the Hostinger VPS), step by step, with the rules as files                    |
+| [cloudflare-digitalocean-caddy.md](cloudflare-digitalocean-caddy.md)           | The same Cloudflare setup for the server we actually run (DigitalOcean + Docker + Caddy), including locking the origin and the real visitor address |
+| [ddos-response-plan.md](ddos-response-plan.md)                                 | The playbook for the day the service goes down under a flood: who is told, what is switched, where traffic goes                                     |
+| [../../apps/api/src/security/README.md](../../apps/api/src/security/README.md) | The adaptive rate limiting inside the API (behaviour-based throttle -> temporary ban)                                                               |
+| `infra/cloudflare/`                                                            | `waf-rules.json` (rules as data) and `apply.sh` (apply / emergency switches through the Cloudflare API)                                             |
+| `infra/nginx/timekeeper-api.conf`                                              | Reverse-proxy config for the VPS: real client IP, coarse limits, slow-client protection                                                             |
+| `infra/hostinger/allow-cloudflare-only.sh`                                     | Firewall script: web ports reachable only from Cloudflare                                                                                           |
 
 ## The layers (outside in)
 

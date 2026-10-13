@@ -60,7 +60,16 @@ sudo reboot
 Wait 2 minutes, reconnect, run `docker ps` (postgres, api, worker, web, caddy must be `Up`) and open the site. All
 containers are `restart: unless-stopped` and Docker starts at boot, so no action should be needed.
 
+## 5. Alerts when something breaks
+
+```bash
+sudo bash infra/deploy/monitor-setup.sh 'https://ntfy.sh/<your-secret-topic>'
+```
+
+Checks the site, the containers, the disk and the newest backup every 5 minutes and messages your phone. Details, the free outside check
+and the incident plan: [monitoring-and-incidents.md](monitoring-and-incidents.md).
+
 ## What this does not cover
 
-Point-in-time recovery, monitoring/alerts, and Cloudflare in front (see `docs/security/README.md`). Do these
+Point-in-time recovery, and Cloudflare in front (needs your own domain: see `docs/security/cloudflare-digitalocean-caddy.md`). Do these
 before the production roll-out with many employees.

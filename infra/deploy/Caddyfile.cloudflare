@@ -1,0 +1,17 @@
+# Use this Caddyfile ONLY when the domain is proxied through Cloudflare (orange cloud) AND the DigitalOcean firewall lets
+# only Cloudflare reach ports 80 and 443 (docs/security/cloudflare-digitalocean-caddy.md). Cloudflare puts the visitor's real
+# address in CF-Connecting-IP; here it replaces X-Forwarded-For, which the API reads for rate limiting and bans (TRUST_PROXY=1).
+# If the server were reachable directly, anybody could forge that header, so never use this file without the firewall rule.
+{$DOMAIN} {
+	encode zstd gzip
+	handle /v1/* {
+		reverse_proxy api:3001 {
+			header_up X-Forwarded-For {header.CF-Connecting-IP}
+		}
+	}
+	handle {
+		reverse_proxy web:3000 {
+			header_up X-Forwarded-For {header.CF-Connecting-IP}
+		}
+	}
+}

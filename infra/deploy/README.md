@@ -35,7 +35,7 @@ Set `EXPO_PUBLIC_API_URL` in `apps/mobile/eas.json` (profile `preview`) to `http
 
 ## Firewall and backups (pilot)
 
-`sudo bash infra/deploy/firewall.sh` (ufw: only 22, 80, 443) and `sudo bash infra/deploy/backup-setup.sh` (nightly encrypted dump of the database, uploaded files and `.env`; restore with `infra/deploy/restore.sh`). Step by step, with the restore test and reboot check: [`docs/operations/pilot-server-safety.md`](../../docs/operations/pilot-server-safety.md). The age private key is shown once and must be kept off the server. The scripts must stay `shellcheck`-clean.
+`sudo bash infra/deploy/firewall.sh` (ufw: only 22, 80, 443) and `sudo bash infra/deploy/backup-setup.sh` (nightly encrypted dump of the database, uploaded files and `.env`; restore with `infra/deploy/restore.sh`). `sudo bash infra/deploy/monitor-setup.sh '<alert url>'` adds 5-minute health alerts (site, containers, disk, backup age). Step by step, with the restore test and reboot check: [`docs/operations/pilot-server-safety.md`](../../docs/operations/pilot-server-safety.md). The age private key is shown once and must be kept off the server. The scripts must stay `shellcheck`-clean.
 
 ## Not covered here
 
