@@ -51,6 +51,8 @@ shred -u /tmp/key.txt
 
 Type `YES` when asked. Then open the admin web app: employees and the daily list must still be there.
 
+A safer first test that never touches the live data: `bash infra/deploy/restore-test.sh <backup file> <key file>` restores a backup into a scratch database, prints row counts and removes it.
+
 ## 4. Does it come back after a reboot?
 
 ```bash
