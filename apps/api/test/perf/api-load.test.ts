@@ -1,7 +1,13 @@
 import { afterAll, beforeAll, describe, it } from "vitest";
 import { hasDb } from "../db/helpers";
 import { attendanceKit, WORK_DATE } from "../e2e/attendance-kit";
-import { type Harness, signIn, startHarness } from "../e2e/harness";
+import {
+  createEmployeeWithUser,
+  type Harness,
+  signConsentSql,
+  signIn,
+  startHarness,
+} from "../e2e/harness";
 
 /**
  * A rough load check, not part of the normal test run: `PERF=1 pnpm --filter @timekeeper/api exec vitest run test/perf`.
@@ -135,4 +141,89 @@ describe.skipIf(!hasDb || !process.env.PERF)("API load check", () => {
     console.log(`\n${EMPLOYEES} employees, ${REQUESTS} requests per endpoint\n`);
     console.table(rows);
   }, 600_000);
+
+  it("prints latency for phone event uploads (POST /v1/events)", async () => {
+    const DEVICES = Number(process.env.PERF_DEVICES ?? 100);
+    const k = attendanceKit(h);
+    const w = await k.world();
+    // Each phone is an employee with a signed consent, a login and a registered device.
+    const tokens: string[] = [];
+    for (let i = 0; i < DEVICES; i += 1) {
+      const e = await createEmployeeWithUser(h, w.tenant, `phone${i}`);
+      await signConsentSql(h, w.tenant.id, e.employee.id);
+      const t = (await signIn(h, e.user)).accessToken;
+      await w.register(t);
+      tokens.push(t);
+    }
+    const uid = () => `perf-${Math.random().toString(36).slice(2, 14)}`;
+    const upload = async (token: string, events: object[]) => {
+      const t = performance.now();
+      const res = await h
+        .http()
+        .post("/v1/events")
+        .set("Authorization", `Bearer ${token}`)
+        .send({ events });
+      if (res.status !== 200 && res.status !== 201) {
+        throw new Error(`events -> ${res.status} ${JSON.stringify(res.body).slice(0, 160)}`);
+      }
+      return performance.now() - t;
+    };
+    const event = (type: "ENTER" | "EXIT", ageMs = 0) => ({
+      clientEventId: uid(),
+      type,
+      locationId: w.locationId,
+      ageMs,
+      accuracyM: 12,
+    });
+    const rows: Array<Record<string, unknown>> = [];
+    const row = (name: string, c: number, r: Awaited<ReturnType<typeof pool>>) =>
+      rows.push({
+        scenario: name,
+        requests: r.n,
+        concurrency: c,
+        "req/s": r.rps,
+        "p50 ms": r.p50,
+        "p95 ms": r.p95,
+        "p99 ms": r.p99,
+      });
+
+    await upload(tokens[0]!, [event("ENTER")]); // warm up
+    // 1. Morning rush: every phone sends one event, in rounds, 20 at a time.
+    let round = 0;
+    row(
+      "one event per request (many phones)",
+      CONCURRENCY,
+      await pool(DEVICES * 4, CONCURRENCY, () => {
+        const token = tokens[round % DEVICES]!;
+        const type = Math.floor(round / DEVICES) % 2 === 0 ? "EXIT" : "ENTER";
+        round += 1;
+        return upload(token, [event(type)]);
+      }),
+    );
+    // 2. Offline catch-up: one phone sends its queue of 50 events in one request.
+    let batch = 0;
+    row(
+      "batch of 50 events (phone back online)",
+      5,
+      await pool(20, 5, () => {
+        const token = tokens[(batch += 1) % DEVICES]!;
+        return upload(
+          token,
+          Array.from({ length: 50 }, (_, i) =>
+            event(i % 2 === 0 ? "ENTER" : "EXIT", (50 - i) * 60_000),
+          ),
+        );
+      }),
+    );
+    // 3. A retry of events the server already has (idempotent).
+    const same = [event("ENTER"), event("EXIT", 1000)];
+    await upload(tokens[1]!, same);
+    row(
+      "retry of events already received",
+      CONCURRENCY,
+      await pool(DEVICES, CONCURRENCY, () => upload(tokens[1]!, same)),
+    );
+    console.log(`\n${DEVICES} phones (devices)\n`);
+    console.table(rows);
+  }, 900_000);
 });
