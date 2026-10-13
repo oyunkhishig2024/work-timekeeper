@@ -37,6 +37,10 @@ BEGIN
   IF t IS NULL THEN
     RAISE EXCEPTION 'purge_old_attendance needs a tenant context';
   END IF;
+  -- A safety limit: the function can never delete the last 30 days, whatever it is asked (config minimum is 30 days).
+  IF p_cutoff > current_date - 30 THEN
+    RAISE EXCEPTION 'purge_old_attendance: the cutoff must be at least 30 days in the past';
+  END IF;
   DELETE FROM device_event WHERE tenant_id = t AND occurred_at < p_cutoff;
   GET DIAGNOSTICS n_events = ROW_COUNT;
   DELETE FROM attendance_correction WHERE tenant_id = t AND work_date < p_cutoff;
@@ -67,6 +71,10 @@ AS $$
 DECLARE
   n bigint;
 BEGIN
+  -- A safety limit: the audit log is never purged below 365 days (config minimum is 365 days).
+  IF p_cutoff > now() - interval '365 days' THEN
+    RAISE EXCEPTION 'purge_old_audit: the cutoff must be at least 365 days in the past';
+  END IF;
   DELETE FROM audit_log WHERE occurred_at < p_cutoff;
   GET DIAGNOSTICS n = ROW_COUNT;
   RETURN n;

@@ -14,6 +14,16 @@ describe.skipIf(!hasDb)("retention deletes (PRD 15.3, 15.1)", () => {
     await h.close();
   });
 
+  it("refuses a cutoff inside the minimum retention, however it is asked", async () => {
+    await k.world(); // the purge runs per organization, so one has to exist
+    await expect(k.engine().purgeExpired({ attendance: 5, audit: 730 })).rejects.toThrow(
+      /30 days/u,
+    );
+    await expect(k.engine().purgeExpired({ attendance: 730, audit: 100 })).rejects.toThrow(
+      /365 days/u,
+    );
+  });
+
   it("deletes attendance data and audit rows past their retention and keeps the rest", async () => {
     const w = await k.world();
     k.setClock("07:00");
