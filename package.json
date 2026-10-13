@@ -27,5 +27,10 @@
     "turbo": "^2.3.3",
     "typescript": "^5.7.2",
     "typescript-eslint": "^8.19.0"
+  },
+  "pnpm": {
+    "patchedDependencies": {
+      "expo-task-manager@57.0.21": "patches/expo-task-manager@57.0.21.patch"
+    }
   }
 }

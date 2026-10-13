@@ -1,0 +1,53 @@
+diff --git a/android/src/main/java/expo/modules/taskManager/TaskManagerUtils.java b/android/src/main/java/expo/modules/taskManager/TaskManagerUtils.java
+index 82bc0db..7b54305 100644
+--- a/android/src/main/java/expo/modules/taskManager/TaskManagerUtils.java
++++ b/android/src/main/java/expo/modules/taskManager/TaskManagerUtils.java
+@@ -142,7 +142,13 @@ public class TaskManagerUtils implements TaskManagerUtilsInterface {
+       try {
+         JobInfo mergedJobInfo = createJobInfoByAddingData(newestJob, data);
+         jobScheduler.cancel(newestJob.getId());
+-        jobScheduler.schedule(mergedJobInfo);
++        try {
++          jobScheduler.schedule(mergedJobInfo);
++        } catch (IllegalArgumentException refused) {
++          persistJobs = false;
++          jobScheduler.schedule(
++              createJobInfo(mergedJobInfo.getId(), mergedJobInfo.getService(), mergedJobInfo.getExtras()));
++        }
+       } catch (IllegalStateException e) {
+         Log.e(this.getClass().getName(), "Unable to merge job: " + e.getMessage());
+       }
+@@ -151,8 +157,12 @@ public class TaskManagerUtils implements TaskManagerUtilsInterface {
+ 
+     // Under limit: schedule as new job. Don't touch existing jobs.
+     try {
+-      JobInfo jobInfo = createJobInfo(context, task, newJobId, data);
+-      jobScheduler.schedule(jobInfo);
++      try {
++        jobScheduler.schedule(createJobInfo(context, task, newJobId, data));
++      } catch (IllegalArgumentException refused) {
++        persistJobs = false;
++        jobScheduler.schedule(createJobInfo(context, task, newJobId, data));
++      }
+     } catch (IllegalStateException e) {
+       Log.e(this.getClass().getName(), "Unable to schedule job: " + e.getMessage());
+     }
+@@ -199,10 +209,17 @@ public class TaskManagerUtils implements TaskManagerUtilsInterface {
+     return createTaskIntent(context, appScopeKey, taskName, flags);
+   }
+ 
++  /**
++   * Jobs are persisted so they survive a reboot, which needs RECEIVE_BOOT_COMPLETED. Some Android skins (MIUI) withdraw that
++   * permission and the system then throws IllegalArgumentException, which kills the app on every background location update.
++   * After the first refusal we schedule jobs that are not persisted (they only miss a reboot).
++   */
++  private static volatile boolean persistJobs = true;
++
+   private JobInfo createJobInfo(int jobId, ComponentName jobService, PersistableBundle extras) {
+     JobInfo.Builder jobBuilder = new JobInfo.Builder(jobId, jobService)
+         .setExtras(extras)
+-        .setPersisted(true)
++        .setPersisted(persistJobs)
+         .setRequiresDeviceIdle(false);
+ 
+     if (Build.VERSION.SDK_INT < 28) {
