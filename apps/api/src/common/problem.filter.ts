@@ -7,14 +7,60 @@ import {
 } from "@nestjs/common";
 import type { Response } from "express";
 import { ZodError } from "zod";
+import { requestIdOf } from "./request-id";
 
-/** Renders every error as RFC 7807 problem+json with a stable `code`. */
+/** A Postgres error that no service translated itself: a rule of the database was broken (class 22, 23, 40). */
+const isPgError = (e: unknown): e is { code: string; severity?: string; constraint?: string } =>
+  typeof e === "object" &&
+  e !== null &&
+  typeof (e as { code?: unknown }).code === "string" &&
+  /^[0-9A-Z]{5}$/u.test((e as { code: string }).code) &&
+  "severity" in e;
+
+/** What the person is told about a database rule that was broken. The constraint name stays in the log. */
+function pgProblem(code: string): { status: number; code: string; detail: string } | null {
+  if (code === "23505")
+    return {
+      status: 409,
+      code: "DUPLICATE",
+      detail: "A record with the same value already exists.",
+    };
+  if (code === "23503")
+    return {
+      status: 409,
+      code: "REFERENCE_CONFLICT",
+      detail:
+        "The record refers to something that does not exist, or is still used by something else.",
+    };
+  if (code === "23P01")
+    return { status: 409, code: "OVERLAP", detail: "The record overlaps an existing one." };
+  if (["23502", "23514", "22001", "22003", "22007", "22008", "22023", "22P02"].includes(code))
+    return {
+      status: 400,
+      code: "INVALID_DATA",
+      detail: "A value is missing, too long or not allowed.",
+    };
+  if (code === "40001" || code === "40P01")
+    return {
+      status: 503,
+      code: "TRY_AGAIN",
+      detail: "The server was busy with a conflicting change. Try again.",
+    };
+  return null;
+}
+
+/** Renders every error as RFC 7807 problem+json with a stable `code`, and the id of the request (`requestId`). */
 @Catch()
 export class ProblemFilter implements ExceptionFilter {
   private readonly logger = new Logger(ProblemFilter.name);
 
   catch(exception: unknown, host: ArgumentsHost): void {
     const res = host.switchToHttp().getResponse<Response>();
+    const requestId = requestIdOf(res);
+    // Every body below carries the request id, so a report from a user finds the line in the log.
+    const send = res.json.bind(res);
+    res.json = ((body: unknown) =>
+      send(requestId ? { ...(body as object), requestId } : body)) as typeof res.json;
 
     if (exception instanceof ZodError) {
       res
@@ -54,6 +100,31 @@ export class ProblemFilter implements ExceptionFilter {
       return;
     }
 
+    if (isPgError(exception)) {
+      const problem = pgProblem(exception.code);
+      if (problem) {
+        this.logger.warn(
+          `database rule broken (${exception.code}${exception.constraint ? `, ${exception.constraint}` : ""}) request ${requestId ?? "-"}`,
+        );
+        if (problem.status === 503) res.setHeader("Retry-After", "1");
+        res
+          .status(problem.status)
+          .type("application/problem+json")
+          .json({
+            title:
+              problem.status === 503
+                ? "Service Unavailable"
+                : problem.status === 409
+                  ? "Conflict"
+                  : "Bad Request",
+            status: problem.status,
+            code: problem.code,
+            detail: problem.detail,
+          });
+        return;
+      }
+    }
+
     // Errors from Express middleware (for example body-parser) carry an HTTP status of their own.
     const status = (exception as { status?: unknown })?.status;
     if (typeof status === "number" && status >= 400 && status < 500) {
@@ -75,7 +146,9 @@ export class ProblemFilter implements ExceptionFilter {
       return;
     }
 
-    this.logger.error(exception instanceof Error ? exception.stack : String(exception));
+    this.logger.error(
+      `request ${requestId ?? "-"}: ${exception instanceof Error ? exception.stack : String(exception)}`,
+    );
     res.status(500).type("application/problem+json").json({
       title: "Internal Server Error",
       status: 500,

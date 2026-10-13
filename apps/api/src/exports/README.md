@@ -24,3 +24,7 @@ generated synchronously; background export jobs are the next step for big report
 
 The daily / weekly / monthly attendance reports and the location summary (PRD 20) need the attendance results and are added with the attendance engine;
 they will use the same `Table` and writers (`src/tabular`).
+
+## Load limits
+
+At most `MAX_CONCURRENT_EXPORTS` (2) exports are built at the same time in one API process (`ConcurrencyGate`, `src/common/concurrency-gate.ts`); the next one is answered `429 EXPORT_BUSY` with `retryAfterSeconds`. Measured on a development machine: a 2,000-row Excel export takes about 0.6 s. Moving big exports to the worker remains the long-term option.

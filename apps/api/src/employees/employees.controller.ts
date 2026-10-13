@@ -47,7 +47,7 @@ const listSchema = z.object({
     .default("employeeNo"),
   order: z.enum(["asc", "desc"]).default("asc"),
   limit: z.coerce.number().int().min(1).max(200).default(50),
-  offset: z.coerce.number().int().min(0).default(0),
+  offset: z.coerce.number().int().min(0).max(100_000).default(0),
 });
 
 const assignSchema = z

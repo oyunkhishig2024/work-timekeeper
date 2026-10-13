@@ -3,7 +3,7 @@ import { Reflector } from "@nestjs/core";
 import { ApiError, forbidden, unauthorized } from "../../common/api-error";
 import { DatabaseService } from "../../database/database.service";
 import type { AuthedRequest } from "../auth.types";
-import { ALLOW_LIMITED, IS_PUBLIC, ROLES } from "../decorators";
+import { ALLOW_LIMITED, ANY_ROLE, IS_PUBLIC, ROLES } from "../decorators";
 import type { Role } from "../roles";
 import { SessionService } from "../session.service";
 import { TokenService } from "../token.service";
@@ -11,7 +11,7 @@ import { TokenService } from "../token.service";
 /**
  * Global guard: authenticates every route unless marked @Public(), checks that the session is still
  * live in the database (so disabling a user or revoking a session takes effect at once, PRD 12.2), then
- * enforces @Roles and the "finish setup first" limits.
+ * enforces @Roles (deny by default: a route needs @Roles, @AnyRole or @Public) and the "finish setup first" limits.
  */
 @Injectable()
 export class AuthGuard implements CanActivate {
@@ -54,7 +54,16 @@ export class AuthGuard implements CanActivate {
     }
 
     const roles = this.reflector.getAllAndOverride<Role[] | undefined>(ROLES, targets);
-    if (roles && !roles.includes(live.role)) throw forbidden();
+    if (!roles) {
+      // Deny by default: a route that says nothing about who may call it is refused, not opened to every role.
+      if (this.reflector.getAllAndOverride<boolean>(ANY_ROLE, targets)) return true;
+      throw new ApiError(
+        403,
+        "ROLE_NOT_DECLARED",
+        "This route does not say which roles may call it, so it is refused.",
+      );
+    }
+    if (!roles.includes(live.role)) throw forbidden();
     return true;
   }
 }

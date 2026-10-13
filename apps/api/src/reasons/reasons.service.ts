@@ -325,24 +325,24 @@ export class ReasonsService {
         );
       }
 
-      const ids: string[] = [];
+      let ids: string[] = [];
       try {
-        for (const employeeId of input.employeeIds) {
-          const { rows } = await tx.query<{ id: string }>(
-            `INSERT INTO reason_assignment (tenant_id, employee_id, reason_id, from_date, to_date, description, created_by)
-             VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id`,
-            [
-              auth.tenantId,
-              employeeId,
-              input.reasonId,
-              input.fromDate,
-              input.toDate ?? null,
-              input.description ?? null,
-              auth.userId,
-            ],
-          );
-          ids.push(rows[0]!.id);
-        }
+        // One statement for all employees (up to 500), not one INSERT per employee.
+        const { rows } = await tx.query<{ id: string }>(
+          `INSERT INTO reason_assignment (tenant_id, employee_id, reason_id, from_date, to_date, description, created_by)
+           SELECT $1, e.id, $3, $4, $5, $6, $7 FROM unnest($2::uuid[]) WITH ORDINALITY AS e(id, n)
+            ORDER BY e.n RETURNING id`,
+          [
+            auth.tenantId,
+            input.employeeIds,
+            input.reasonId,
+            input.fromDate,
+            input.toDate ?? null,
+            input.description ?? null,
+            auth.userId,
+          ],
+        );
+        ids = rows.map((r) => r.id);
       } catch (error) {
         if (pgCode(error) === "23P01") {
           throw new ApiError(

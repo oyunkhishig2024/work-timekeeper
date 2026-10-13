@@ -3,6 +3,7 @@ import { Test } from "@nestjs/testing";
 import request from "supertest";
 import type { Client } from "pg";
 import { AppModule } from "../../src/app.module";
+import { applyRequestId } from "../../src/common/request-id";
 import { applyAbuseProtection } from "../../src/security/apply";
 import { Clock } from "../../src/common/clock";
 import { PasswordService } from "../../src/auth/password.service";
@@ -48,6 +49,7 @@ export async function startHarness(
       options.trustProxy,
     );
   }
+  applyRequestId(app);
   applyAbuseProtection(app);
   await app.init();
   const owner = await connectOwner();

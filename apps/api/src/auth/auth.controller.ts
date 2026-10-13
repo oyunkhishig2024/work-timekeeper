@@ -9,7 +9,7 @@ import {
   totpVerifySchema,
 } from "./auth.schemas";
 import type { AuthContext, RequestMeta } from "./auth.types";
-import { AllowLimited, CurrentAuth, Meta, Public } from "./decorators";
+import { AllowLimited, AnyRole, CurrentAuth, Meta, Public } from "./decorators";
 
 @Controller("auth")
 @UseGuards(ThrottlerGuard)
@@ -39,6 +39,7 @@ export class AuthController {
     return this.auth.refresh(refreshSchema.parse(body).refreshToken, meta);
   }
 
+  @AnyRole()
   @AllowLimited()
   @Post("logout")
   @HttpCode(204)
@@ -46,12 +47,14 @@ export class AuthController {
     await this.auth.logout(auth, meta);
   }
 
+  @AnyRole()
   @AllowLimited()
   @Get("me")
   me(@CurrentAuth() auth: AuthContext) {
     return this.auth.me(auth);
   }
 
+  @AnyRole()
   @AllowLimited()
   @Throttle({ default: { limit: 5, ttl: 60_000 } })
   @Post("password/change")
@@ -64,6 +67,7 @@ export class AuthController {
     return this.auth.changePassword(auth, changePasswordSchema.parse(body), meta);
   }
 
+  @AnyRole()
   @AllowLimited()
   @Post("totp/setup")
   @HttpCode(200)
@@ -71,6 +75,7 @@ export class AuthController {
     return this.auth.totpSetup(auth, meta);
   }
 
+  @AnyRole()
   @AllowLimited()
   @Post("totp/enable")
   @HttpCode(200)

@@ -1,6 +1,7 @@
 import { Injectable } from "@nestjs/common";
 import { ApiError, forbidden } from "../common/api-error";
 import { Clock } from "../common/clock";
+import { ConcurrencyGate } from "../common/concurrency-gate";
 import { DatabaseService } from "../database/database.service";
 import { AuditService } from "../audit/audit.service";
 import type { AuthContext, RequestMeta } from "../auth/auth.types";
@@ -16,6 +17,8 @@ import { toCsv, toPdf, toXlsx } from "../tabular/write";
 
 /** Larger exports need background jobs (Architecture: export jobs); until then they are refused, not truncated. */
 export const MAX_EXPORT_ROWS = 20_000;
+/** An export of up to 20,000 rows is built in memory in the API process: only this many at a time, the next is told to retry. */
+export const MAX_CONCURRENT_EXPORTS = 2;
 
 export type ReportName =
   | "reason-report"
@@ -77,6 +80,12 @@ const localTime = (value: Date | string | null, timeZone: string): string =>
  */
 @Injectable()
 export class ExportsService {
+  private readonly gate = new ConcurrencyGate(MAX_CONCURRENT_EXPORTS, {
+    code: "EXPORT_BUSY",
+    detail: "Other reports are being prepared right now. Try again in a few seconds.",
+    retryAfterSeconds: 5,
+  });
+
   constructor(
     private readonly clock: Clock,
     private readonly db: DatabaseService,
@@ -90,7 +99,17 @@ export class ExportsService {
     private readonly timeReport: TimeReportService,
   ) {}
 
-  async export(
+  export(
+    auth: AuthContext,
+    report: ReportName,
+    format: ExportFormat,
+    filters: Record<string, unknown>,
+    meta: RequestMeta,
+  ): Promise<ExportResult> {
+    return this.gate.run(() => this.exportNow(auth, report, format, filters, meta));
+  }
+
+  private async exportNow(
     auth: AuthContext,
     report: ReportName,
     format: ExportFormat,

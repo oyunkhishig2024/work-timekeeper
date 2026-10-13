@@ -58,3 +58,7 @@ POST /users/:id/totp-reset        Org Admin (lost phone)
 ## Staff who are also employees (PRD 4, v1.32)
 
 Org Admin, HR and Manager are employees too: their account may carry `employee_id` (migration `0028`; an EMPLOYEE account still always has one, and one account per employee). With the link they can `POST /devices/register`, `/events`, `/heartbeat` and read `/me/attendance` from the phone, with the same two-step login as on the web (TOTP for Org Admin and HR). Once the phone is registered the session bound to it lasts `EMPLOYEE_SESSION_DAYS` like an employee's; a web session stays short (`STAFF_SESSION_IDLE_MINUTES`). Without the link these routes answer `403 EMPLOYEE_ONLY`. Linking or unlinking ends the account's phone sessions. Disabling the employee also disables the linked login.
+
+## Every route declares who may call it (deny by default)
+
+`AuthGuard` refuses a route that carries none of `@Public()`, `@Roles(...)` or `@AnyRole()` with `403 ROLE_NOT_DECLARED` (a signed-in caller, any role). `@AnyRole()` is for the routes every signed-in role may use (logout, `me`, password change, 2FA setup). `test/e2e/route-policy.test.ts` scans every controller route and fails, naming the route, when one declares nothing; `test/unit/auth-guard.test.ts` covers the guard itself.

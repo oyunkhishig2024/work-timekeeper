@@ -43,7 +43,7 @@ const listSchema = z.object({
   to: isoDate.optional(),
   activeOn: isoDate.optional(),
   limit: z.coerce.number().int().min(1).max(500).default(100),
-  offset: z.coerce.number().int().min(0).default(0),
+  offset: z.coerce.number().int().min(0).max(100_000).default(0),
 });
 const reportSchema = z
   .object({ from: isoDate, to: isoDate, locationId: id.optional(), departmentId: id.optional() })

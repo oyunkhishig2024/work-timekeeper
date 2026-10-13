@@ -60,7 +60,7 @@ const dailyQuery = z.object({
   locationId: id.optional(),
   departmentId: id.optional(),
   limit: z.coerce.number().int().min(1).max(500).default(100),
-  offset: z.coerce.number().int().min(0).default(0),
+  offset: z.coerce.number().int().min(0).max(100_000).default(0),
 });
 const periodFilters = {
   from: isoDate,
@@ -69,7 +69,7 @@ const periodFilters = {
   locationId: id.optional(),
   departmentId: id.optional(),
   limit: z.coerce.number().int().min(1).max(500).default(100),
-  offset: z.coerce.number().int().min(0).default(0),
+  offset: z.coerce.number().int().min(0).max(100_000).default(0),
 };
 const timeReportQuery = z
   .object({ kind: z.enum(["short", "overtime"]), ...periodFilters })
@@ -193,7 +193,7 @@ const correctionQuery = z.object({
   locationId: id.optional(),
   includeRevoked: bool.default("false"),
   limit: z.coerce.number().int().min(1).max(500).default(100),
-  offset: z.coerce.number().int().min(0).default(0),
+  offset: z.coerce.number().int().min(0).max(100_000).default(0),
 });
 
 /** HR and Org Admin correct directly, with no second approval; the safeguards are the reason, the audit trail and the report. */
@@ -253,7 +253,7 @@ const anomalyQuery = z.object({
   to: z.string().datetime({ offset: true }).optional(),
   employeeId: id.optional(),
   limit: z.coerce.number().int().min(1).max(500).default(100),
-  offset: z.coerce.number().int().min(0).default(0),
+  offset: z.coerce.number().int().min(0).max(100_000).default(0),
 });
 const reviewSchema = z
   .object({
@@ -301,7 +301,7 @@ const alertQuery = z.object({
   status: z.enum(["OPEN", "ALL"]).default("OPEN"),
   kind: z.enum(["ATTESTATION_UNAVAILABLE_STREAK", "DEVICE_CONFLICT"]).optional(),
   limit: z.coerce.number().int().min(1).max(500).default(100),
-  offset: z.coerce.number().int().min(0).default(0),
+  offset: z.coerce.number().int().min(0).max(100_000).default(0),
 });
 
 @Controller("device-alerts")
