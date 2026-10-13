@@ -2,7 +2,7 @@ import type { ReactNode } from "react";
 import "./globals.css";
 
 export const metadata = {
-  title: "Timekeeper Work",
+  title: { default: "Timekeeper Work", template: "%s · Timekeeper Work" },
   description: "Workforce attendance and presence management",
   icons: { icon: "/icon.svg" },
 };

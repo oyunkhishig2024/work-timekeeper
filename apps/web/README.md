@@ -137,3 +137,13 @@ An account created by the CLI or by an admin has a temporary password. After sig
 ## Schedule (`/schedule`, «Цагийн хуваарь»)
 
 Tab «Ажлын цаг, дүрэм»: the working week (7 days, times; organization-wide or one branch's own, with «use the default» for a branch) and the attendance rules (late tolerance, minimum stay, early-leave tolerance). A change is effective-dated and applies from the chosen date forward (default tomorrow; the past is never rewritten); a saved change that has not begun is shown as «Төлөвлөсөн өөрчлөлт». Tab «Баяр, онцгой өдөр»: holidays by year (add, edit, delete, copy the previous year; a holiday that starts today or earlier asks for confirmation because attendance is recomputed) and single-date exceptions (a working day, optionally with other hours, or a day off, for the organization or a branch; the next 180 days). Tab «Ээлж»: shift templates (start/end, grace, observes holidays; changing a used template makes a new version), rotation patterns (day-by-day template or day off) — Org Admin; assignments of a template or pattern to employees whose schedule mode is «Ээлжээр» — Org Admin and HR (a future assignment can be deleted, a running one is ended today). One-day shift overrides (ADD/REMOVE/SWAP) are API-only for now. Only the Org Admin changes the working week, rules, holidays and shift setup; HR and Manager read.
+
+## Phone layout and accessibility conventions
+
+Checked at 375 px with Playwright (no page scrolls sideways; wide tables scroll inside their own box) and by keyboard.
+
+- The menu wraps (`flex-wrap`); dialogs are at most the screen height (`max-h-[calc(100dvh-2rem)]`, scroll inside).
+- Every route has a `layout.tsx` with `metadata.title` (pages are client components and cannot export metadata themselves); the root layout adds « · Timekeeper Work». Nested routes write the full title.
+- The first Tab stop is the «Үндсэн агуулга руу очих» skip link (`#main` in `AppShell`); one focus ring for everything (`globals.css`).
+- Errors use `<FormError>` (`components/form-error.tsx`): `role="alert"` and scrolls into view. A field-level error also marks the field `aria-invalid`, links it with `aria-describedby` and focuses it (see `employee-form.tsx` and `employeeFormIssue` in `lib/employees.ts`); do the same when you add a form.
+- Interactive elements are at least 44 px tall (`min-h-11`).

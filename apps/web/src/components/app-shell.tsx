@@ -4,10 +4,9 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, type ReactNode } from "react";
 import { currentRequires, logout, type SessionUser } from "@/lib/session";
-import { usePageTitle } from "./use-page-title";
 import { useSession } from "./use-session";
 
-/** The menu: the label is also the browser tab title of the page. */
+/** The menu entries. */
 const PAGES: Array<[href: string, label: string]> = [
   ["/dashboard", "Хянах самбар"],
   ["/daily", "Өдрийн ирц"],
@@ -32,8 +31,6 @@ export function AppShell({ children }: { children: (user: SessionUser) => ReactN
   const session = useSession();
   const router = useRouter();
   const pathname = usePathname();
-  const pageLabel = PAGES.find(([href]) => active(pathname, href))?.[1];
-  usePageTitle(pageLabel);
   useEffect(() => {
     if (session.status === "out") router.replace("/login");
     else if (session.status === "in" && currentRequires().length > 0) router.replace("/setup");

@@ -5,7 +5,6 @@ import QRCode from "qrcode";
 import { useEffect, useState, type FormEvent } from "react";
 import { ApiRequestError } from "@/lib/api";
 import { changePassword, currentRequires, logout, totpEnable, totpSetup } from "@/lib/session";
-import { usePageTitle } from "@/components/use-page-title";
 import { useSession } from "@/components/use-session";
 import { FormError } from "@/components/form-error";
 
@@ -38,7 +37,6 @@ function messageOf(error: unknown): string {
 
 /** First sign-in: replace the temporary password, then enrol the authenticator app (Org Admin and HR). */
 export default function SetupPage() {
-  usePageTitle("Эхний тохиргоо");
   const router = useRouter();
   const session = useSession();
   const [step, setStep] = useState<"password" | "totp" | "codes">("password");

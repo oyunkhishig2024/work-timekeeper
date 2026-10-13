@@ -2,7 +2,6 @@
 
 import { useRouter } from "next/navigation";
 import { useState, type FormEvent } from "react";
-import { usePageTitle } from "@/components/use-page-title";
 import { ApiRequestError } from "@/lib/api";
 import { login, verifyTotp } from "@/lib/session";
 import { FormError } from "@/components/form-error";
@@ -12,7 +11,6 @@ const primary =
   "min-h-11 w-full rounded-md bg-teal-700 px-4 font-semibold text-white hover:bg-teal-800 disabled:opacity-60";
 
 export default function LoginPage() {
-  usePageTitle("Нэвтрэх");
   const router = useRouter();
   const [challenge, setChallenge] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
