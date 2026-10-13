@@ -23,9 +23,21 @@ chmod 700 /var/backups/timekeeper
 
 if [ ! -f "$CONF" ]; then
   umask 077
-  key=$(mktemp)
-  age-keygen -o "$key" 2>/dev/null
+  # age-keygen refuses to write into a file that already exists, so use a fresh path inside a private directory.
+  keydir=$(mktemp -d)
+  key="$keydir/key.txt"
+  if ! age-keygen -o "$key" 2>"$keydir/err"; then
+    cat "$keydir/err" >&2
+    rm -rf "$keydir"
+    echo "Could not create the backup key." >&2
+    exit 1
+  fi
   pub=$(grep -o 'age1[0-9a-z]*' "$key" | head -n 1)
+  if [ -z "$pub" ]; then
+    rm -rf "$keydir"
+    echo "Could not read the public key." >&2
+    exit 1
+  fi
   {
     echo "REPO_DIR=$ROOT"
     echo "BACKUP_AGE_RECIPIENT=$pub"
@@ -37,6 +49,7 @@ if [ ! -f "$CONF" ]; then
   grep '^AGE-SECRET-KEY' "$key"
   echo "==================================================================================="
   shred -u "$key" 2>/dev/null || rm -f "$key"
+  rm -rf "$keydir"
 fi
 
 cat >/etc/cron.d/timekeeper-backup <<CRON
