@@ -1,7 +1,7 @@
 # Timekeeper Work
 ## Product Requirements Document (PRD)
 
-Version: 1.33
+Version: 1.34
 Product: Timekeeper Work
 Owner: Onki
 Status: Requirements Specification (pre-development review + CTO review + stakeholder decisions applied)
@@ -1246,12 +1246,13 @@ Added in v1.2 **[v1.2]**:
 | 1.31 | A holiday and an ordinary day off are told apart (14.2, 20): the daily list, the day-off list and its export say «Баярын өдөр ажилласан» or «Амралтын өдөр ажилласан» (the export has a «Өдрийн төрөл» column); the chip and totals stay one group («Баяр, амралтын өдөр ажилласан»). |
 | 1.32 | Who uses which app (4): the Org Admin, HR and Managers also record their own attendance on a phone, and use the web app (desktop or laptop) for management; the phone app has only employee functions for every role; no team view for Managers on the phone. Their staff account is linked to their own employee record (`PUT /v1/users/:id/employee`, or `employeeId` when the user is created); the phone session lasts like an employee's once the phone is registered. Super Admin is a web user (tenant management, not built). |
 | 1.33 | Pilot field test on real Android phones (6.3, 15.3, 15.4, 21): (a) the phone also checks its **position** (GPS, about every 60 s, with a visible foreground-service notification) while an expected place is watched, as a fallback and to confirm what the operating system's geofencing reports; only ENTER/EXIT events and the evidence fix leave the phone, the positions stay on it. The **consent text must say so** and be approved before real employees use the app; (b) an arrival needs one trustworthy fix inside; a departure needs two fixes in a row beyond radius + margin; a return after a departure needs two fixes in a row inside unless one is exact (30 m or better); fixes worse than 150 m are ignored; (c) on Xiaomi/Redmi/POCO (MIUI) phones **Autostart must be on** or the app stops when a background event arrives; the phone check asks for it. |
+| 1.34 | Consent wording and staff guide (15.3, 15.4, Appendix A): `docs/consent/consent-v2-draft.mn.txt` replaces v1 for items 2–4 so the text matches what the phone does (it checks its position about once a minute while a workplace is on the day's plan; coordinates and accuracy are collected with each event; the purpose names arrival and departure/early leave and excludes movement tracking). Still a DRAFT: legal counsel must approve it before real use. `docs/guides/staff-phone-setup.mn.md` is the phone setup guide for staff, with the Xiaomi/MIUI steps (Autostart, battery, lock in recents). |
 
 ---
 
 # Appendix A. Draft Employee Consent Text **[v1.3]**
 
-> **DRAFT for legal review.** This text is a starting point only and must be reviewed and approved by Mongolian legal counsel before use. Version: `consent-v1-draft`.
+> **DRAFT for legal review.** This text is a starting point only and must be reviewed and approved by Mongolian legal counsel before use. Version: `consent-v1-draft`. A reworded draft for items 2–4 is in `docs/consent/consent-v2-draft.mn.txt` (PRD 1.34); it is the one to give counsel.
 
 **Байршлын мэдээлэл боловсруулах, ирц бүртгэхийн тулд өгөх сайн дурын зөвшөөрлийн хуудас**
 
