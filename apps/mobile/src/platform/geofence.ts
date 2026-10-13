@@ -22,7 +22,7 @@ const REGIONS_KEY = "geofence.regions.v1";
 const PRESENCE_KEY = "presence.v1";
 const WATCH_FAILED_KEY = "presence.watchFailed";
 /** How often the phone asks for a GPS fix while a place is watched (battery vs. how soon a departure is seen). */
-export const POSITION_INTERVAL_MS = 5 * 60_000;
+export const POSITION_INTERVAL_MS = 15 * 60_000;
 const LAST_NOTE_KEY = "presence.lastNote";
 const CALLED_KEY = "presence.lastCalled";
 
