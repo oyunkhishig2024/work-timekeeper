@@ -22,6 +22,7 @@ import {
   type ShiftTemplate,
 } from "@/lib/schedule";
 import { fieldClass, Modal, primaryButton, secondaryButton } from "../modal";
+import { FormError } from "@/components/form-error";
 
 const message = (e: unknown) =>
   e instanceof ApiRequestError
@@ -80,11 +81,7 @@ export function ShiftsSection({
 
   return (
     <div className="space-y-10">
-      {error && (
-        <p role="alert" className="text-sm text-red-700">
-          {error}
-        </p>
-      )}
+      <FormError message={error} className="text-sm text-red-700" />
       {!templates || !patterns || !assignments ? (
         !error && <p className="text-slate-600">Ачаалж байна…</p>
       ) : (
@@ -416,11 +413,7 @@ function TemplateDialog({
           />
           Баярын өдөр амарна
         </label>
-        {error && (
-          <p role="alert" className="text-sm text-red-700">
-            {error}
-          </p>
-        )}
+        <FormError message={error} className="text-sm text-red-700" />
         <div className="flex justify-end gap-2">
           <button type="button" className={secondaryButton} onClick={onClose}>
             Болих
@@ -507,11 +500,7 @@ function PatternDialog({
         <button type="button" className={secondaryButton} onClick={() => setDays([...days, ""])}>
           Өдөр нэмэх
         </button>
-        {error && (
-          <p role="alert" className="text-sm text-red-700">
-            {error}
-          </p>
-        )}
+        <FormError message={error} className="text-sm text-red-700" />
         <div className="flex justify-end gap-2">
           <button type="button" className={secondaryButton} onClick={onClose}>
             Болих
@@ -663,11 +652,7 @@ function AssignDialog({
             />
           </label>
         )}
-        {error && (
-          <p role="alert" className="text-sm text-red-700">
-            {error}
-          </p>
-        )}
+        <FormError message={error} className="text-sm text-red-700" />
         <div className="flex justify-end gap-2">
           <button type="button" className={secondaryButton} onClick={onClose}>
             Болих

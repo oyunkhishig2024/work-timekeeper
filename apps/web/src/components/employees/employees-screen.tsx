@@ -237,7 +237,7 @@ export function EmployeesScreen({ user }: { user: SessionUser }) {
                   <td className="px-3 py-2">
                     <Link
                       href={`/employees/${e.id}`}
-                      className="font-medium text-teal-800 underline"
+                      className="inline-flex min-h-11 items-center font-medium text-teal-800 underline"
                     >
                       {e.fullName}
                     </Link>

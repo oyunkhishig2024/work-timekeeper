@@ -2,6 +2,7 @@
 
 import { useState, type FormEvent, type ReactNode } from "react";
 import { fieldClass, Modal, primaryButton, secondaryButton } from "../modal";
+import { FormError } from "@/components/form-error";
 
 /** Asks for a note and hands it to `onSubmit`; a failure is shown here and keeps the dialog open. */
 export function NoteDialog({
@@ -60,11 +61,7 @@ export function NoteDialog({
             className={`${fieldClass} py-2`}
           />
         </label>
-        {error && (
-          <p role="alert" className="text-sm text-red-700">
-            {error}
-          </p>
-        )}
+        <FormError message={error} className="text-sm text-red-700" />
         <div className="flex justify-end gap-2">
           <button type="button" className={secondaryButton} onClick={onClose}>
             Болих

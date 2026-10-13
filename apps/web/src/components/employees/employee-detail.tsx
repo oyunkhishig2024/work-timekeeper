@@ -28,6 +28,7 @@ import { fieldClass, Modal, primaryButton, secondaryButton } from "../modal";
 import { NoteDialog } from "../review/note-dialog";
 import { EmployeeFormDialog } from "./employee-form";
 import { ReplacementQrDialog } from "./qr-dialog";
+import { FormError } from "@/components/form-error";
 
 function errorText(e: unknown): string {
   return e instanceof ApiRequestError ? e.message : "Алдаа гарлаа. Дахин оролдоно уу.";
@@ -554,11 +555,7 @@ function TitleDialog({
             className={fieldClass}
           />
         </label>
-        {error && (
-          <p role="alert" className="text-sm text-red-700">
-            {error}
-          </p>
-        )}
+        <FormError message={error} className="text-sm text-red-700" />
         <div className="flex justify-end gap-2">
           <button type="button" className={secondaryButton} onClick={onClose}>
             Болих
@@ -714,11 +711,7 @@ function ReactivateDialog({
             className={fieldClass}
           />
         </label>
-        {error && (
-          <p role="alert" className="text-sm text-red-700">
-            {error}
-          </p>
-        )}
+        <FormError message={error} className="text-sm text-red-700" />
         <div className="flex justify-end gap-2">
           <button type="button" className={secondaryButton} onClick={onClose}>
             Болих

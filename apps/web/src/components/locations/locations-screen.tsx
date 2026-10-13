@@ -10,6 +10,7 @@ import {
   type LocationRow,
 } from "@/lib/locations";
 import { Modal, fieldClass } from "@/components/modal";
+import { FormError } from "@/components/form-error";
 
 const button =
   "min-h-11 rounded-md border border-slate-300 px-3 text-sm font-medium hover:bg-slate-100";
@@ -51,11 +52,7 @@ export function LocationsScreen() {
       <p className="mt-2 text-sm text-slate-600">
         Ажилтан энэ газрын тойрогт орж, гарахад цаг нь бүртгэгдэнэ.
       </p>
-      {error && (
-        <p role="alert" className="mt-3 text-sm text-red-700">
-          {error}
-        </p>
-      )}
+      <FormError message={error} className="mt-3 text-sm text-red-700" />
       {rows === null ? (
         <p className="mt-4 text-slate-600">Ачаалж байна…</p>
       ) : rows.length === 0 ? (
@@ -224,11 +221,7 @@ function LocationDialog({
             Идэвхтэй
           </label>
         )}
-        {error && (
-          <p role="alert" className="text-sm text-red-700">
-            {error}
-          </p>
-        )}
+        <FormError message={error} className="text-sm text-red-700" />
         <div className="flex justify-end gap-3">
           <button type="button" className={button} onClick={onClose}>
             Болих

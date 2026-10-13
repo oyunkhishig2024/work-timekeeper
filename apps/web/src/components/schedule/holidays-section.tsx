@@ -21,6 +21,7 @@ import {
   type HolidayKind,
 } from "@/lib/schedule";
 import { fieldClass, Modal, primaryButton, secondaryButton } from "../modal";
+import { FormError } from "@/components/form-error";
 
 const message = (e: unknown) =>
   e instanceof ApiRequestError
@@ -131,11 +132,7 @@ export function HolidaysSection({
             {info}
           </p>
         )}
-        {error && (
-          <p role="alert" className="mt-2 text-sm text-red-700">
-            {error}
-          </p>
-        )}
+        <FormError message={error} className="mt-2 text-sm text-red-700" />
         {rows === null ? (
           <p className="mt-4 text-slate-600">Ачаалж байна…</p>
         ) : rows.length === 0 ? (
@@ -354,11 +351,7 @@ function HolidayDialog({
             Өнөөдөр эсвэл өнгөрсөн өдөр тул хадгалахад ирцийг дахин тооцно (баталгаажуулалт асууна).
           </p>
         )}
-        {error && (
-          <p role="alert" className="text-sm text-red-700">
-            {error}
-          </p>
-        )}
+        <FormError message={error} className="text-sm text-red-700" />
         <div className="flex justify-end gap-3">
           <button type="button" className={secondaryButton} onClick={onClose}>
             Болих
@@ -429,11 +422,7 @@ function ExceptionsPanel({
         Нэг өдрийг ажлын өдөр (өөр цагтай байж болно) эсвэл амралт болгоно. Ажлын долоо хоногоос
         давуу. Дараагийн 180 хоног.
       </p>
-      {error && (
-        <p role="alert" className="mt-2 text-sm text-red-700">
-          {error}
-        </p>
-      )}
+      <FormError message={error} className="mt-2 text-sm text-red-700" />
       {rows === null ? (
         <p className="mt-4 text-slate-600">Ачаалж байна…</p>
       ) : rows.length === 0 ? (
@@ -601,11 +590,7 @@ function ExceptionDialog({
             className={fieldClass}
           />
         </label>
-        {error && (
-          <p role="alert" className="text-sm text-red-700">
-            {error}
-          </p>
-        )}
+        <FormError message={error} className="text-sm text-red-700" />
         <div className="flex justify-end gap-3">
           <button type="button" className={secondaryButton} onClick={onClose}>
             Болих

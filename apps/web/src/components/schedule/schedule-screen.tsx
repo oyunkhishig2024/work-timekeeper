@@ -8,6 +8,7 @@ import type { SessionUser } from "@/lib/session";
 import { HolidaysSection } from "./holidays-section";
 import { ShiftsSection } from "./shifts-section";
 import { WeekSection } from "./week-section";
+import { FormError } from "@/components/form-error";
 
 const TABS = [
   ["week", "Ажлын цаг, дүрэм"],
@@ -66,11 +67,7 @@ export function ScheduleScreen({ user }: { user: SessionUser }) {
         ))}
       </div>
       <div className="mt-6">
-        {error && (
-          <p role="alert" className="text-sm text-red-700">
-            {error}
-          </p>
-        )}
+        <FormError message={error} className="text-sm text-red-700" />
         {!org ? (
           !error && <p className="text-slate-600">Ачаалж байна…</p>
         ) : tab === "week" ? (

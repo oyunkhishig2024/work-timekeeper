@@ -5,7 +5,9 @@ import QRCode from "qrcode";
 import { useEffect, useState, type FormEvent } from "react";
 import { ApiRequestError } from "@/lib/api";
 import { changePassword, currentRequires, logout, totpEnable, totpSetup } from "@/lib/session";
+import { usePageTitle } from "@/components/use-page-title";
 import { useSession } from "@/components/use-session";
+import { FormError } from "@/components/form-error";
 
 const field = "mt-1 block min-h-11 w-full rounded-md border border-slate-300 px-3 text-base";
 const primary =
@@ -36,6 +38,7 @@ function messageOf(error: unknown): string {
 
 /** First sign-in: replace the temporary password, then enrol the authenticator app (Org Admin and HR). */
 export default function SetupPage() {
+  usePageTitle("Эхний тохиргоо");
   const router = useRouter();
   const session = useSession();
   const [step, setStep] = useState<"password" | "totp" | "codes">("password");
@@ -148,11 +151,7 @@ export default function SetupPage() {
               className={field}
             />
           </label>
-          {error && (
-            <p role="alert" className="text-sm text-red-700">
-              {error}
-            </p>
-          )}
+          <FormError message={error} className="text-sm text-red-700" />
           <button type="submit" disabled={busy} className={primary}>
             Нууц үг солих
           </button>
@@ -186,11 +185,7 @@ export default function SetupPage() {
               className={field}
             />
           </label>
-          {error && (
-            <p role="alert" className="text-sm text-red-700">
-              {error}
-            </p>
-          )}
+          <FormError message={error} className="text-sm text-red-700" />
           <button type="submit" disabled={busy || !seed} className={primary}>
             Баталгаажуулах
           </button>
@@ -216,7 +211,7 @@ export default function SetupPage() {
 
       <button
         type="button"
-        className="mt-6 text-sm text-slate-500 underline"
+        className="mt-6 inline-flex min-h-11 items-center text-sm text-slate-500 underline"
         onClick={() => void logout().then(() => router.replace("/login"))}
       >
         Гарах

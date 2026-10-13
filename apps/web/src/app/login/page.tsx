@@ -2,14 +2,17 @@
 
 import { useRouter } from "next/navigation";
 import { useState, type FormEvent } from "react";
+import { usePageTitle } from "@/components/use-page-title";
 import { ApiRequestError } from "@/lib/api";
 import { login, verifyTotp } from "@/lib/session";
+import { FormError } from "@/components/form-error";
 
 const field = "mt-1 block min-h-11 w-full rounded-md border border-slate-300 px-3 text-base";
 const primary =
   "min-h-11 w-full rounded-md bg-teal-700 px-4 font-semibold text-white hover:bg-teal-800 disabled:opacity-60";
 
 export default function LoginPage() {
+  usePageTitle("Нэвтрэх");
   const router = useRouter();
   const [challenge, setChallenge] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -75,11 +78,7 @@ export default function LoginPage() {
               className={field}
             />
           </label>
-          {error && (
-            <p role="alert" className="text-sm text-red-700">
-              {error}
-            </p>
-          )}
+          <FormError message={error} className="text-sm text-red-700" />
           <button type="submit" disabled={busy} className={primary}>
             Үргэлжлүүлэх
           </button>
@@ -96,11 +95,7 @@ export default function LoginPage() {
               className={field}
             />
           </label>
-          {error && (
-            <p role="alert" className="text-sm text-red-700">
-              {error}
-            </p>
-          )}
+          <FormError message={error} className="text-sm text-red-700" />
           <button type="submit" disabled={busy} className={primary}>
             Нэвтрэх
           </button>

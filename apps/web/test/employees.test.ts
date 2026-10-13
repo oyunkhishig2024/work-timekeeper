@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   createBody,
   emptyForm,
+  employeeFormIssue,
   employeeFormProblem,
   employeesHref,
   formFrom,
@@ -44,6 +45,12 @@ describe("employee form", () => {
     primaryLocationId: "l1",
   };
   it("needs both names, a department and a branch; the code is not a field", () => {
+    expect(employeeFormIssue(valid)).toBeNull();
+    expect(employeeFormIssue({ ...valid, firstName: "" })).toMatchObject({ field: "firstName" });
+    expect(employeeFormIssue({ ...valid, departmentId: "" })).toMatchObject({
+      field: "departmentId",
+    });
+    expect(employeeFormIssue({ ...valid, rank: "x".repeat(121) })).toMatchObject({ field: "rank" });
     expect(employeeFormProblem(valid)).toBeNull();
     expect(employeeFormProblem({ ...valid, lastName: " " })).toMatch(/Овго/u);
     expect(employeeFormProblem({ ...valid, firstName: "" })).toMatch(/Нэр/u);

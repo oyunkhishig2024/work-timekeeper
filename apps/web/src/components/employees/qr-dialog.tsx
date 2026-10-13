@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import { api, ApiRequestError } from "@/lib/api";
 import type { ReplacementQr } from "@/lib/employees";
 import { fieldClass, Modal, primaryButton, secondaryButton } from "../modal";
+import { FormError } from "@/components/form-error";
 
 /**
  * A replacement QR for a new phone (PRD 5, 21.1): employee-specific, single use. The code is shown once, here; the API keeps only
@@ -90,11 +91,7 @@ export function ReplacementQrDialog({
               />
             </label>
           )}
-          {error && (
-            <p role="alert" className="text-sm text-red-700">
-              {error}
-            </p>
-          )}
+          <FormError message={error} className="text-sm text-red-700" />
           <div className="flex justify-end gap-2">
             <button type="button" className={secondaryButton} onClick={onClose}>
               Болих

@@ -16,6 +16,7 @@ import {
 import { DateNav } from "./date-nav";
 import { Breakdown, SummaryCards } from "./overview";
 import { PeopleList } from "./people-list";
+import { FormError } from "@/components/form-error";
 
 const REFRESH_MS = 60_000;
 
@@ -99,11 +100,7 @@ export function Dashboard() {
           />
         </div>
       )}
-      {error && (
-        <p role="alert" className="mt-4 rounded-md bg-red-50 p-3 text-sm text-red-800">
-          {error}
-        </p>
-      )}
+      <FormError message={error} className="mt-4 rounded-md bg-red-50 p-3 text-sm text-red-800" />
       <div className="mt-4">
         {!summary && !error && <p className="text-slate-600">Ачаалж байна…</p>}
         {summary && org && !status && (

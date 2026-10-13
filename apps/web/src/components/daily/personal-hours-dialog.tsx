@@ -4,6 +4,7 @@ import { useState, type FormEvent } from "react";
 import { api, ApiRequestError } from "@/lib/api";
 import { overlapNames, personalHoursProblem, type DailyItem, type Option } from "@/lib/daily";
 import { fieldClass, Modal, primaryButton, secondaryButton } from "../modal";
+import { FormError } from "@/components/form-error";
 
 /**
  * Fix the hours (and, when needed, the places) of the selected employees for a range of dates (PRD 14.3): they replace the
@@ -169,11 +170,7 @@ export function PersonalHoursDialog({
             className={fieldClass}
           />
         </label>
-        {error && (
-          <p role="alert" className="text-sm text-red-700">
-            {error}
-          </p>
-        )}
+        <FormError message={error} className="text-sm text-red-700" />
         <div className="flex justify-end gap-2">
           <button type="button" className={secondaryButton} onClick={onClose}>
             Болих

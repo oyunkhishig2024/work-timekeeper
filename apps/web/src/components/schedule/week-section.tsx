@@ -20,6 +20,7 @@ import {
   type WorkingWeek,
 } from "@/lib/schedule";
 import { fieldClass, primaryButton, secondaryButton } from "../modal";
+import { FormError } from "@/components/form-error";
 
 const message = (e: unknown) =>
   e instanceof ApiRequestError
@@ -97,11 +98,7 @@ export function WeekSection({
           ))}
         </select>
       </label>
-      {error && (
-        <p role="alert" className="text-sm text-red-700">
-          {error}
-        </p>
-      )}
+      <FormError message={error} className="text-sm text-red-700" />
       <WeekEditor
         key={`${locationId}-${week?.id ?? "none"}`}
         canEdit={canEdit}
@@ -292,11 +289,7 @@ function WeekEditor({
       <p className="mt-2 text-xs text-slate-500">
         Өөрчлөлт сонгосон өдрөөс хойш хүчинтэй. Өнгөрсөн өдрийн ирц өөрчлөгдөхгүй.
       </p>
-      {error && (
-        <p role="alert" className="mt-2 text-sm text-red-700">
-          {error}
-        </p>
-      )}
+      <FormError message={error} className="mt-2 text-sm text-red-700" />
       {ok && (
         <p role="status" className="mt-2 text-sm text-teal-800">
           {ok}
@@ -437,11 +430,7 @@ function RulesEditor({
           </button>
         </div>
       )}
-      {error && (
-        <p role="alert" className="mt-2 text-sm text-red-700">
-          {error}
-        </p>
-      )}
+      <FormError message={error} className="mt-2 text-sm text-red-700" />
       {ok && (
         <p role="status" className="mt-2 text-sm text-teal-800">
           {ok}

@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { api, ApiRequestError } from "@/lib/api";
+import { FormError } from "@/components/form-error";
 
 interface Item {
   id: string;
@@ -74,11 +75,7 @@ export function Inbox() {
           </button>
         )}
       </div>
-      {error && (
-        <p role="alert" className="mt-2 text-sm text-red-700">
-          {error}
-        </p>
-      )}
+      <FormError message={error} className="mt-2 text-sm text-red-700" />
       {data && data.items.length === 0 && (
         <p className="mt-2 text-sm text-slate-600">Мэдэгдэл байхгүй байна.</p>
       )}

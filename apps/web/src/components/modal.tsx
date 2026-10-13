@@ -24,7 +24,7 @@ export function Modal({
       aria-labelledby="modal-title"
       onClose={onClose}
       onClick={(e) => e.target === ref.current && onClose()}
-      className="m-auto w-[min(32rem,calc(100vw-2rem))] rounded-lg border border-slate-300 p-0 shadow-xl backdrop:bg-slate-900/40"
+      className="m-auto max-h-[calc(100dvh-2rem)] w-[min(32rem,calc(100vw-2rem))] overflow-y-auto rounded-lg border border-slate-300 p-0 shadow-xl backdrop:bg-slate-900/40"
     >
       <div className="p-5">
         <h2 id="modal-title" className="text-lg font-semibold">

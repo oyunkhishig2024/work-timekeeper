@@ -4,6 +4,7 @@ import { useState, type FormEvent } from "react";
 import { api, ApiRequestError } from "@/lib/api";
 import { overlapNames, reasonFormProblem, type DailyItem, type Reason } from "@/lib/daily";
 import { fieldClass, Modal, primaryButton, secondaryButton } from "../modal";
+import { FormError } from "@/components/form-error";
 
 /** Give one or more employees a reason from this date (PRD 11): they become Шалтгаантай instead of Ирээгүй. «Бусад» needs words. All or nothing. */
 export function AssignReasonDialog({
@@ -116,11 +117,7 @@ export function AssignReasonDialog({
             className={fieldClass}
           />
         </label>
-        {error && (
-          <p role="alert" className="text-sm text-red-700">
-            {error}
-          </p>
-        )}
+        <FormError message={error} className="text-sm text-red-700" />
         <div className="flex justify-end gap-2">
           <button type="button" className={secondaryButton} onClick={onClose}>
             Болих

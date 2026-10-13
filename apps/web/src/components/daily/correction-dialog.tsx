@@ -6,6 +6,7 @@ import { STATUS_LABEL } from "@/lib/attendance";
 import { CORRECTION_REASONS, correctionFormProblem, type DailyItem } from "@/lib/daily";
 import { isoToZonedTime, zonedTimeToIso } from "@/lib/time";
 import { fieldClass, Modal, primaryButton, secondaryButton } from "../modal";
+import { FormError } from "@/components/form-error";
 
 type Choice = "ON_TIME" | "LATE" | "NO_SHOW";
 
@@ -126,11 +127,7 @@ export function CorrectionDialog({
             className={`${fieldClass} py-2`}
           />
         </label>
-        {error && (
-          <p role="alert" className="text-sm text-red-700">
-            {error}
-          </p>
-        )}
+        <FormError message={error} className="text-sm text-red-700" />
         <div className="flex flex-wrap justify-between gap-2">
           {row.correctionId ? (
             <button

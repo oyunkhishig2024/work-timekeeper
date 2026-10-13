@@ -183,16 +183,28 @@ export interface EmployeeForm {
   manualAttendance: boolean;
 }
 
-export function employeeFormProblem(f: EmployeeForm): string | null {
-  if (!f.lastName.trim()) return "Овгоо бичнэ үү.";
-  if (!f.firstName.trim()) return "Нэрээ бичнэ үү.";
-  if (!f.departmentId) return "Нэгжээ сонгоно уу.";
-  if (!f.primaryLocationId) return "Үндсэн салбараа сонгоно уу.";
-  if (f.startDate && !isIsoDate(f.startDate)) return "Ажилд орсон огноо буруу байна.";
-  if (f.rank.length > 120 || f.position.length > 120)
-    return "Цол, албан тушаал 120 тэмдэгтээс хэтэрч болохгүй.";
+/** The first thing wrong with the form: which field and what to tell the person. */
+export function employeeFormIssue(
+  f: EmployeeForm,
+): { field: keyof EmployeeForm; message: string } | null {
+  if (!f.lastName.trim()) return { field: "lastName", message: "Овгоо бичнэ үү." };
+  if (!f.firstName.trim()) return { field: "firstName", message: "Нэрээ бичнэ үү." };
+  if (!f.departmentId) return { field: "departmentId", message: "Нэгжээ сонгоно уу." };
+  if (!f.primaryLocationId)
+    return { field: "primaryLocationId", message: "Үндсэн салбараа сонгоно уу." };
+  if (f.startDate && !isIsoDate(f.startDate))
+    return { field: "startDate", message: "Ажилд орсон огноо буруу байна." };
+  if (f.rank.length > 120) {
+    return { field: "rank", message: "Цол, албан тушаал 120 тэмдэгтээс хэтэрч болохгүй." };
+  }
+  if (f.position.length > 120) {
+    return { field: "position", message: "Цол, албан тушаал 120 тэмдэгтээс хэтэрч болохгүй." };
+  }
   return null;
 }
+
+export const employeeFormProblem = (f: EmployeeForm): string | null =>
+  employeeFormIssue(f)?.message ?? null;
 
 /** The body for POST /employees: empty optional fields are left out so the server applies its defaults. */
 export function createBody(f: EmployeeForm) {

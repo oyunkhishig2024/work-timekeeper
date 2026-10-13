@@ -24,6 +24,7 @@ import {
   type TimeReport,
 } from "@/lib/reports";
 import { fieldClass, secondaryButton } from "../modal";
+import { FormError } from "@/components/form-error";
 
 const KIND_LABEL: Record<ReportKind, string> = {
   short: "Дутуу цаг",
@@ -213,11 +214,7 @@ export function ReportsScreen() {
           ))}
         </div>
       </div>
-      {error && (
-        <p role="alert" className="mt-3 rounded-md bg-red-50 p-3 text-sm text-red-800">
-          {error}
-        </p>
-      )}
+      <FormError message={error} className="mt-3 rounded-md bg-red-50 p-3 text-sm text-red-800" />
       {report && report.items.length === 0 && (
         <p className="mt-4 text-slate-600">
           {short

@@ -18,6 +18,7 @@ import {
   type OnDuplicate,
 } from "@/lib/employee-import";
 import { primaryButton, secondaryButton } from "../modal";
+import { FormError } from "@/components/form-error";
 
 const STATUS_STYLE: Record<ImportRow["status"], string> = {
   OK: "bg-green-100 text-green-900",
@@ -120,7 +121,7 @@ export function ImportScreen() {
           Загвар татаж бөглөнө.{" "}
           <button
             type="button"
-            className="text-teal-700 underline"
+            className="inline-flex min-h-11 items-center text-teal-700 underline"
             onClick={() => void template("xlsx")}
           >
             Excel загвар
@@ -128,7 +129,7 @@ export function ImportScreen() {
           ·{" "}
           <button
             type="button"
-            className="text-teal-700 underline"
+            className="inline-flex min-h-11 items-center text-teal-700 underline"
             onClick={() => void template("csv")}
           >
             CSV загвар
@@ -212,11 +213,7 @@ export function ImportScreen() {
         </div>
       </section>
 
-      {error && (
-        <p role="alert" className="mt-3 rounded-md bg-red-50 p-3 text-sm text-red-800">
-          {error}
-        </p>
-      )}
+      <FormError message={error} className="mt-3 rounded-md bg-red-50 p-3 text-sm text-red-800" />
 
       {report && (
         <section className="mt-4" aria-label="Тайлан">

@@ -4,7 +4,20 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, type ReactNode } from "react";
 import { currentRequires, logout, type SessionUser } from "@/lib/session";
+import { usePageTitle } from "./use-page-title";
 import { useSession } from "./use-session";
+
+/** The menu: the label is also the browser tab title of the page. */
+const PAGES: Array<[href: string, label: string]> = [
+  ["/dashboard", "Хянах самбар"],
+  ["/daily", "Өдрийн ирц"],
+  ["/employees", "Ажилтнууд"],
+  ["/schedule", "Цагийн хуваарь"],
+  ["/locations", "Салбар, хэлтэс"],
+  ["/reports", "Тайлан"],
+  ["/review", "Хяналт"],
+  ["/notifications", "Мэдэгдэл"],
+];
 
 /** The review lists share one menu entry. */
 const active = (pathname: string, href: string) =>
@@ -19,6 +32,8 @@ export function AppShell({ children }: { children: (user: SessionUser) => ReactN
   const session = useSession();
   const router = useRouter();
   const pathname = usePathname();
+  const pageLabel = PAGES.find(([href]) => active(pathname, href))?.[1];
+  usePageTitle(pageLabel);
   useEffect(() => {
     if (session.status === "out") router.replace("/login");
     else if (session.status === "in" && currentRequires().length > 0) router.replace("/setup");
@@ -29,6 +44,12 @@ export function AppShell({ children }: { children: (user: SessionUser) => ReactN
   }
   return (
     <div className="min-h-screen bg-slate-50">
+      <a
+        href="#main"
+        className="sr-only focus:not-sr-only focus:absolute focus:left-2 focus:top-2 focus:z-50 focus:rounded-md focus:bg-white focus:px-4 focus:py-3 focus:font-medium focus:shadow-lg"
+      >
+        Үндсэн агуулга руу очих
+      </a>
       <header className="border-b border-slate-200 bg-white">
         <div className="mx-auto flex max-w-5xl items-center justify-between gap-4 px-4 py-3">
           <span className="font-semibold">Timekeeper Work</span>
@@ -47,34 +68,29 @@ export function AppShell({ children }: { children: (user: SessionUser) => ReactN
         </div>
       </header>
       <nav aria-label="Үндсэн цэс" className="border-b border-slate-200 bg-white">
-        <ul className="mx-auto flex max-w-5xl gap-1 px-4">
-          {[
-            ["/dashboard", "Хянах самбар"],
-            ["/daily", "Өдрийн ирц"],
-            ["/employees", "Ажилтнууд"],
-            ["/schedule", "Цагийн хуваарь"],
-            ...(session.user.role === "ORG_ADMIN" ? [["/locations", "Салбар, хэлтэс"]] : []),
-            ["/reports", "Тайлан"],
-            ["/review", "Хяналт"],
-            ["/notifications", "Мэдэгдэл"],
-          ].map(([href, label]) => (
-            <li key={href}>
-              <Link
-                href={href!}
-                aria-current={active(pathname, href!) ? "page" : undefined}
-                className={`inline-flex min-h-11 items-center border-b-2 px-3 text-sm font-medium ${
-                  pathname === href
-                    ? "border-teal-700 text-teal-800"
-                    : "border-transparent text-slate-600 hover:text-slate-900"
-                }`}
-              >
-                {label}
-              </Link>
-            </li>
-          ))}
+        <ul className="mx-auto flex max-w-5xl flex-wrap gap-x-1 px-4">
+          {PAGES.filter(([href]) => href !== "/locations" || session.user.role === "ORG_ADMIN").map(
+            ([href, label]) => (
+              <li key={href}>
+                <Link
+                  href={href}
+                  aria-current={active(pathname, href) ? "page" : undefined}
+                  className={`inline-flex min-h-11 items-center border-b-2 px-3 text-sm font-medium ${
+                    pathname === href
+                      ? "border-teal-700 text-teal-800"
+                      : "border-transparent text-slate-600 hover:text-slate-900"
+                  }`}
+                >
+                  {label}
+                </Link>
+              </li>
+            ),
+          )}
         </ul>
       </nav>
-      <main className="mx-auto max-w-5xl px-4 py-6">{children(session.user)}</main>
+      <main id="main" tabIndex={-1} className="mx-auto max-w-5xl px-4 py-6 focus:outline-none">
+        {children(session.user)}
+      </main>
     </div>
   );
 }
