@@ -27,13 +27,17 @@ docker compose --env-file infra/deploy/.env -f infra/deploy/docker-compose.yml u
 
 Migrations run automatically (`migrate` service) before the API starts.
 
-`baseline-310.sql` (run by `setup.sh`, safe to repeat) gives tenant 310 the default reasons, attendance rules, a Mon–Fri 08:30–17:30 working week and a DRAFT consent text. Without a working week nobody is expected and phones watch no places. There is no admin screen for the working week yet; change it with SQL (a new `working_week_version`).
+`baseline-310.sql` (run by `setup.sh`, safe to repeat) gives tenant 310 the default reasons, attendance rules, a Mon–Fri 08:30–17:30 working week and a DRAFT consent text. Without a working week nobody is expected and phones watch no places.
 
 ## Mobile app
 
 Set `EXPO_PUBLIC_API_URL` in `apps/mobile/eas.json` (profile `preview`) to `https://<address>` before building.
 
+## Firewall and backups (pilot)
+
+`sudo bash infra/deploy/firewall.sh` (ufw: only 22, 80, 443) and `sudo bash infra/deploy/backup-setup.sh` (nightly encrypted dump of the database, uploaded files and `.env`; restore with `infra/deploy/restore.sh`). Step by step, with the restore test and reboot check: [`docs/operations/pilot-server-safety.md`](../../docs/operations/pilot-server-safety.md). The age private key is shown once and must be kept off the server. The scripts must stay `shellcheck`-clean.
+
 ## Not covered here
 
-Backups (see `infra/backup/README.md`), Cloudflare/WAF in front (see `docs/security/README.md`), monitoring.
+Point-in-time recovery (see `infra/backup/README.md`, needs PostgreSQL on the host, not the container), Cloudflare/WAF in front (see `docs/security/README.md`), monitoring.
 Local files are kept in the Docker volumes `pgdata`, `storage`, `caddy_data`. `ATTESTATION_MODE=disabled` is for the pilot only.
