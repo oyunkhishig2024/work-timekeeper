@@ -5,7 +5,7 @@ import type { AuthResult, Plan } from "@/lib/api";
 import { ApiError, NetworkError, SessionEndedError } from "@/lib/errors";
 import { mn } from "@/i18n/mn";
 import { installKey } from "@/platform/device";
-import { expoGeofence } from "@/platform/geofence";
+import { expoGeofence, watchingNeedsRetry } from "@/platform/geofence";
 import {
   api,
   BUILD_ID,
@@ -135,7 +135,11 @@ export default function App() {
       if (state !== "active") return;
       void diag.log("app opened");
       void upload();
-      if (Date.now() - lastPlan.current > PLAN_REFRESH_MS) void refreshPlan();
+      void (async () => {
+        if ((await watchingNeedsRetry()) || Date.now() - lastPlan.current > PLAN_REFRESH_MS) {
+          await refreshPlan();
+        }
+      })();
     });
     const timer = setInterval(() => void upload(), 5 * 60_000);
     return () => {

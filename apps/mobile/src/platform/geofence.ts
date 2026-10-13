@@ -20,6 +20,9 @@ export const GEOFENCE_TASK = "tkw-geofence";
 export const LOCATION_TASK = "tkw-location";
 const REGIONS_KEY = "geofence.regions.v1";
 const PRESENCE_KEY = "presence.v1";
+const WATCH_FAILED_KEY = "presence.watchFailed";
+/** How often the phone asks for a GPS fix while a place is watched (battery vs. how soon a departure is seen). */
+export const POSITION_INTERVAL_MS = 5 * 60_000;
 const LAST_NOTE_KEY = "presence.lastNote";
 const CALLED_KEY = "presence.lastCalled";
 
@@ -74,6 +77,10 @@ const writePresence = (state: PresenceState) =>
  * swap `expo-location` for another library without touching the screens. NOTE: the background behaviour (ENTER / EXIT delivery after
  * 2 h idle, after a reboot, on the target phone models) is exactly what Spike 1 must verify on real phones; it cannot be tested here.
  */
+/** True when starting the position watching failed last time (retry when the app is on screen). */
+export const watchingNeedsRetry = async (): Promise<boolean> =>
+  (await storage.getItem(WATCH_FAILED_KEY)) === "1";
+
 export interface GeofenceService {
   /** Watches exactly the places of the plan (nothing when nobody is expected). Returns how many places are watched. */
   apply(plan: Plan): Promise<number>;
@@ -107,7 +114,7 @@ export const expoGeofence: GeofenceService = {
       }
       await Location.startLocationUpdatesAsync(LOCATION_TASK, {
         accuracy: Location.Accuracy.High,
-        timeInterval: 60_000,
+        timeInterval: POSITION_INTERVAL_MS,
         distanceInterval: 0,
         pausesUpdatesAutomatically: false,
         showsBackgroundLocationIndicator: false,
@@ -118,7 +125,10 @@ export const expoGeofence: GeofenceService = {
       });
       const on = await Location.hasStartedLocationUpdatesAsync(LOCATION_TASK);
       await diag.log(`position watching (re)started: ${on ? "yes" : "NO"}`);
+      if (on) await storage.removeItem(WATCH_FAILED_KEY);
     } catch (e) {
+      // Android refuses a foreground service started while the app is in the background: try again when the app is on screen.
+      await storage.setItem(WATCH_FAILED_KEY, "1");
       await diag.log(
         `position watching could not start (${e instanceof Error ? e.message : "error"})`,
       );
