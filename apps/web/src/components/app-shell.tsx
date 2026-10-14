@@ -14,6 +14,7 @@ const PAGES: Array<[href: string, label: string]> = [
   ["/employees", "Ажилтнууд"],
   ["/schedule", "Цагийн хуваарь"],
   ["/locations", "Салбар, хэлтэс"],
+  ["/users", "Хэрэглэгчид"],
   ["/reports", "Тайлан"],
   ["/review", "Хяналт"],
   ["/notifications", "Мэдэгдэл"],
@@ -67,23 +68,24 @@ export function AppShell({ children }: { children: (user: SessionUser) => ReactN
       </header>
       <nav aria-label="Үндсэн цэс" className="border-b border-slate-200 bg-white">
         <ul className="mx-auto flex max-w-5xl flex-wrap gap-x-1 px-4">
-          {PAGES.filter(([href]) => href !== "/locations" || session.user.role === "ORG_ADMIN").map(
-            ([href, label]) => (
-              <li key={href}>
-                <Link
-                  href={href}
-                  aria-current={active(pathname, href) ? "page" : undefined}
-                  className={`inline-flex min-h-11 items-center border-b-2 px-3 text-sm font-medium ${
-                    pathname === href
-                      ? "border-teal-700 text-teal-800"
-                      : "border-transparent text-slate-600 hover:text-slate-900"
-                  }`}
-                >
-                  {label}
-                </Link>
-              </li>
-            ),
-          )}
+          {PAGES.filter(
+            ([href]) =>
+              (href !== "/locations" && href !== "/users") || session.user.role === "ORG_ADMIN",
+          ).map(([href, label]) => (
+            <li key={href}>
+              <Link
+                href={href}
+                aria-current={active(pathname, href) ? "page" : undefined}
+                className={`inline-flex min-h-11 items-center border-b-2 px-3 text-sm font-medium ${
+                  pathname === href
+                    ? "border-teal-700 text-teal-800"
+                    : "border-transparent text-slate-600 hover:text-slate-900"
+                }`}
+              >
+                {label}
+              </Link>
+            </li>
+          ))}
         </ul>
       </nav>
       <main id="main" tabIndex={-1} className="mx-auto max-w-5xl px-4 py-6 focus:outline-none">

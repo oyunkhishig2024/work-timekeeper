@@ -1,5 +1,6 @@
 "use client";
 
+import { OneTimePasswordDialog } from "../one-time-password";
 import { actionErrorText } from "@/components/api-error";
 import Link from "next/link";
 import { useParams } from "next/navigation";
@@ -25,8 +26,7 @@ import {
   type HistoryRow,
 } from "@/lib/employees";
 import type { SessionUser } from "@/lib/session";
-import { Modal } from "../modal";
-import { primaryButton, smallButton } from "../styles";
+import { smallButton } from "../styles";
 import { Card, History } from "./detail-parts";
 import dynamic from "next/dynamic";
 
@@ -476,22 +476,11 @@ export function EmployeeDetailScreen({ user }: { user: SessionUser }) {
         />
       )}
       {dialog === "password" && password && (
-        <Modal title="Нэг удаагийн нууц үг" onClose={() => setDialog(null)}>
-          <p className="mt-2 text-sm text-slate-700">
-            Нэвтрэх нэр: <b>{password.username}</b>
-          </p>
-          <p className="mt-2 rounded-md bg-slate-100 p-3 text-center font-mono text-lg">
-            {password.temporaryPassword}
-          </p>
-          <p className="mt-2 rounded-md bg-amber-50 p-2 text-sm text-amber-900">
-            Нууц үгийг дахин харах боломжгүй. Ажилтанд өгнө үү; эхний нэвтрэлтээр солино.
-          </p>
-          <div className="mt-3 flex justify-end">
-            <button type="button" className={primaryButton} onClick={() => setDialog(null)}>
-              Хаах
-            </button>
-          </div>
-        </Modal>
+        <OneTimePasswordDialog
+          username={password.username}
+          password={password.temporaryPassword}
+          onClose={() => setDialog(null)}
+        />
       )}
     </div>
   );

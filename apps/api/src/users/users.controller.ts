@@ -92,6 +92,20 @@ export class UsersController {
   }
 
   @Roles("ORG_ADMIN")
+  @Post(":id/disable")
+  @HttpCode(200)
+  disable(@CurrentAuth() auth: AuthContext, @Param("id") id: string, @Meta() meta: RequestMeta) {
+    return this.users.setStatus(auth, idSchema.parse(id), "DISABLED", meta);
+  }
+
+  @Roles("ORG_ADMIN")
+  @Post(":id/enable")
+  @HttpCode(200)
+  enable(@CurrentAuth() auth: AuthContext, @Param("id") id: string, @Meta() meta: RequestMeta) {
+    return this.users.setStatus(auth, idSchema.parse(id), "ACTIVE", meta);
+  }
+
+  @Roles("ORG_ADMIN")
   @Post(":id/totp-reset")
   @HttpCode(200)
   resetTotp(@CurrentAuth() auth: AuthContext, @Param("id") id: string, @Meta() meta: RequestMeta) {

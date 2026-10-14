@@ -13,9 +13,13 @@ account for 15 minutes) and is written to the audit log.
 
 HR can reset employees. An Organization Admin can reset HR, Manager and Employee accounts. Nobody resets their own account this way.
 
+## Staff (HR, Manager) forgot the password
+
+An Organization Admin opens **Хэрэглэгчид**, finds the person and clicks **Нууц үг сэргээх** (same one-time password as above). The same page adds HR and Manager accounts, sets which departments and branches a Manager sees (**Хамрах хүрээ**), links an account to the person's own employee record, and disables or re-enables an account when someone leaves or comes back.
+
 ## HR or an Organization Admin lost the authenticator phone
 
-An **Organization Admin** opens the person's employee page and clicks **Authenticator сэргээх**. At the next sign-in the person sets up
+An **Organization Admin** opens the person on **Хэрэглэгчид** (or an employee page) and clicks **Authenticator сэргээх**. At the next sign-in the person sets up
 the authenticator again (and gets new recovery codes). The person's other recovery codes stop working.
 
 ## The only Organization Admin forgot the password or lost the phone

@@ -10,14 +10,9 @@ import {
   type LocationRow,
 } from "@/lib/locations";
 import { Modal } from "@/components/modal";
-import { fieldClass } from "@/components/styles";
+import { fieldClass, primaryButton, smallButton } from "@/components/styles";
 import { FormError } from "@/components/form-error";
 import { useFieldIssue } from "../use-field-issue";
-
-const button =
-  "min-h-11 rounded-md border border-slate-300 px-3 text-sm font-medium hover:bg-slate-100";
-const primary =
-  "min-h-11 rounded-md bg-teal-700 px-4 font-semibold text-white hover:bg-teal-800 disabled:opacity-60";
 
 const messageOf = (e: unknown) =>
   e instanceof ApiRequestError && e.code === "LOCATION_NAME_TAKEN"
@@ -47,7 +42,7 @@ export function LocationsScreen() {
     <div>
       <div className="flex items-center justify-between gap-3">
         <h1 className="text-2xl font-semibold">Салбар (байршил)</h1>
-        <button type="button" className={primary} onClick={() => setEditing("new")}>
+        <button type="button" className={primaryButton} onClick={() => setEditing("new")}>
           Салбар нэмэх
         </button>
       </div>
@@ -74,7 +69,7 @@ export function LocationsScreen() {
                 </p>
                 {row.address && <p className="text-sm text-slate-500">{row.address}</p>}
               </div>
-              <button type="button" className={button} onClick={() => setEditing(row)}>
+              <button type="button" className={smallButton} onClick={() => setEditing(row)}>
                 Засах
               </button>
             </li>
@@ -190,7 +185,7 @@ function LocationDialog({
           />
         </label>
         <div className="flex flex-wrap items-center gap-3 text-sm">
-          <button type="button" className={button} onClick={useMyPosition}>
+          <button type="button" className={smallButton} onClick={useMyPosition}>
             Миний одоогийн байршлыг ашиглах
           </button>
           <span className="text-slate-500">
@@ -227,10 +222,10 @@ function LocationDialog({
         )}
         <FormError id={issues.errorId} message={issues.message} className="text-sm text-red-700" />
         <div className="flex justify-end gap-3">
-          <button type="button" className={button} onClick={onClose}>
+          <button type="button" className={smallButton} onClick={onClose}>
             Болих
           </button>
-          <button type="submit" disabled={busy} className={primary}>
+          <button type="submit" disabled={busy} className={primaryButton}>
             Хадгалах
           </button>
         </div>

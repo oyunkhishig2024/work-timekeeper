@@ -9,13 +9,8 @@ import {
   type DepartmentRow,
 } from "@/lib/locations";
 import { Modal } from "@/components/modal";
-import { fieldClass } from "@/components/styles";
+import { fieldClass, primaryButton, smallButton } from "@/components/styles";
 import { FormError } from "@/components/form-error";
-
-const button =
-  "min-h-11 rounded-md border border-slate-300 px-3 text-sm font-medium hover:bg-slate-100";
-const primary =
-  "min-h-11 rounded-md bg-teal-700 px-4 font-semibold text-white hover:bg-teal-800 disabled:opacity-60";
 
 const messageOf = (e: unknown) =>
   e instanceof ApiRequestError ? e.message : "Холбогдож чадсангүй. Дахин оролдоно уу.";
@@ -41,7 +36,7 @@ export function DepartmentsSection() {
     <section className="mt-10">
       <div className="flex items-center justify-between gap-3">
         <h2 className="text-2xl font-semibold">Хэлтэс, нэгж</h2>
-        <button type="button" className={primary} onClick={() => setEditing("new")}>
+        <button type="button" className={primaryButton} onClick={() => setEditing("new")}>
           Хэлтэс нэмэх
         </button>
       </div>
@@ -61,7 +56,7 @@ export function DepartmentsSection() {
                   <span className="ml-2 text-sm text-slate-500">{row.activeEmployees} ажилтан</span>
                 )}
               </p>
-              <button type="button" className={button} onClick={() => setEditing(row)}>
+              <button type="button" className={smallButton} onClick={() => setEditing(row)}>
                 Засах
               </button>
             </li>
@@ -132,10 +127,10 @@ function DepartmentDialog({
         )}
         <FormError message={error} className="text-sm text-red-700" />
         <div className="flex justify-end gap-3">
-          <button type="button" className={button} onClick={onClose}>
+          <button type="button" className={smallButton} onClick={onClose}>
             Болих
           </button>
-          <button type="submit" disabled={busy} className={primary}>
+          <button type="submit" disabled={busy} className={primaryButton}>
             Хадгалах
           </button>
         </div>

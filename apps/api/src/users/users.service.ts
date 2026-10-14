@@ -289,6 +289,41 @@ export class UsersService {
     });
   }
 
+  /**
+   * Disables or re-enables an HR or Manager account (someone leaves, or comes back). A disabled account cannot sign in and all
+   * its sessions end. Org Admin accounts are not touched here, and nobody disables themselves. Employee logins follow the
+   * employee's own lifecycle (disable / reactivate the employee).
+   */
+  async setStatus(
+    auth: AuthContext,
+    targetId: string,
+    status: "ACTIVE" | "DISABLED",
+    meta: RequestMeta,
+  ): Promise<{ id: string; status: "ACTIVE" | "DISABLED" }> {
+    return this.db.withTenant(auth.tenantId, async (tx) => {
+      const target = await this.loadManageable(tx, auth, targetId);
+      if (target.role !== "HR" && target.role !== "MANAGER") {
+        throw new ApiError(
+          409,
+          "NOT_A_STAFF_ACCOUNT",
+          "Only HR and Manager accounts are disabled here; an employee login follows its employee.",
+        );
+      }
+      await tx.query("UPDATE user_account SET status = $2 WHERE id = $1", [target.id, status]);
+      if (status === "DISABLED") await this.sessions.revokeAllForUser(tx, target.id);
+      await this.audit.record(tx, {
+        tenantId: auth.tenantId,
+        action: status === "DISABLED" ? "user.disabled" : "user.enabled",
+        actorUserId: auth.userId,
+        actorRole: auth.role,
+        entityType: "user_account",
+        entityId: target.id,
+        ...meta,
+      });
+      return { id: target.id, status };
+    });
+  }
+
   /** Removes a user's authenticator (lost phone). They must set it up again at next login. */
   async resetTotp(auth: AuthContext, targetId: string, meta: RequestMeta): Promise<{ id: string }> {
     return this.db.withTenant(auth.tenantId, async (tx) => {
