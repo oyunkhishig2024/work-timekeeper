@@ -275,13 +275,7 @@ export class UsersService {
     const passwordHash = await this.passwords.hash(temporaryPassword);
     return this.db.withTenant(auth.tenantId, async (tx) => {
       const target = await this.loadManageable(tx, auth, targetId);
-      await tx.query(
-        `UPDATE user_account
-            SET password_hash = $2, must_change_password = true, failed_login_count = 0, locked_until = NULL
-          WHERE id = $1`,
-        [target.id, passwordHash],
-      );
-      await this.sessions.revokeAllForUser(tx, target.id);
+      await this.applyPasswordReset(tx, target.id, passwordHash);
       await this.audit.record(tx, {
         tenantId: auth.tenantId,
         action: "user.password_reset",
@@ -299,14 +293,7 @@ export class UsersService {
   async resetTotp(auth: AuthContext, targetId: string, meta: RequestMeta): Promise<{ id: string }> {
     return this.db.withTenant(auth.tenantId, async (tx) => {
       const target = await this.loadManageable(tx, auth, targetId);
-      await tx.query(
-        `UPDATE user_account
-            SET totp_enabled = false, totp_secret_enc = NULL, totp_last_step = NULL
-          WHERE id = $1`,
-        [target.id],
-      );
-      await tx.query("DELETE FROM user_recovery_code WHERE user_id = $1", [target.id]);
-      await this.sessions.revokeAllForUser(tx, target.id);
+      await this.applyTotpReset(tx, target.id);
       await this.audit.record(tx, {
         tenantId: auth.tenantId,
         action: "user.totp_reset",
@@ -318,6 +305,88 @@ export class UsersService {
       });
       return { id: target.id };
     });
+  }
+
+  /**
+   * Recovery from the server console (`cli/reset-password.ts`) for the case the web app cannot help: the only Organization Admin
+   * forgot the password or lost the authenticator phone. Whoever runs it already has the server, so no role check applies; the
+   * action is audited as `system:cli`. Always sets a new one-time password; `totp` also removes the authenticator.
+   */
+  async resetFromConsole(
+    tenantId: string,
+    username: string,
+    options: { totp: boolean },
+    meta: RequestMeta,
+  ): Promise<{
+    username: string;
+    role: Role;
+    temporaryPassword: string;
+    totpRemoved: boolean;
+    activeOrgAdmins: number;
+  }> {
+    const temporaryPassword = this.passwords.generateTemporary();
+    const passwordHash = await this.passwords.hash(temporaryPassword);
+    return this.db.withTenant(tenantId, async (tx) => {
+      const { rows } = await tx.query<{ id: string; username: string; role: Role; status: string }>(
+        "SELECT id, username, role, status FROM user_account WHERE lower(username) = lower($1) FOR UPDATE",
+        [username],
+      );
+      const target = rows[0];
+      if (!target)
+        throw new ApiError(404, "USER_NOT_FOUND", `No user "${username}" in this organization.`);
+      if (target.status !== "ACTIVE") {
+        throw new ApiError(
+          409,
+          "USER_DISABLED",
+          `The account "${target.username}" is disabled; reactivate it first.`,
+        );
+      }
+      await this.applyPasswordReset(tx, target.id, passwordHash);
+      if (options.totp) await this.applyTotpReset(tx, target.id);
+      const actor = {
+        tenantId,
+        actorUserId: null,
+        actorRole: "system:cli",
+        entityType: "user_account",
+        entityId: target.id,
+        ...meta,
+      };
+      await this.audit.record(tx, { ...actor, action: "user.password_reset" });
+      if (options.totp) await this.audit.record(tx, { ...actor, action: "user.totp_reset" });
+      const admins = await tx.query<{ n: string }>(
+        "SELECT count(*) AS n FROM user_account WHERE role = 'ORG_ADMIN' AND status = 'ACTIVE'",
+      );
+      return {
+        username: target.username,
+        role: target.role,
+        temporaryPassword,
+        totpRemoved: options.totp,
+        activeOrgAdmins: Number(admins.rows[0]?.n ?? 0),
+      };
+    });
+  }
+
+  /** A new one-time password: the old one stops working, every session ends, a lockout is cleared, a change is forced. */
+  private async applyPasswordReset(tx: Db, userId: string, passwordHash: string): Promise<void> {
+    await tx.query(
+      `UPDATE user_account
+          SET password_hash = $2, must_change_password = true, failed_login_count = 0, locked_until = NULL
+        WHERE id = $1`,
+      [userId, passwordHash],
+    );
+    await this.sessions.revokeAllForUser(tx, userId);
+  }
+
+  /** Removes the authenticator and its recovery codes; the person sets it up again at the next sign-in. */
+  private async applyTotpReset(tx: Db, userId: string): Promise<void> {
+    await tx.query(
+      `UPDATE user_account
+          SET totp_enabled = false, totp_secret_enc = NULL, totp_last_step = NULL
+        WHERE id = $1`,
+      [userId],
+    );
+    await tx.query("DELETE FROM user_recovery_code WHERE user_id = $1", [userId]);
+    await this.sessions.revokeAllForUser(tx, userId);
   }
 
   private async loadManageable(

@@ -83,7 +83,9 @@ describe.skipIf(!hasDb)("roster calendar (PRD 23.5)", () => {
   it("a standard employee follows the working week, holidays and working-day exceptions", async () => {
     const w = await world();
     await w.employee("S-1", "STANDARD");
-    const holiday = addDays(today(), 3);
+    // three days ahead, unless that is the Saturday made a working day below (it is on a Wednesday): the exception would win
+    const holiday =
+      isoWeekday(addDays(today(), 3)) === 6 ? addDays(today(), 4) : addDays(today(), 3);
     await post(w.admin, "/v1/holidays", { name: "Баяр", fromDate: holiday, toDate: holiday });
     // the first Saturday in the window becomes a working day with its own hours
     const saturday = Array.from({ length: 7 }, (_, i) => addDays(today(), i)).find(

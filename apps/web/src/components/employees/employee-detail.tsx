@@ -104,6 +104,40 @@ export function EmployeeDetailScreen({ user }: { user: SessionUser }) {
     setMessage(text);
   };
 
+  /** Forgotten password: a new one-time password, shown once; the old one stops working and every session of the person ends. */
+  async function resetPassword(account: { userId: string; username: string }) {
+    const ok = window.confirm(
+      `«${account.username}» нууц үгийг сэргээх үү? Хуучин нууц үг хүчингүй болж, бүх төхөөрөмжөөс гарна. Шинэ нэг удаагийн нууц үг гарна.`,
+    );
+    if (!ok) return;
+    setError(null);
+    try {
+      const r = await api<{ temporaryPassword: string }>(
+        `/v1/users/${account.userId}/reset-password`,
+        { method: "POST", body: {} },
+      );
+      setPassword({ username: account.username, temporaryPassword: r.temporaryPassword });
+      setDialog("password");
+    } catch (e) {
+      setError(actionErrorText(e));
+    }
+  }
+
+  /** Lost authenticator phone (staff with two-step sign-in): it is removed and set up again at the next sign-in. */
+  async function resetAuthenticator(account: { userId: string; username: string }) {
+    const ok = window.confirm(
+      `«${account.username}» authenticator-ыг устгах уу? Дараагийн нэвтрэлтээр дахин тохируулна. Бүх төхөөрөмжөөс гарна.`,
+    );
+    if (!ok) return;
+    setError(null);
+    try {
+      await api(`/v1/users/${account.userId}/totp-reset`, { method: "POST", body: {} });
+      setMessage("Authenticator-ыг устгалаа. Дараагийн нэвтрэлтээр дахин тохируулна.");
+    } catch (e) {
+      setError(actionErrorText(e));
+    }
+  }
+
   if (error && !employee) {
     return (
       <div>
@@ -221,6 +255,26 @@ export function EmployeeDetailScreen({ user }: { user: SessionUser }) {
                   <>
                     <b>{employee.account.username}</b> (
                     {employee.account.status === "ACTIVE" ? "идэвхтэй" : employee.account.status})
+                    {canEdit && employee.account.status === "ACTIVE" && (
+                      <span className="ml-2 inline-flex flex-wrap gap-2 align-middle">
+                        <button
+                          type="button"
+                          className={smallButton}
+                          onClick={() => void resetPassword(employee.account!)}
+                        >
+                          Нууц үг сэргээх
+                        </button>
+                        {user.role === "ORG_ADMIN" && (
+                          <button
+                            type="button"
+                            className={smallButton}
+                            onClick={() => void resetAuthenticator(employee.account!)}
+                          >
+                            Authenticator сэргээх
+                          </button>
+                        )}
+                      </span>
+                    )}
                   </>
                 ) : active ? (
                   <button
