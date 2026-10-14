@@ -1,6 +1,6 @@
 import { api, ApiRequestError } from "./api";
 
-export type StaffRole = "ORG_ADMIN" | "HR" | "MANAGER";
+export type StaffRole = "ORG_ADMIN" | "HR" | "MANAGER" | "BOSS";
 
 export interface StaffUser {
   id: string;
@@ -21,6 +21,7 @@ export const ROLE_LABEL: Record<StaffRole, string> = {
   ORG_ADMIN: "Байгууллагын админ",
   HR: "Хүний нөөц",
   MANAGER: "Менежер",
+  BOSS: "Дарга",
 };
 
 export interface Scope {
@@ -50,13 +51,20 @@ export const resetUserAuthenticator = (id: string) =>
 export interface NewUserForm {
   username: string;
   displayName: string;
-  role: "HR" | "MANAGER";
+  role: "HR" | "MANAGER" | "BOSS";
+  /** A Manager is linked to an employee record (arrival and departure are registered); a Boss and HR have none. */
+  employeeId: string | null;
 }
 
 export const createUser = (form: NewUserForm) =>
   api<{ id: string; username: string; temporaryPassword: string }>("/v1/users", {
     method: "POST",
-    body: { username: form.username.trim(), displayName: form.displayName.trim(), role: form.role },
+    body: {
+      username: form.username.trim(),
+      displayName: form.displayName.trim(),
+      role: form.role,
+      ...(form.role === "MANAGER" ? { employeeId: form.employeeId } : {}),
+    },
   });
 
 /** A problem found before sending the form, and the field it is about. */
@@ -73,6 +81,9 @@ export function newUserIssue(form: NewUserForm): { field: string; message: strin
   }
   if (username.length > 64) return { field: "username", message: "Нэвтрэх нэр хэт урт байна." };
   if (!form.displayName.trim()) return { field: "displayName", message: "Нэрээ бичнэ үү." };
+  if (form.role === "MANAGER" && !form.employeeId) {
+    return { field: "employee", message: "Менежерийн ажилтны бүртгэлийг сонгоно уу." };
+  }
   return null;
 }
 
@@ -86,6 +97,8 @@ export function userErrorText(e: unknown): string {
       return "Энэ ажилтанд аль хэдийн нэвтрэх эрх байна.";
     case "EMPLOYEE_NOT_ACTIVE":
       return "Зөвхөн идэвхтэй ажилтантай холбож болно.";
+    case "BOSS_NOT_TRACKED":
+      return "Дарга ирц бүртгүүлдэггүй тул ажилтны бүртгэлтэй холбохгүй.";
     case "FORBIDDEN":
       return "Энэ үйлдлийг хийх эрх байхгүй.";
     default:
@@ -96,6 +109,7 @@ export function userErrorText(e: unknown): string {
 /** What a person with this account can see, in words. */
 export function scopeText(u: Pick<StaffUser, "role" | "scopeRules">): string {
   if (u.role === "ORG_ADMIN") return "Бүгд";
+  if (u.role === "BOSS") return "Бүгд (зөвхөн харна)";
   if (u.scopeRules > 0) return `${u.scopeRules} хэсэг, салбар`;
   return u.role === "HR" ? "Бүгд" : "Юу ч харахгүй — хамрах хүрээ оноогоогүй";
 }

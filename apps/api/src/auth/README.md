@@ -20,7 +20,7 @@ POST /users                       Org Admin creates an HR or Manager user (optio
 PUT  /users/:id/employee          Org Admin links a staff account (Org Admin, HR, Manager) to the person's own employee record, or unlinks (null): they then register a phone and record their own attendance (PRD 4); one login per employee
 POST /users/:id/reset-password    Org Admin → HR/Manager/Employee; HR → Employee
 POST /users/:id/totp-reset        Org Admin (lost phone)
-POST /users/:id/disable | enable  Org Admin → HR/Manager (sessions end; not yourself, not another Org Admin, not an employee login)
+POST /users/:id/disable | enable  Org Admin → HR/Manager/Boss (sessions end; not yourself, not another Org Admin, not an employee login)
 (web: the Users page «Хэрэглэгчид» lists staff accounts, adds HR/Manager, sets the data scope, links an employee record and has these buttons)
 (the web app has both as buttons on the employee page: «Нууц үг сэргээх», «Authenticator сэргээх»)
 node dist/cli/reset-password.js --org <code> --username <name> [--totp]   server console: the only Org Admin forgot the password

@@ -164,25 +164,31 @@ export function UsersScreen({ user }: { user: SessionUser }) {
                   </div>
                   <div>
                     <dt className="inline text-slate-500">Ажилтны бүртгэл: </dt>
-                    <dd className="inline">{u.employeeName ?? "холбоогүй"}</dd>
+                    <dd className="inline">
+                      {u.employeeName ?? (u.role === "BOSS" ? "ирц бүртгэгдэхгүй" : "холбоогүй")}
+                    </dd>
                   </div>
                 </dl>
                 {manageable ? (
                   <div className="mt-3 flex flex-wrap gap-2">
-                    <button
-                      type="button"
-                      className={smallButton}
-                      onClick={() => setDialog({ kind: "scope", user: u })}
-                    >
-                      Хамрах хүрээ
-                    </button>
-                    <button
-                      type="button"
-                      className={smallButton}
-                      onClick={() => setDialog({ kind: "link", user: u })}
-                    >
-                      Ажилтантай холбох
-                    </button>
+                    {u.role !== "BOSS" && (
+                      <>
+                        <button
+                          type="button"
+                          className={smallButton}
+                          onClick={() => setDialog({ kind: "scope", user: u })}
+                        >
+                          Хамрах хүрээ
+                        </button>
+                        <button
+                          type="button"
+                          className={smallButton}
+                          onClick={() => setDialog({ kind: "link", user: u })}
+                        >
+                          Ажилтантай холбох
+                        </button>
+                      </>
+                    )}
                     <button type="button" className={smallButton} onClick={() => resetPassword(u)}>
                       Нууц үг сэргээх
                     </button>

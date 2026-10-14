@@ -17,7 +17,7 @@ export interface DataScope {
 @Injectable()
 export class ScopeService {
   async forUser(db: Db, auth: AuthContext): Promise<DataScope> {
-    if (auth.role === "ORG_ADMIN")
+    if (auth.role === "ORG_ADMIN" || auth.role === "BOSS")
       return { unrestricted: true, locationIds: [], departmentIds: [] };
     const { rows } = await db.query<{ location_id: string | null; department_id: string | null }>(
       "SELECT location_id, department_id FROM user_scope WHERE user_id = $1",

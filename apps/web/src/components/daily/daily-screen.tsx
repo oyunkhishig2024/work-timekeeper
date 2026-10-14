@@ -57,7 +57,7 @@ export function DailyScreen({ user }: { user: SessionUser }) {
   const params = useSearchParams();
   const state = useMemo(() => parseDailyState(params), [params]);
   const canEdit = user.role === "ORG_ADMIN" || user.role === "HR";
-  const canExport = canEdit; // a Manager only when the Org Admin allowed it; the server decides, so the button is simply not offered
+  const canExport = canEdit || user.role === "BOSS"; // a Manager only when the Org Admin allowed it; the server decides, so the button is simply not offered
 
   const [org, setOrg] = useState<Organization | null>(null);
   const [data, setData] = useState<DailyResponse | null>(null);

@@ -109,7 +109,7 @@ const SCHEMAS: Record<ReportName, z.ZodTypeAny> = {
 export class ExportsController {
   constructor(private readonly exports: ExportsService) {}
 
-  @Roles("ORG_ADMIN", "HR", "MANAGER")
+  @Roles("ORG_ADMIN", "HR", "MANAGER", "BOSS")
   @Get(":report")
   async download(
     @CurrentAuth() auth: AuthContext,

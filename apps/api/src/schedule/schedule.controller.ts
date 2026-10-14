@@ -103,13 +103,13 @@ const exceptionQuery = z.object({
 export class WorkingWeekController {
   constructor(private readonly week: WorkingWeekService) {}
 
-  @Roles("ORG_ADMIN", "HR", "MANAGER")
+  @Roles("ORG_ADMIN", "HR", "MANAGER", "BOSS")
   @Get("working-week")
   get(@CurrentAuth() auth: AuthContext, @Query() query: unknown) {
     return this.week.get(auth, weekQuery.parse(query));
   }
 
-  @Roles("ORG_ADMIN", "HR", "MANAGER")
+  @Roles("ORG_ADMIN", "HR", "MANAGER", "BOSS")
   @Get("working-week/versions")
   versions(@CurrentAuth() auth: AuthContext, @Query() query: unknown) {
     return this.week.versions(auth, versionsQuery.parse(query).locationId ?? null);
@@ -128,7 +128,7 @@ export class WorkingWeekController {
     return this.week.inherit(auth, inheritSchema.parse(body), meta);
   }
 
-  @Roles("ORG_ADMIN", "HR", "MANAGER")
+  @Roles("ORG_ADMIN", "HR", "MANAGER", "BOSS")
   @Get("working-day-exceptions")
   listExceptions(@CurrentAuth() auth: AuthContext, @Query() query: unknown) {
     return this.week.listExceptions(auth, exceptionQuery.parse(query));
@@ -238,7 +238,7 @@ export class HolidaysController {
     private readonly imports: HolidayImportService,
   ) {}
 
-  @Roles("ORG_ADMIN", "HR", "MANAGER")
+  @Roles("ORG_ADMIN", "HR", "MANAGER", "BOSS")
   @Get()
   list(@CurrentAuth() auth: AuthContext, @Query() query: unknown) {
     return this.holidays.list(auth, holidayQuery.parse(query));
@@ -285,7 +285,7 @@ export class HolidaysController {
     return this.imports.run(auth, req.body, q, meta);
   }
 
-  @Roles("ORG_ADMIN", "HR", "MANAGER")
+  @Roles("ORG_ADMIN", "HR", "MANAGER", "BOSS")
   @Get(":holidayId")
   get(@CurrentAuth() auth: AuthContext, @Param("holidayId") holidayId: string) {
     return this.holidays.get(auth, id.parse(holidayId));
@@ -412,13 +412,13 @@ const updatePattern = z
 export class ShiftConfigController {
   constructor(private readonly shifts: ShiftsService) {}
 
-  @Roles("ORG_ADMIN", "HR", "MANAGER")
+  @Roles("ORG_ADMIN", "HR", "MANAGER", "BOSS")
   @Get("shift-templates")
   listTemplates(@CurrentAuth() auth: AuthContext, @Query() query: unknown) {
     return this.shifts.listTemplates(auth, activeFilter.parse(query));
   }
 
-  @Roles("ORG_ADMIN", "HR", "MANAGER")
+  @Roles("ORG_ADMIN", "HR", "MANAGER", "BOSS")
   @Get("shift-templates/:templateId")
   getTemplate(@CurrentAuth() auth: AuthContext, @Param("templateId") templateId: string) {
     return this.shifts.getTemplate(auth, id.parse(templateId));
@@ -461,13 +461,13 @@ export class ShiftConfigController {
     );
   }
 
-  @Roles("ORG_ADMIN", "HR", "MANAGER")
+  @Roles("ORG_ADMIN", "HR", "MANAGER", "BOSS")
   @Get("shift-patterns")
   listPatterns(@CurrentAuth() auth: AuthContext, @Query() query: unknown) {
     return this.shifts.listPatterns(auth, activeFilter.parse(query));
   }
 
-  @Roles("ORG_ADMIN", "HR", "MANAGER")
+  @Roles("ORG_ADMIN", "HR", "MANAGER", "BOSS")
   @Get("shift-patterns/:patternId")
   getPattern(@CurrentAuth() auth: AuthContext, @Param("patternId") patternId: string) {
     return this.shifts.getPattern(auth, id.parse(patternId));
@@ -548,7 +548,7 @@ const overrideSchema = z
 export class ShiftRosterController {
   constructor(private readonly shifts: ShiftsService) {}
 
-  @Roles("ORG_ADMIN", "HR", "MANAGER")
+  @Roles("ORG_ADMIN", "HR", "MANAGER", "BOSS")
   @Get("shift-assignments")
   listAssignments(@CurrentAuth() auth: AuthContext, @Query() query: unknown) {
     return this.shifts.listAssignments(auth, listWindow.parse(query));
@@ -588,7 +588,7 @@ export class ShiftRosterController {
     await this.shifts.deleteAssignment(auth, id.parse(assignmentId), meta);
   }
 
-  @Roles("ORG_ADMIN", "HR", "MANAGER")
+  @Roles("ORG_ADMIN", "HR", "MANAGER", "BOSS")
   @Get("shift-overrides")
   listOverrides(@CurrentAuth() auth: AuthContext, @Query() query: unknown) {
     return this.shifts.listOverrides(auth, listWindow.parse(query));
@@ -639,13 +639,13 @@ const rulesQuery = z.object({ locationId: id.optional(), asOf: isoDate.optional(
 export class AttendanceRulesController {
   constructor(private readonly rules: AttendanceRulesService) {}
 
-  @Roles("ORG_ADMIN", "HR", "MANAGER")
+  @Roles("ORG_ADMIN", "HR", "MANAGER", "BOSS")
   @Get()
   get(@CurrentAuth() auth: AuthContext, @Query() query: unknown) {
     return this.rules.get(auth, rulesQuery.parse(query));
   }
 
-  @Roles("ORG_ADMIN", "HR", "MANAGER")
+  @Roles("ORG_ADMIN", "HR", "MANAGER", "BOSS")
   @Get("versions")
   versions(@CurrentAuth() auth: AuthContext, @Query() query: unknown) {
     return this.rules.versions(auth, versionsQuery.parse(query).locationId ?? null);
@@ -685,7 +685,7 @@ const rosterQuery = z
 export class RosterController {
   constructor(private readonly roster: RosterService) {}
 
-  @Roles("ORG_ADMIN", "HR", "MANAGER")
+  @Roles("ORG_ADMIN", "HR", "MANAGER", "BOSS")
   @Get()
   get(@CurrentAuth() auth: AuthContext, @Query() query: unknown) {
     return this.roster.roster(auth, rosterQuery.parse(query));

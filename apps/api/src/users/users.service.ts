@@ -46,6 +46,17 @@ export class UsersService {
     const temporaryPassword = this.passwords.generateTemporary();
     const passwordHash = await this.passwords.hash(temporaryPassword);
     return this.db.withTenant(tenantId, async (tx) => {
+      if (input.employeeId) {
+        const employee = await tx.query<{ status: string }>(
+          "SELECT status FROM employee WHERE id = $1",
+          [input.employeeId],
+        );
+        if (!employee.rows[0])
+          throw new ApiError(404, "EMPLOYEE_NOT_FOUND", "The employee does not exist.");
+        if (employee.rows[0].status !== "ACTIVE") {
+          throw new ApiError(409, "EMPLOYEE_NOT_ACTIVE", "Only an active employee can be linked.");
+        }
+      }
       let id: string;
       try {
         const { rows } = await tx.query<{ id: string }>(
@@ -133,6 +144,13 @@ export class UsersService {
           409,
           "NOT_A_STAFF_ACCOUNT",
           "An employee login always belongs to its employee; only staff accounts are linked.",
+        );
+      }
+      if (user.role === "BOSS" && employeeId !== null) {
+        throw new ApiError(
+          409,
+          "BOSS_NOT_TRACKED",
+          "A Boss is not tracked (no phone, no arrival or departure), so there is no employee record to link.",
         );
       }
       if (employeeId !== null) {
@@ -290,7 +308,7 @@ export class UsersService {
   }
 
   /**
-   * Disables or re-enables an HR or Manager account (someone leaves, or comes back). A disabled account cannot sign in and all
+   * Disables or re-enables an HR, Manager or Boss account (someone leaves, or comes back). A disabled account cannot sign in and all
    * its sessions end. Org Admin accounts are not touched here, and nobody disables themselves. Employee logins follow the
    * employee's own lifecycle (disable / reactivate the employee).
    */
@@ -302,11 +320,11 @@ export class UsersService {
   ): Promise<{ id: string; status: "ACTIVE" | "DISABLED" }> {
     return this.db.withTenant(auth.tenantId, async (tx) => {
       const target = await this.loadManageable(tx, auth, targetId);
-      if (target.role !== "HR" && target.role !== "MANAGER") {
+      if (target.role !== "HR" && target.role !== "MANAGER" && target.role !== "BOSS") {
         throw new ApiError(
           409,
           "NOT_A_STAFF_ACCOUNT",
-          "Only HR and Manager accounts are disabled here; an employee login follows its employee.",
+          "Only HR, Manager and Boss accounts are disabled here; an employee login follows its employee.",
         );
       }
       await tx.query("UPDATE user_account SET status = $2 WHERE id = $1", [target.id, status]);

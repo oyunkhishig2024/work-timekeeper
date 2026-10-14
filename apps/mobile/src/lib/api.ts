@@ -16,7 +16,7 @@ export interface SessionUser {
   id: string;
   username: string;
   displayName: string | null;
-  role: "ORG_ADMIN" | "HR" | "MANAGER" | "EMPLOYEE";
+  role: "ORG_ADMIN" | "HR" | "MANAGER" | "BOSS" | "EMPLOYEE";
 }
 
 export interface AuthResult extends Tokens {

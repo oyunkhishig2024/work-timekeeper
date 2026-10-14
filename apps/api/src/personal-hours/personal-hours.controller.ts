@@ -41,7 +41,7 @@ const listSchema = z.object({
 export class PersonalHoursController {
   constructor(private readonly hours: PersonalHoursService) {}
 
-  @Roles("ORG_ADMIN", "HR", "MANAGER")
+  @Roles("ORG_ADMIN", "HR", "MANAGER", "BOSS")
   @Get()
   list(@CurrentAuth() auth: AuthContext, @Query() query: unknown) {
     return this.hours.list(auth, listSchema.parse(query));

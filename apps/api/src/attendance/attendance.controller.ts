@@ -130,27 +130,27 @@ export class AttendanceController {
     private readonly timeReport: TimeReportService,
   ) {}
 
-  @Roles("ORG_ADMIN", "HR", "MANAGER")
+  @Roles("ORG_ADMIN", "HR", "MANAGER", "BOSS")
   @Get("daily")
   daily(@CurrentAuth() auth: AuthContext, @Query() query: unknown) {
     return this.dailyList.daily(auth, dailyQuery.parse(query));
   }
 
   /** Short-hours (`kind=short`) and overtime (`kind=overtime`) per employee for a week, a month or any period (≤ 93 days). */
-  @Roles("ORG_ADMIN", "HR", "MANAGER")
+  @Roles("ORG_ADMIN", "HR", "MANAGER", "BOSS")
   @Get("time-report")
   timeReportList(@CurrentAuth() auth: AuthContext, @Query() query: unknown) {
     return this.timeReport.report(auth, timeReportQuery.parse(query));
   }
 
   /** Days people came on a holiday or a day off: arrival and departure only, nothing counted (PRD 6.1). */
-  @Roles("ORG_ADMIN", "HR", "MANAGER")
+  @Roles("ORG_ADMIN", "HR", "MANAGER", "BOSS")
   @Get("off-day-work")
   offDayWork(@CurrentAuth() auth: AuthContext, @Query() query: unknown) {
     return this.timeReport.offDayWork(auth, offDayQuery.parse(query));
   }
 
-  @Roles("ORG_ADMIN", "HR", "MANAGER")
+  @Roles("ORG_ADMIN", "HR", "MANAGER", "BOSS")
   @Get("summary")
   summary(@CurrentAuth() auth: AuthContext, @Query() query: unknown) {
     return this.attendance.summary(auth, z.object({ date: isoDate }).parse(query).date);

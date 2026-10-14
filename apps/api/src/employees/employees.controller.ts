@@ -88,7 +88,7 @@ const accountSchema = z
 export class EmployeesController {
   constructor(private readonly employees: EmployeesService) {}
 
-  @Roles("ORG_ADMIN", "HR", "MANAGER")
+  @Roles("ORG_ADMIN", "HR", "MANAGER", "BOSS")
   @Get()
   list(@CurrentAuth() auth: AuthContext, @Query() query: unknown) {
     return this.employees.list(auth, listSchema.parse(query));
@@ -101,7 +101,7 @@ export class EmployeesController {
     return this.employees.jobTitleSuggestions(auth, z.enum(["rank", "position"]).parse(kind));
   }
 
-  @Roles("ORG_ADMIN", "HR", "MANAGER")
+  @Roles("ORG_ADMIN", "HR", "MANAGER", "BOSS")
   @Get(":employeeId")
   get(@CurrentAuth() auth: AuthContext, @Param("employeeId") employeeId: string) {
     return this.employees.get(auth, id.parse(employeeId));
@@ -124,13 +124,13 @@ export class EmployeesController {
     return this.employees.update(auth, id.parse(employeeId), updateSchema.parse(body), meta);
   }
 
-  @Roles("ORG_ADMIN", "HR", "MANAGER")
+  @Roles("ORG_ADMIN", "HR", "MANAGER", "BOSS")
   @Get(":employeeId/rank-history")
   rankHistory(@CurrentAuth() auth: AuthContext, @Param("employeeId") employeeId: string) {
     return this.employees.jobHistory(auth, "rank", id.parse(employeeId));
   }
 
-  @Roles("ORG_ADMIN", "HR", "MANAGER")
+  @Roles("ORG_ADMIN", "HR", "MANAGER", "BOSS")
   @Get(":employeeId/position-history")
   positionHistory(@CurrentAuth() auth: AuthContext, @Param("employeeId") employeeId: string) {
     return this.employees.jobHistory(auth, "position", id.parse(employeeId));

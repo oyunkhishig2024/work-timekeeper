@@ -73,7 +73,7 @@ export interface TestUser {
   orgCode: string;
   username: string;
   password: string;
-  role: "ORG_ADMIN" | "HR" | "MANAGER" | "EMPLOYEE";
+  role: "ORG_ADMIN" | "HR" | "MANAGER" | "BOSS" | "EMPLOYEE";
   employeeId?: string;
   totpSecret?: string;
 }

@@ -41,13 +41,13 @@ const updateLocationSchema = z
 export class DepartmentsController {
   constructor(private readonly departments: DepartmentsService) {}
 
-  @Roles("ORG_ADMIN", "HR", "MANAGER")
+  @Roles("ORG_ADMIN", "HR", "MANAGER", "BOSS")
   @Get()
   list(@CurrentAuth() auth: AuthContext, @Query() query: unknown) {
     return this.departments.list(auth, activeFilter.parse(query));
   }
 
-  @Roles("ORG_ADMIN", "HR", "MANAGER")
+  @Roles("ORG_ADMIN", "HR", "MANAGER", "BOSS")
   @Get(":departmentId")
   get(@CurrentAuth() auth: AuthContext, @Param("departmentId") departmentId: string) {
     return this.departments.get(auth, id.parse(departmentId));
@@ -91,13 +91,13 @@ export class DepartmentsController {
 export class LocationsController {
   constructor(private readonly locations: LocationsService) {}
 
-  @Roles("ORG_ADMIN", "HR", "MANAGER")
+  @Roles("ORG_ADMIN", "HR", "MANAGER", "BOSS")
   @Get()
   list(@CurrentAuth() auth: AuthContext, @Query() query: unknown) {
     return this.locations.list(auth, activeFilter.parse(query));
   }
 
-  @Roles("ORG_ADMIN", "HR", "MANAGER")
+  @Roles("ORG_ADMIN", "HR", "MANAGER", "BOSS")
   @Get(":locationId")
   get(@CurrentAuth() auth: AuthContext, @Param("locationId") locationId: string) {
     return this.locations.get(auth, id.parse(locationId));

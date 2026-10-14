@@ -11,7 +11,7 @@ import { UsersService } from "../users/users.service";
 @Module({ imports: [DatabaseModule, AuditModule, AuthModule, UsersModule] })
 class CliModule {}
 
-const ROLES = ["ORG_ADMIN", "HR", "MANAGER"] as const;
+const ROLES = ["ORG_ADMIN", "HR", "MANAGER", "BOSS"] as const;
 
 function arg(name: string): string | undefined {
   const index = process.argv.indexOf(`--${name}`);
@@ -44,7 +44,7 @@ async function main(): Promise<void> {
       .get(UsersService)
       .create(
         tenantId,
-        { username, displayName: name, role: role as "HR" | "MANAGER" },
+        { username, displayName: name, role: role as "HR" | "MANAGER" | "BOSS" },
         { userId: null, role: "system:cli" },
         { ip: null, userAgent: "cli" },
       );

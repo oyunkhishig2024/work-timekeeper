@@ -117,9 +117,10 @@ describe("TokenService", () => {
 });
 
 describe("roles", () => {
-  it("requires TOTP for Org Admin and HR only", () => {
+  it("requires TOTP for Org Admin, HR and Boss only", () => {
     expect(requiresTotp("ORG_ADMIN")).toBe(true);
     expect(requiresTotp("HR")).toBe(true);
+    expect(requiresTotp("BOSS")).toBe(true);
     expect(requiresTotp("MANAGER")).toBe(false);
     expect(requiresTotp("EMPLOYEE")).toBe(false);
   });
@@ -128,5 +129,8 @@ describe("roles", () => {
     expect(canManageRole("HR", "EMPLOYEE")).toBe(true);
     expect(canManageRole("HR", "ORG_ADMIN")).toBe(false);
     expect(canManageRole("MANAGER", "EMPLOYEE")).toBe(false);
+    expect(canManageRole("ORG_ADMIN", "BOSS")).toBe(true);
+    expect(canManageRole("HR", "BOSS")).toBe(false);
+    expect(canManageRole("BOSS", "EMPLOYEE")).toBe(false);
   });
 });

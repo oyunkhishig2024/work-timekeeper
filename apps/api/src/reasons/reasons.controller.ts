@@ -55,13 +55,13 @@ const reportSchema = z
 export class ReasonsController {
   constructor(private readonly reasons: ReasonsService) {}
 
-  @Roles("ORG_ADMIN", "HR", "MANAGER")
+  @Roles("ORG_ADMIN", "HR", "MANAGER", "BOSS")
   @Get()
   list(@CurrentAuth() auth: AuthContext, @Query() query: unknown) {
     return this.reasons.list(auth, activeFilter.parse(query));
   }
 
-  @Roles("ORG_ADMIN", "HR", "MANAGER")
+  @Roles("ORG_ADMIN", "HR", "MANAGER", "BOSS")
   @Get(":reasonId")
   get(@CurrentAuth() auth: AuthContext, @Param("reasonId") reasonId: string) {
     return this.reasons.get(auth, id.parse(reasonId));
@@ -101,7 +101,7 @@ export class ReasonsController {
 export class ReasonAssignmentsController {
   constructor(private readonly reasons: ReasonsService) {}
 
-  @Roles("ORG_ADMIN", "HR", "MANAGER")
+  @Roles("ORG_ADMIN", "HR", "MANAGER", "BOSS")
   @Get("reason-assignments")
   list(@CurrentAuth() auth: AuthContext, @Query() query: unknown) {
     return this.reasons.listAssignments(auth, listSchema.parse(query));
@@ -136,7 +136,7 @@ export class ReasonAssignmentsController {
     await this.reasons.removeAssignment(auth, id.parse(assignmentId), meta);
   }
 
-  @Roles("ORG_ADMIN", "HR", "MANAGER")
+  @Roles("ORG_ADMIN", "HR", "MANAGER", "BOSS")
   @Get("reason-report")
   report(@CurrentAuth() auth: AuthContext, @Query() query: unknown) {
     return this.reasons.report(auth, reportSchema.parse(query));

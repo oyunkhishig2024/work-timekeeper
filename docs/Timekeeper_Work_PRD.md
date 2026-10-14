@@ -96,7 +96,7 @@ Permissions:
 - Manage departments **[NEW]**
 - Manage employees
 - Create HR users
-- Create Manager users
+- Create Manager users (linked to the Manager's employee record) and Boss users [v1.36]
 - Configure working hours
 - Configure holidays
 - Configure attendance rules (grace, minimum geofence stay) **[NEW]**
@@ -120,6 +120,10 @@ Permissions:
 - Create manual attendance corrections (see 6.9) **[v1.2]**
 - Manage shift assignments, overrides and roster (see 23); print consent forms and record signed consent (see 15.4) **[v1.3]**
 
+## Boss [v1.36]
+
+A **Boss** (Mongolian label «Дарга») is a web-only role for people whose arrival and departure are **not** recorded: no employee record, no phone, no consent form. The Boss sees the **whole organization** (dashboard, attendance lists, reports, employees, schedule, exports) with **view-only** access; nothing can be changed. Two-step login (TOTP) is required, as for Org Admin and HR, because the Boss sees everyone's data. The Org Admin creates, resets, disables and enables Boss accounts (Users page); a Boss has no data scope and cannot be linked to an employee record.
+
 ## Manager
 
 Permissions:
@@ -129,6 +133,8 @@ Permissions:
 - Search employees
 
 View-only access.
+
+**A Manager is tracked [v1.36]:** the account is linked to the Manager's own employee record (required when the Org Admin creates the Manager), so the Manager registers a phone and their arrival and departure are recorded like an employee's.
 
 **Scope [v1.2]:** a Manager (and HR, if the Org Admin configures it) is limited to the **locations and/or departments assigned to them**. Dashboard counts, attendance lists, analytics, exports and search return only in-scope employees. Org Admin sees the whole tenant. A user with no scope assignment sees nothing (deny by default). Scope is enforced server-side on every query, not only in the UI. Gantsooj (Manager) is assigned the scope at user creation.
 
@@ -1248,6 +1254,7 @@ Added in v1.2 **[v1.2]**:
 | 1.33 | Pilot field test on real Android phones (6.3, 15.3, 15.4, 21): (a) the phone also checks its **position** (GPS, about every 60 s, with a visible foreground-service notification) while an expected place is watched, as a fallback and to confirm what the operating system's geofencing reports; only ENTER/EXIT events and the evidence fix leave the phone, the positions stay on it. The **consent text must say so** and be approved before real employees use the app; (b) an arrival needs one trustworthy fix inside; a departure needs two fixes in a row beyond radius + margin; a return after a departure needs two fixes in a row inside unless one is exact (30 m or better); fixes worse than 150 m are ignored; (c) on Xiaomi/Redmi/POCO (MIUI) phones **Autostart must be on** or the app stops when a background event arrives; the phone check asks for it. |
 | 1.34 | Consent wording and staff guide (15.3, 15.4, Appendix A): `docs/consent/consent-v2-draft.mn.txt` replaces v1 for items 2–4 so the text matches what the phone does (it checks its position about once a minute while a workplace is on the day's plan; coordinates and accuracy are collected with each event; the purpose names arrival and departure/early leave and excludes movement tracking). Still a DRAFT: legal counsel must approve it before real use. `docs/guides/staff-phone-setup.mn.md` is the phone setup guide for staff, with the Xiaomi/MIUI steps (Autostart, battery, lock in recents). |
 | 1.35 | Retention and privacy implementation (15.3, 15.1, 12.2): a daily worker job deletes attendance data (events, daily results and status log, corrections, ended reason assignments, resolved device alerts, shift overrides) after `ATTENDANCE_RETENTION_DAYS` (default 730) and audit rows after `AUDIT_RETENTION_DAYS` (default 730; was «12 months minimum»); an archived employee can be irreversibly anonymized by HR / Org Admin (`POST /v1/employees/:id/anonymize`). **Heartbeats keep no history** (only `device.last_seen_at`), so the «heartbeats 90 days» default of 15.3 no longer applies. Pilot server safety: firewall, nightly encrypted backups (14 kept), 5-minute health alerts, incident plan and a Cloudflare-in-front guide for the DigitalOcean + Caddy server (`docs/operations`, `docs/security`). |
+| 1.36 | New role **Boss** (4): web-only, view-only, sees the whole organization, not tracked (no employee record, no phone, no arrival or departure), two-step login required. A **Manager** is now tracked: the account is linked to the Manager's own employee record, required when the Manager is created; the Manager stays view-only and limited to the assigned scope. The Org Admin manages these accounts on a new Users page (add HR, Manager or Boss, scope, employee link, password and authenticator reset, disable and enable; `POST /v1/users/:id/disable` and `/enable`). Migration `0034_boss_role`. |
 
 ---
 

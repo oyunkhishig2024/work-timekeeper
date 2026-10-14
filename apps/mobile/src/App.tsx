@@ -56,7 +56,9 @@ export default function App() {
         setStage("main");
       } else setStage("register");
     } catch (e) {
-      if (e instanceof ApiError && e.code === "EMPLOYEE_ONLY") return setStage("unlinked");
+      // EMPLOYEE_ONLY: a staff account without an employee record; FORBIDDEN: a role that is not tracked at all (Boss)
+      if (e instanceof ApiError && (e.code === "EMPLOYEE_ONLY" || e.code === "FORBIDDEN"))
+        return setStage("unlinked");
       if (e instanceof ApiError && e.code === "SETUP_REQUIRED") return setStage("password");
       if (e instanceof SessionEndedError || (e instanceof ApiError && e.status === 401))
         return setStage("login");

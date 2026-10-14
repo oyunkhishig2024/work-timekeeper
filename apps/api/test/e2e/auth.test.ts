@@ -4,6 +4,7 @@ import { hasDb } from "../db/helpers";
 import {
   auditActions,
   bearer,
+  createEmployee,
   createTenant,
   createUser,
   type Harness,
@@ -458,11 +459,23 @@ describe.skipIf(!hasDb)("authentication (PRD 15.2)", () => {
         ).status,
       ).toBe(403);
 
-      const created = await h
-        .http()
-        .post("/v1/users")
-        .set(bearer(adminTokens.accessToken))
-        .send({ username: "gantsooj", displayName: "Gantsooj", role: "MANAGER" });
+      // A Manager is tracked like an employee (v1.36): the employee record is required.
+      expect(
+        (
+          await h
+            .http()
+            .post("/v1/users")
+            .set(bearer(adminTokens.accessToken))
+            .send({ username: "gantsooj", displayName: "Gantsooj", role: "MANAGER" })
+        ).status,
+      ).toBe(400);
+      const employee = await createEmployee(h, tenant);
+      const created = await h.http().post("/v1/users").set(bearer(adminTokens.accessToken)).send({
+        username: "gantsooj",
+        displayName: "Gantsooj",
+        role: "MANAGER",
+        employeeId: employee.id,
+      });
       expect(created.status).toBe(201);
       expect(created.body.temporaryPassword).toHaveLength(16);
       expect(created.body.role).toBe("MANAGER");

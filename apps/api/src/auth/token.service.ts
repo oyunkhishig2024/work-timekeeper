@@ -16,7 +16,7 @@ const accessClaims = z.object({
   sub: z.string().uuid(),
   tid: z.string().uuid(),
   sid: z.string().uuid(),
-  role: z.enum(["ORG_ADMIN", "HR", "MANAGER", "EMPLOYEE"]),
+  role: z.enum(["ORG_ADMIN", "HR", "MANAGER", "BOSS", "EMPLOYEE"]),
   /** Present while the user must finish a step (change password / set up TOTP) before normal use. */
   lim: z.array(z.enum(["PASSWORD_CHANGE", "TOTP_SETUP"])).optional(),
 });

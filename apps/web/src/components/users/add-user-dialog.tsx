@@ -4,6 +4,7 @@ import { useState, type FormEvent } from "react";
 import { ApiRequestError } from "@/lib/api";
 import { createUser, newUserIssue, userErrorText, type NewUserForm } from "@/lib/users";
 import { FormError } from "../form-error";
+import { EmployeePicker } from "./employee-picker";
 import { Modal } from "../modal";
 import { fieldClass, primaryButton, secondaryButton } from "../styles";
 import { useFieldIssue } from "../use-field-issue";
@@ -18,10 +19,16 @@ export function AddUserDialog({
     id: string;
     username: string;
     temporaryPassword: string;
-    role: "HR" | "MANAGER";
+    role: "HR" | "MANAGER" | "BOSS";
   }) => void;
 }) {
-  const [form, setForm] = useState<NewUserForm>({ username: "", displayName: "", role: "HR" });
+  const [form, setForm] = useState<NewUserForm>({
+    username: "",
+    displayName: "",
+    role: "HR",
+    employeeId: null,
+  });
+  const [employeeName, setEmployeeName] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const issues = useFieldIssue("add-user-form");
 
@@ -81,17 +88,46 @@ export function AddUserDialog({
           <select
             name="role"
             value={form.role}
-            onChange={(e) => setForm({ ...form, role: e.target.value as "HR" | "MANAGER" })}
+            onChange={(e) => {
+              setForm({ ...form, role: e.target.value as NewUserForm["role"], employeeId: null });
+              setEmployeeName(null);
+            }}
             className={fieldClass}
           >
             <option value="HR">Хүний нөөц — ажилтан, ирц, хуваарь удирдана</option>
-            <option value="MANAGER">Менежер — зөвхөн өөрийн хамрах хүрээний ирцийг харна</option>
+            <option value="MANAGER">
+              Менежер — хариуцсан хэлтсээ харна (зөвхөн харах), өөрийн ирц бүртгэгдэнэ
+            </option>
+            <option value="BOSS">
+              Дарга — байгууллагыг бүхэлд нь харна (зөвхөн харах), ирц бүртгэгдэхгүй
+            </option>
           </select>
         </label>
+        {form.role === "MANAGER" && (
+          <div>
+            {employeeName && (
+              <p className="mb-2 rounded-md bg-slate-100 p-2 text-sm">
+                Ажилтан: <b>{employeeName}</b>
+              </p>
+            )}
+            <EmployeePicker
+              label="Менежерийн ажилтны бүртгэл (нэр эсвэл код)"
+              buttonLabel="Сонгох"
+              onPick={(e) => {
+                setForm((f) => ({ ...f, employeeId: e.id }));
+                setEmployeeName(`${e.fullName} (${e.employeeNo})`);
+              }}
+              onError={issues.failure}
+              inputProps={{ name: "employee", ...issues.flag("employee") }}
+            />
+          </div>
+        )}
         <p className="text-sm text-slate-600">
           {form.role === "HR"
             ? "Эхний нэвтрэлтээр шинэ нууц үг сонгож, authenticator апп тохируулна."
-            : "Үүсгэсний дараа аль хэлтэс, салбарыг харахыг сонгоно. Сонгоогүй бол юу ч харахгүй."}
+            : form.role === "BOSS"
+              ? "Эхний нэвтрэлтээр шинэ нууц үг сонгож, authenticator апп тохируулна. Утас, ирцийн бүртгэл шаардлагагүй."
+              : "Менежер өөрийн утсаа бүртгүүлж ирц, гарсан цагаа бүртгүүлнэ. Үүсгэсний дараа аль хэлтэс, салбарыг харахыг сонгоно."}
         </p>
         <FormError id={issues.errorId} message={issues.message} className="text-sm text-red-700" />
         <div className="flex justify-end gap-2">

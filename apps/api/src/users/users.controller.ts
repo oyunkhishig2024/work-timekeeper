@@ -4,18 +4,36 @@ import type { AuthContext, RequestMeta } from "../auth/auth.types";
 import { CurrentAuth, Meta, Roles } from "../auth/decorators";
 import { UsersService } from "./users.service";
 
-const createUserSchema = z.object({
-  username: z
-    .string()
-    .trim()
-    .min(3)
-    .max(64)
-    .regex(/^[A-Za-z0-9._-]+$/u, "Only letters, digits, dot, underscore and dash"),
-  displayName: z.string().trim().min(1).max(120),
-  role: z.enum(["HR", "MANAGER"]),
-  /** The person's own employee record (they also record their own attendance on a phone). */
-  employeeId: z.string().uuid().nullable().optional(),
-});
+const createUserSchema = z
+  .object({
+    username: z
+      .string()
+      .trim()
+      .min(3)
+      .max(64)
+      .regex(/^[A-Za-z0-9._-]+$/u, "Only letters, digits, dot, underscore and dash"),
+    displayName: z.string().trim().min(1).max(120),
+    role: z.enum(["HR", "MANAGER", "BOSS"]),
+    /** The person's own employee record: they register a phone and their arrival and departure are recorded (PRD 4). */
+    employeeId: z.string().uuid().nullable().optional(),
+  })
+  .superRefine((value, ctx) => {
+    // A Manager is tracked like an employee, so the record is required; a Boss is not tracked and has none.
+    if (value.role === "MANAGER" && !value.employeeId) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["employeeId"],
+        message: "A Manager is linked to an employee record.",
+      });
+    }
+    if (value.role === "BOSS" && value.employeeId) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["employeeId"],
+        message: "A Boss is not tracked and has no employee record.",
+      });
+    }
+  });
 const idSchema = z.string().uuid();
 const scopeSchema = z
   .object({
