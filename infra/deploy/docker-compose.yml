@@ -24,14 +24,43 @@ x-app: &app
 
 services:
   postgres:
-    image: postgres:16
+    # Own image: PostgreSQL 16 + the backup tools (postgres.Dockerfile). Every finished WAL segment is encrypted with the
+    # public age key and archived to ${PITR_DIR}; a daily base backup (pitr-setup.sh installs the schedule) makes
+    # point-in-time recovery possible. archive_mode needs a restart of this container once.
+    build:
+      context: ../..
+      dockerfile: infra/deploy/postgres.Dockerfile
+    image: timekeeper-postgres:16
     restart: unless-stopped
+    command:
+      - postgres
+      - -c
+      - wal_level=replica
+      - -c
+      - archive_mode=on
+      - -c
+      - archive_command=/opt/timekeeper/infra/backup/bin/wal-archive.sh "%p" "%f"
+      - -c
+      - archive_timeout=240
+      - -c
+      - wal_compression=on
+      - -c
+      - max_wal_senders=4
     environment:
       POSTGRES_USER: timekeeper
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
       POSTGRES_DB: timekeeper
+      # the database superuser of this image is timekeeper (not postgres); the backup scripts connect as PGUSER
+      PGUSER: timekeeper
+      BACKUP_AGE_RECIPIENT: ${BACKUP_AGE_RECIPIENT:?run infra/deploy/pitr-setup.sh first}
+      BACKUP_REMOTE: ${BACKUP_REMOTE:-/pitr}
+      BACKUP_PROD_DATA_DIR: /var/lib/postgresql/data
+      BACKUP_PG_CONF_DIR: /var/lib/postgresql/data
+      BACKUP_DUMP_DBS: timekeeper
     volumes:
       - pgdata:/var/lib/postgresql/data
+      - ${PITR_DIR:-/var/backups/timekeeper-pitr}:/pitr
+      - pitrstate:/var/lib/timekeeper-backup
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U timekeeper -d timekeeper"]
       interval: 5s
@@ -95,5 +124,6 @@ services:
 
 volumes:
   pgdata:
+  pitrstate:
   storage:
   caddy_data:

@@ -21,6 +21,8 @@ RTO <= 8 h, restore tested before go-live and quarterly). The full operator manu
 | `systemd/`                   | services and timers (copy to `/etc/systemd/system/`)                                      |
 | `test/pitr-rehearsal.sh`     | automated end-to-end proof on a throwaway cluster (no network needed)                     |
 
+The pilot server runs PostgreSQL in Docker: see `docs/operations/pitr-docker.md` (image `infra/deploy/postgres.Dockerfile`, schedule installed by `infra/deploy/pitr-setup.sh`, proof `test/docker-rehearsal.sh`). Set `PGUSER` when the database superuser is not `postgres`.
+
 ## Design decisions
 
 - **Encryption: `age`** (public-key). The server holds only the _public_ key, so a stolen server,

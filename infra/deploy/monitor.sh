@@ -40,6 +40,16 @@ elif [ $(($(date +%s) - $(stat -c %Y "$newest"))) -gt $(("${MONITOR_BACKUP_MAX_A
   problems+=("the newest backup is older than ${MONITOR_BACKUP_MAX_AGE_H:-26} hours")
 fi
 
+# Point-in-time recovery archive (pitr-setup.sh): WAL arriving, a recent base backup, no gaps.
+if [ -f /etc/cron.d/timekeeper-pitr ]; then
+  pitr_rc=0
+  pitr=$("${COMPOSE[@]}" exec -T -u postgres postgres /opt/timekeeper/infra/backup/bin/verify-backups.sh 2>/dev/null) || pitr_rc=$?
+  if [ "$pitr_rc" -ne 0 ]; then
+    detail=$(jq -r '.checks | to_entries | map(select(.value.status != "OK") | .key + " " + .value.detail) | join(", ")' <<<"$pitr" 2>/dev/null || true)
+    problems+=("database point-in-time archive: ${detail:-check could not run}")
+  fi
+fi
+
 now=$(date +%s)
 last_status=ok
 last_sent=0

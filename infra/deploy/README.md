@@ -39,6 +39,10 @@ Set `EXPO_PUBLIC_API_URL` in `apps/mobile/eas.json` (profile `preview`) to `http
 
 `sudo bash infra/deploy/firewall.sh` (ufw: only 22, 80, 443) and `sudo bash infra/deploy/backup-setup.sh` (nightly encrypted dump of the database, uploaded files and `.env`; restore with `infra/deploy/restore.sh`). `sudo bash infra/deploy/monitor-setup.sh '<alert url>'` adds 5-minute health alerts (site, containers, disk, backup age). Step by step, with the restore test and reboot check: [`docs/operations/pilot-server-safety.md`](../../docs/operations/pilot-server-safety.md). The age private key is shown once and must be kept off the server. The scripts must stay `shellcheck`-clean.
 
+## Point-in-time recovery of the database
+
+`sudo bash infra/deploy/pitr-setup.sh`, then rebuild (the database container uses `postgres.Dockerfile`, with WAL archiving). Restore to any minute: [`docs/operations/pitr-docker.md`](../../docs/operations/pitr-docker.md). Without `BACKUP_AGE_RECIPIENT` in `.env` compose refuses to start with "run infra/deploy/pitr-setup.sh first".
+
 ## Not covered here
 
 Point-in-time recovery (see `infra/backup/README.md`, needs PostgreSQL on the host, not the container), Cloudflare/WAF in front (see `docs/security/README.md`), monitoring.

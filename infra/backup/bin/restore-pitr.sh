@@ -60,7 +60,8 @@ tk_require_cmd age gzip sha256sum jq tar
 identity=$(realpath "$identity")
 pgbin="$BACKUP_PG_BIN"
 [ -x "$pgbin/pg_ctl" ] || tk_die 10 "PostgreSQL binaries not found in $pgbin"
-pguser=${BACKUP_PG_USER:-postgres}
+pguser=${BACKUP_PG_USER:-postgres}   # operating-system user that owns the data directory
+pgdbuser=${PGUSER:-$pguser}          # database role to connect as (the Docker image uses its POSTGRES_USER, e.g. timekeeper)
 
 if [ -n "$target" ]; then
   target_epoch=$(date -d "$target" +%s 2>/dev/null) || tk_die 10 "cannot parse --target-time '$target' (use e.g. \"2026-10-08 09:30:00+08\")"
@@ -183,7 +184,7 @@ if ! as_pg "$pgbin/pg_ctl" -D "$data" -l "$log" -o "$opts" -w -t "$timeout_s" st
   tail -n 25 "$log" >&2 || true
   tk_die 11 "the restored server did not start / recovery failed (see above: target beyond the archive? WAL missing? wrong key?)"
 fi
-psql_q() { as_pg "$pgbin/psql" -h "$sockdir" -p "$port" -U "$pguser" -d postgres -qAtX -c "$1"; }
+psql_q() { as_pg "$pgbin/psql" -h "$sockdir" -p "$port" -U "$pgdbuser" -d postgres -qAtX -c "$1"; }
 deadline=$(($(date +%s) + timeout_s))
 while :; do
   if ! as_pg "$pgbin/pg_ctl" -D "$data" status >/dev/null 2>&1; then
@@ -211,8 +212,8 @@ cat <<MSG
 RESTORE COMPLETE in ${dur}s (base $chosen, $( [ -n "$target" ] && echo "target $target" || echo "end of archive" ))
 Сэргээлт дууслаа / Restored cluster: $data  port $port  socket $sockdir
 Verify / Шалгах:
-  psql -h $sockdir -p $port -U $pguser -d postgres -c "select now(), pg_is_in_recovery(), pg_last_xact_replay_timestamp()"
-  psql -h $sockdir -p $port -U $pguser -d <database> -c "select count(*) from <table>"
+  psql -h $sockdir -p $port -U $pgdbuser -d postgres -c "select now(), pg_is_in_recovery(), pg_last_xact_replay_timestamp()"
+  psql -h $sockdir -p $port -U $pgdbuser -d <database> -c "select count(*) from <table>"
   $pgbin/pg_controldata $data | grep -E 'Latest checkpoint|TimeLineID'
 $( [ "$pause" -eq 1 ] && echo "Paused at the target. Inspect, then: psql -h $sockdir -p $port -c 'select pg_wal_replay_resume()'  (this promotes)" )
 Stop it with: $pgbin/pg_ctl -D $data stop     Log: $log
