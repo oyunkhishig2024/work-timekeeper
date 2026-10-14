@@ -5,3 +5,17 @@
   outline: 2px solid #0f766e;
   outline-offset: 2px;
 }
+
+/* Drop-down lists: the browser's own arrow sits against the right border, so draw ours with room on the right. */
+select:not([multiple]) {
+  appearance: none;
+  background-color: #fff;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23475569' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 1rem center;
+  background-size: 1rem;
+  padding-right: 2.75rem;
+}
+select:not([multiple]):disabled {
+  opacity: 0.6;
+}
