@@ -18,7 +18,7 @@ import {
   type WeekDay,
   type WorkingWeek,
 } from "@/lib/schedule";
-import { fieldClass, primaryButton, secondaryButton } from "../styles";
+import { compactField, fieldClass, primaryButton, secondaryButton } from "../styles";
 import { message } from "./schedule-message";
 import { FormError } from "@/components/form-error";
 
@@ -226,7 +226,7 @@ function WeekEditor({
                   disabled={!canEdit}
                   value={d.start ?? ""}
                   onChange={(e) => change(d.weekday, { start: e.target.value })}
-                  className="min-h-11 rounded-md border border-slate-300 px-2"
+                  className={compactField}
                 />
                 –
                 <input
@@ -235,7 +235,7 @@ function WeekEditor({
                   disabled={!canEdit}
                   value={d.end ?? ""}
                   onChange={(e) => change(d.weekday, { end: e.target.value })}
-                  className="min-h-11 rounded-md border border-slate-300 px-2"
+                  className={compactField}
                 />
               </span>
             ) : (

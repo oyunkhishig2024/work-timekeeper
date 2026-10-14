@@ -10,7 +10,7 @@ import {
   type DayException,
 } from "@/lib/schedule";
 import { Modal } from "../modal";
-import { fieldClass, primaryButton, secondaryButton } from "../styles";
+import { compactField, fieldClass, primaryButton, secondaryButton } from "../styles";
 import { message } from "./schedule-message";
 import { FormError } from "@/components/form-error";
 import { useFieldIssue } from "../use-field-issue";
@@ -200,7 +200,7 @@ export function ExceptionDialog({
                   type="time"
                   value={start}
                   onChange={(e) => setStart(e.target.value)}
-                  className="min-h-11 rounded-md border border-slate-300 px-2"
+                  className={compactField}
                 />
                 –
                 <input
@@ -209,7 +209,7 @@ export function ExceptionDialog({
                   {...form.flag("endTime")}
                   value={end}
                   onChange={(e) => setEnd(e.target.value)}
-                  className="min-h-11 rounded-md border border-slate-300 px-2"
+                  className={compactField}
                 />
               </div>
             )}

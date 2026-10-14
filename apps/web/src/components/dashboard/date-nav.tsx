@@ -2,7 +2,7 @@
 
 import { addDaysIso, weekdayMn } from "@/lib/attendance";
 import { LinkButton } from "../link-button";
-import { smallButton } from "../styles";
+import { compactField, smallButton } from "../styles";
 
 /**
  * Previous day / Today / Next day (PRD 7) as links to `hrefFor(date)` (null when `date` is today: no date in the address),
@@ -39,7 +39,7 @@ export function DateNav({
           type="date"
           value={date}
           onChange={(e) => e.target.value && onPick(e.target.value)}
-          className="min-h-11 rounded-md border border-slate-300 bg-white px-2"
+          className={compactField}
         />
       </label>
     </div>

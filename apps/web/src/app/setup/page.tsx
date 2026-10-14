@@ -7,10 +7,8 @@ import { ApiRequestError } from "@/lib/api";
 import { changePassword, currentRequires, logout, totpEnable, totpSetup } from "@/lib/session";
 import { useSession } from "@/components/use-session";
 import { FormError } from "@/components/form-error";
-
-const field = "mt-1 block min-h-11 w-full rounded-md border border-slate-300 px-3 text-base";
-const primary =
-  "min-h-11 w-full rounded-md bg-teal-700 px-4 font-semibold text-white hover:bg-teal-800 disabled:opacity-60";
+import { fieldClass, primaryButton } from "@/components/styles";
+import { useFieldIssue } from "@/components/use-field-issue";
 
 const REASONS: Record<string, string> = {
   TOO_SHORT: "Хамгийн багадаа 10 тэмдэгт байна.",
@@ -35,6 +33,15 @@ function messageOf(error: unknown): string {
   return "Холбогдож чадсангүй. Дахин оролдоно уу.";
 }
 
+/** The field a refused request is about, when the answer names one. */
+function fieldOf(error: unknown): string | null {
+  if (!(error instanceof ApiRequestError)) return null;
+  if (error.code === "WEAK_PASSWORD") return "next";
+  if (error.code === "INVALID_CREDENTIALS") return "current";
+  if (error.code === "INVALID_CODE" || error.code === "INVALID_TOTP") return "code";
+  return null;
+}
+
 /** First sign-in: replace the temporary password, then enrol the authenticator app (Org Admin and HR). */
 export default function SetupPage() {
   const router = useRouter();
@@ -42,7 +49,7 @@ export default function SetupPage() {
   const [step, setStep] = useState<"password" | "totp" | "codes">("password");
   const [seed, setSeed] = useState<{ secret: string; qr: string } | null>(null);
   const [recovery, setRecovery] = useState<string[]>([]);
-  const [error, setError] = useState<string | null>(null);
+  const issues = useFieldIssue("setup-form");
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
@@ -65,18 +72,20 @@ export default function SetupPage() {
         const res = await totpSetup();
         setSeed({ secret: res.secret, qr: await QRCode.toDataURL(res.otpauthUri, { width: 220 }) });
       } catch (e) {
-        setError(messageOf(e));
+        issues.failure(messageOf(e));
       }
     })();
   }, [step, seed]);
 
   async function run(action: () => Promise<void>) {
     setBusy(true);
-    setError(null);
+    issues.clear();
     try {
       await action();
     } catch (e) {
-      setError(messageOf(e));
+      const name = fieldOf(e);
+      if (name) issues.issue(name, messageOf(e));
+      else issues.failure(messageOf(e));
     } finally {
       setBusy(false);
     }
@@ -87,7 +96,7 @@ export default function SetupPage() {
     const form = new FormData(event.currentTarget);
     const next = String(form.get("next"));
     if (next !== String(form.get("again"))) {
-      setError("Шинэ нууц үг хоёр удаа таарахгүй байна.");
+      issues.issue("again", "Шинэ нууц үг хоёр удаа таарахгүй байна.");
       return;
     }
     void run(async () => {
@@ -113,7 +122,7 @@ export default function SetupPage() {
       <h1 className="text-2xl font-semibold">Бүртгэлээ бэлтгэх</h1>
 
       {step === "password" && (
-        <form onSubmit={onPassword} className="mt-6 space-y-4">
+        <form ref={issues.formRef} onSubmit={onPassword} className="mt-6 space-y-4">
           <p className="text-sm text-slate-600">
             Анх нэвтэрч байна. Түр нууц үгээ өөрийн нууц үгээр солино уу (10-аас дээш тэмдэгт).
           </p>
@@ -121,43 +130,50 @@ export default function SetupPage() {
             Түр нууц үг
             <input
               name="current"
+              {...issues.flag("current")}
               type="password"
               required
               autoComplete="current-password"
-              className={field}
+              className={fieldClass}
             />
           </label>
           <label className="block text-sm font-medium">
             Шинэ нууц үг
             <input
               name="next"
+              {...issues.flag("next")}
               type="password"
               required
               minLength={10}
               autoComplete="new-password"
-              className={field}
+              className={fieldClass}
             />
           </label>
           <label className="block text-sm font-medium">
             Шинэ нууц үг дахин
             <input
               name="again"
+              {...issues.flag("again")}
               type="password"
               required
               minLength={10}
               autoComplete="new-password"
-              className={field}
+              className={fieldClass}
             />
           </label>
-          <FormError message={error} className="text-sm text-red-700" />
-          <button type="submit" disabled={busy} className={primary}>
+          <FormError
+            id={issues.errorId}
+            message={issues.message}
+            className="text-sm text-red-700"
+          />
+          <button type="submit" disabled={busy} className={`${primaryButton} w-full`}>
             Нууц үг солих
           </button>
         </form>
       )}
 
       {step === "totp" && (
-        <form onSubmit={onCode} className="mt-6 space-y-4">
+        <form ref={issues.formRef} onSubmit={onCode} className="mt-6 space-y-4">
           <p className="text-sm text-slate-600">
             Утсандаа Google Authenticator (эсвэл ижил апп) суулгаад доорх QR кодыг уншуулна уу.
             Дараа нь апп дээр гарч ирсэн 6 оронтой кодыг оруулна уу.
@@ -171,20 +187,25 @@ export default function SetupPage() {
               <code className="break-all text-sm">{seed.secret}</code>
             </div>
           ) : (
-            !error && <p className="text-sm text-slate-500">Ачаалж байна…</p>
+            !issues.message && <p className="text-sm text-slate-500">Ачаалж байна…</p>
           )}
           <label className="block text-sm font-medium">
             Апп дээрх 6 оронтой код
             <input
               name="code"
+              {...issues.flag("code")}
               required
               inputMode="numeric"
               autoComplete="one-time-code"
-              className={field}
+              className={fieldClass}
             />
           </label>
-          <FormError message={error} className="text-sm text-red-700" />
-          <button type="submit" disabled={busy || !seed} className={primary}>
+          <FormError
+            id={issues.errorId}
+            message={issues.message}
+            className="text-sm text-red-700"
+          />
+          <button type="submit" disabled={busy || !seed} className={`${primaryButton} w-full`}>
             Баталгаажуулах
           </button>
         </form>
@@ -201,7 +222,11 @@ export default function SetupPage() {
               <li key={code}>{code}</li>
             ))}
           </ul>
-          <button type="button" className={primary} onClick={() => router.replace("/dashboard")}>
+          <button
+            type="button"
+            className={`${primaryButton} w-full`}
+            onClick={() => router.replace("/dashboard")}
+          >
             Хадгалсан, үргэлжлүүлэх
           </button>
         </div>

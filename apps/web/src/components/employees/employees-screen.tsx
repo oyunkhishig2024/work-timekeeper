@@ -21,8 +21,12 @@ import {
 } from "@/lib/employees";
 import type { SessionUser } from "@/lib/session";
 import { LinkButton } from "../link-button";
-import { chipClass, fieldClass, secondaryButton } from "../styles";
-import { EmployeeFormDialog } from "./employee-form";
+import { chipClass, fieldClass, primaryButton, secondaryButton } from "../styles";
+import dynamic from "next/dynamic";
+
+const EmployeeFormDialog = dynamic(() =>
+  import("./employee-form").then((m) => m.EmployeeFormDialog),
+);
 
 const STATUSES: StatusFilter[] = ["ACTIVE", "DISABLED", "ARCHIVED", "ALL"];
 
@@ -105,11 +109,7 @@ export function EmployeesScreen({ user }: { user: SessionUser }) {
             >
               Excel-ээр оруулах
             </Link>
-            <button
-              type="button"
-              className="min-h-11 rounded-md bg-teal-700 px-4 font-semibold text-white hover:bg-teal-800"
-              onClick={() => setAdding(true)}
-            >
+            <button type="button" className={primaryButton} onClick={() => setAdding(true)}>
               + Ажилтан нэмэх
             </button>
           </div>

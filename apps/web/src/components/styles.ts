@@ -15,3 +15,5 @@ export const chipClass = (selected: boolean): string =>
       ? "border-teal-700 bg-teal-700 text-white"
       : "border-slate-300 bg-white hover:bg-slate-100"
   }`;
+/** A narrow time or date field that sits next to other controls in a row. */
+export const compactField = "min-h-11 rounded-md border border-slate-300 bg-white px-2";

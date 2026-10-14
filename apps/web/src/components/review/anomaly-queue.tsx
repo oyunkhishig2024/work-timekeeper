@@ -20,7 +20,7 @@ import {
   type Decision,
   type QueueFilter,
 } from "@/lib/review";
-import { secondaryButton } from "../styles";
+import { primaryButton, secondaryButton } from "../styles";
 import { NoteDialog } from "./note-dialog";
 import { ReviewTabs } from "./review-tabs";
 
@@ -302,12 +302,7 @@ function Card({
 
       {open && (
         <div className="mt-3 flex flex-wrap gap-2">
-          <button
-            type="button"
-            disabled={busy}
-            className="min-h-11 rounded-md bg-teal-700 px-4 font-semibold text-white hover:bg-teal-800 disabled:opacity-60"
-            onClick={onConfirm}
-          >
+          <button type="button" disabled={busy} className={primaryButton} onClick={onConfirm}>
             Баталгаажуулах
           </button>
           <button

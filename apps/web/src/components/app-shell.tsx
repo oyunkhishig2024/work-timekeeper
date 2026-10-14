@@ -1,5 +1,6 @@
 "use client";
 
+import { smallButton } from "./styles";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, type ReactNode } from "react";
@@ -56,7 +57,7 @@ export function AppShell({ children }: { children: (user: SessionUser) => ReactN
             </span>
             <button
               type="button"
-              className="min-h-11 min-w-11 rounded-md border border-slate-300 px-3 font-medium hover:bg-slate-100"
+              className={`${smallButton} min-w-11`}
               onClick={() => void logout().then(() => router.replace("/login"))}
             >
               Гарах

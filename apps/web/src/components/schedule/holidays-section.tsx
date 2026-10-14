@@ -13,8 +13,10 @@ import { primaryButton, secondaryButton } from "../styles";
 import { message } from "./schedule-message";
 import { needsConfirm, RECOMPUTE_TEXT } from "./recompute-confirm";
 import { FormError } from "@/components/form-error";
-import { HolidayDialog } from "./holiday-dialog";
 import { ExceptionsPanel } from "./exceptions-panel";
+import dynamic from "next/dynamic";
+
+const HolidayDialog = dynamic(() => import("./holiday-dialog").then((m) => m.HolidayDialog));
 
 const range = (h: Holiday) =>
   h.fromDate === h.toDate ? h.fromDate : `${h.fromDate} → ${h.toDate}`;

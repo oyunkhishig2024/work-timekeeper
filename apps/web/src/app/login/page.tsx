@@ -5,10 +5,7 @@ import { useState, type FormEvent } from "react";
 import { ApiRequestError } from "@/lib/api";
 import { login, verifyTotp } from "@/lib/session";
 import { FormError } from "@/components/form-error";
-
-const field = "mt-1 block min-h-11 w-full rounded-md border border-slate-300 px-3 text-base";
-const primary =
-  "min-h-11 w-full rounded-md bg-teal-700 px-4 font-semibold text-white hover:bg-teal-800 disabled:opacity-60";
+import { fieldClass, primaryButton } from "@/components/styles";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -60,11 +57,11 @@ export default function LoginPage() {
         <form onSubmit={onPassword} className="mt-6 space-y-4">
           <label className="block text-sm font-medium">
             Байгууллагын код
-            <input name="orgCode" required autoComplete="organization" className={field} />
+            <input name="orgCode" required autoComplete="organization" className={fieldClass} />
           </label>
           <label className="block text-sm font-medium">
             Нэвтрэх нэр
-            <input name="username" required autoComplete="username" className={field} />
+            <input name="username" required autoComplete="username" className={fieldClass} />
           </label>
           <label className="block text-sm font-medium">
             Нууц үг
@@ -73,11 +70,11 @@ export default function LoginPage() {
               type="password"
               required
               autoComplete="current-password"
-              className={field}
+              className={fieldClass}
             />
           </label>
           <FormError message={error} className="text-sm text-red-700" />
-          <button type="submit" disabled={busy} className={primary}>
+          <button type="submit" disabled={busy} className={`${primaryButton} w-full`}>
             Үргэлжлүүлэх
           </button>
         </form>
@@ -90,11 +87,11 @@ export default function LoginPage() {
               required
               inputMode="numeric"
               autoComplete="one-time-code"
-              className={field}
+              className={fieldClass}
             />
           </label>
           <FormError message={error} className="text-sm text-red-700" />
-          <button type="submit" disabled={busy} className={primary}>
+          <button type="submit" disabled={busy} className={`${primaryButton} w-full`}>
             Нэвтрэх
           </button>
         </form>

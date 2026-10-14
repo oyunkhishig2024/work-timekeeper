@@ -17,9 +17,11 @@ import {
 import { primaryButton, secondaryButton } from "../styles";
 import { message } from "./schedule-message";
 import { FormError } from "@/components/form-error";
-import { TemplateDialog } from "./template-dialog";
-import { PatternDialog } from "./pattern-dialog";
-import { AssignDialog } from "./assign-dialog";
+import dynamic from "next/dynamic";
+
+const TemplateDialog = dynamic(() => import("./template-dialog").then((m) => m.TemplateDialog));
+const PatternDialog = dynamic(() => import("./pattern-dialog").then((m) => m.PatternDialog));
+const AssignDialog = dynamic(() => import("./assign-dialog").then((m) => m.AssignDialog));
 
 /** Shift templates, rotation patterns (Org Admin) and who works which shift (HR, Org Admin) — PRD 23. */
 export function ShiftsSection({

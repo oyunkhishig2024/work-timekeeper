@@ -26,10 +26,18 @@ import type { SessionUser } from "@/lib/session";
 import { DateNav } from "../dashboard/date-nav";
 import { LinkButton } from "../link-button";
 import { chipClass, fieldClass, primaryButton, secondaryButton } from "../styles";
-import { AssignReasonDialog } from "./assign-reason-dialog";
-import { CorrectionDialog } from "./correction-dialog";
-import { PersonalHoursDialog } from "./personal-hours-dialog";
 import { Row } from "./daily-row";
+import dynamic from "next/dynamic";
+
+const AssignReasonDialog = dynamic(() =>
+  import("./assign-reason-dialog").then((m) => m.AssignReasonDialog),
+);
+const CorrectionDialog = dynamic(() =>
+  import("./correction-dialog").then((m) => m.CorrectionDialog),
+);
+const PersonalHoursDialog = dynamic(() =>
+  import("./personal-hours-dialog").then((m) => m.PersonalHoursDialog),
+);
 
 const CHIPS: DailyFilterStatus[] = [
   "EXPECTED",

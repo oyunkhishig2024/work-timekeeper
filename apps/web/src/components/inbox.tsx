@@ -1,5 +1,6 @@
 "use client";
 
+import { smallButton } from "./styles";
 import { useCallback, useEffect, useState } from "react";
 import { api, ApiRequestError } from "@/lib/api";
 import { FormError } from "@/components/form-error";
@@ -66,11 +67,7 @@ export function Inbox() {
           Мэдэгдэл{data && data.unread > 0 ? ` (${data.unread} уншаагүй)` : ""}
         </h2>
         {data && data.unread > 0 && (
-          <button
-            type="button"
-            className="min-h-11 rounded-md border border-slate-300 bg-white px-3 text-sm font-medium hover:bg-slate-100"
-            onClick={() => void markRead(null)}
-          >
+          <button type="button" className={smallButton} onClick={() => void markRead(null)}>
             Бүгдийг уншсан болгох
           </button>
         )}
@@ -96,7 +93,7 @@ export function Inbox() {
               {!n.readAt && (
                 <button
                   type="button"
-                  className="min-h-11 shrink-0 rounded-md border border-slate-300 bg-white px-3 text-sm hover:bg-slate-100"
+                  className={`${smallButton} shrink-0`}
                   onClick={() => void markRead(n.id)}
                 >
                   Уншсан

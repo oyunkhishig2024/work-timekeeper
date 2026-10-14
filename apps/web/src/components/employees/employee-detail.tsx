@@ -27,12 +27,19 @@ import {
 import type { SessionUser } from "@/lib/session";
 import { Modal } from "../modal";
 import { primaryButton, smallButton } from "../styles";
-import { EmployeeFormDialog } from "./employee-form";
-import { ReplacementQrDialog } from "./qr-dialog";
 import { Card, History } from "./detail-parts";
-import { TitleDialog } from "./title-dialog";
-import { DisableDialog, ReactivateDialog } from "./lifecycle-dialogs";
-import { DeviceDialog } from "./device-dialog";
+import dynamic from "next/dynamic";
+
+const ReplacementQrDialog = dynamic(() => import("./qr-dialog").then((m) => m.ReplacementQrDialog));
+const TitleDialog = dynamic(() => import("./title-dialog").then((m) => m.TitleDialog));
+const DisableDialog = dynamic(() => import("./lifecycle-dialogs").then((m) => m.DisableDialog));
+const ReactivateDialog = dynamic(() =>
+  import("./lifecycle-dialogs").then((m) => m.ReactivateDialog),
+);
+const DeviceDialog = dynamic(() => import("./device-dialog").then((m) => m.DeviceDialog));
+const EmployeeFormDialog = dynamic(() =>
+  import("./employee-form").then((m) => m.EmployeeFormDialog),
+);
 
 /** One employee (PRD 12): details, rank and position histories, login, devices and QR, consent, lifecycle. */
 export function EmployeeDetailScreen({ user }: { user: SessionUser }) {

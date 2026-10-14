@@ -1,5 +1,6 @@
 "use client";
 
+import { smallButton } from "../styles";
 import { formatTime, STATUS_LABEL, type Status } from "@/lib/attendance";
 import { departureText, offDayLabel, isReasonAssignable, type DailyItem } from "@/lib/daily";
 import { STATUS_STYLE } from "../dashboard/status-ui";
@@ -106,19 +107,11 @@ export function Row({
         {canEdit && expected && (
           <div className="flex flex-wrap gap-1">
             {!r.reasonName && (
-              <button
-                type="button"
-                className="min-h-11 rounded-md border border-slate-300 px-3 hover:bg-slate-100"
-                onClick={() => onAssign(r)}
-              >
+              <button type="button" className={smallButton} onClick={() => onAssign(r)}>
                 Шалтгаан
               </button>
             )}
-            <button
-              type="button"
-              className="min-h-11 rounded-md border border-slate-300 px-3 hover:bg-slate-100"
-              onClick={() => onCorrect(r)}
-            >
+            <button type="button" className={smallButton} onClick={() => onCorrect(r)}>
               Засах
             </button>
           </div>
