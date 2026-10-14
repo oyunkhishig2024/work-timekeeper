@@ -8,7 +8,8 @@ import {
   updateDepartment,
   type DepartmentRow,
 } from "@/lib/locations";
-import { Modal, fieldClass } from "@/components/modal";
+import { Modal } from "@/components/modal";
+import { fieldClass } from "@/components/styles";
 import { FormError } from "@/components/form-error";
 
 const button =

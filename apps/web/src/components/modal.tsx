@@ -35,10 +35,3 @@ export function Modal({
     </dialog>
   );
 }
-
-export const fieldClass =
-  "mt-1 block min-h-11 w-full rounded-md border border-slate-300 px-3 text-base";
-export const primaryButton =
-  "min-h-11 rounded-md bg-teal-700 px-4 font-semibold text-white hover:bg-teal-800 disabled:opacity-60";
-export const secondaryButton =
-  "min-h-11 rounded-md border border-slate-300 bg-white px-4 font-medium hover:bg-slate-100 disabled:opacity-60";

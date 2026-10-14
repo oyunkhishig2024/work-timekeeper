@@ -1,9 +1,10 @@
 "use client";
 
+import { loadErrorText } from "@/components/api-error";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { api, ApiRequestError, download } from "@/lib/api";
+import { api, download } from "@/lib/api";
 import { fetchDepartments, fetchLocations, type Option } from "@/lib/daily";
 import {
   createBody,
@@ -19,16 +20,11 @@ import {
   type StatusFilter,
 } from "@/lib/employees";
 import type { SessionUser } from "@/lib/session";
-import { fieldClass, secondaryButton } from "../modal";
+import { LinkButton } from "../link-button";
+import { chipClass, fieldClass, secondaryButton } from "../styles";
 import { EmployeeFormDialog } from "./employee-form";
 
 const STATUSES: StatusFilter[] = ["ACTIVE", "DISABLED", "ARCHIVED", "ALL"];
-
-function errorText(e: unknown): string {
-  return e instanceof ApiRequestError
-    ? e.message
-    : "Мэдээллийг уншиж чадсангүй. Дахин оролдоно уу.";
-}
 
 /** Ажилтнууд (PRD 12): the register of people, search and filters, add one, open one. */
 export function EmployeesScreen({ user }: { user: SessionUser }) {
@@ -61,7 +57,7 @@ export function EmployeesScreen({ user }: { user: SessionUser }) {
       setData(await fetchEmployees(state));
       setError(null);
     } catch (e) {
-      setError(errorText(e));
+      setError(loadErrorText(e));
     }
   }, [state]);
   useEffect(() => {
@@ -93,7 +89,7 @@ export function EmployeesScreen({ user }: { user: SessionUser }) {
       Object.assign(document.createElement("a"), { href: url, download: fileName }).click();
       URL.revokeObjectURL(url);
     } catch (e) {
-      setError(errorText(e));
+      setError(loadErrorText(e));
     }
   }
 
@@ -123,18 +119,13 @@ export function EmployeesScreen({ user }: { user: SessionUser }) {
       <ul className="mt-4 flex flex-wrap gap-2" aria-label="Төлөвөөр шүүх">
         {STATUSES.map((s) => (
           <li key={s}>
-            <button
-              type="button"
-              aria-pressed={state.status === s}
-              onClick={() => go({ status: s })}
-              className={`min-h-11 rounded-full border px-4 text-sm ${
-                state.status === s
-                  ? "border-teal-700 bg-teal-700 text-white"
-                  : "border-slate-300 bg-white hover:bg-slate-100"
-              }`}
+            <LinkButton
+              href={employeesHref({ ...state, page: 1, status: s })}
+              current={state.status === s}
+              className={chipClass(state.status === s)}
             >
               {STATUS_LABEL[s]}
-            </button>
+            </LinkButton>
           </li>
         ))}
       </ul>
@@ -265,25 +256,23 @@ export function EmployeesScreen({ user }: { user: SessionUser }) {
           aria-label="Хуудаслалт"
           className="mt-3 flex items-center justify-between gap-2 text-sm"
         >
-          <button
-            type="button"
+          <LinkButton
+            href={employeesHref({ ...state, page: state.page - 1 })}
             className={secondaryButton}
             disabled={state.page <= 1}
-            onClick={() => go({ page: state.page - 1 })}
           >
             ‹ Өмнөх
-          </button>
+          </LinkButton>
           <span>
             {state.page} / {pages}
           </span>
-          <button
-            type="button"
+          <LinkButton
+            href={employeesHref({ ...state, page: state.page + 1 })}
             className={secondaryButton}
             disabled={state.page >= pages}
-            onClick={() => go({ page: state.page + 1 })}
           >
             Дараах ›
-          </button>
+          </LinkButton>
         </nav>
       )}
 

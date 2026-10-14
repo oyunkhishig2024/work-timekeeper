@@ -94,7 +94,8 @@ export function Dashboard() {
           <DateNav
             date={date}
             today={org.today}
-            onChange={(next) =>
+            hrefFor={(next) => dashboardHref({ ...state, date: next === org.today ? null : next })}
+            onPick={(next) =>
               router.push(dashboardHref({ ...state, date: next === org.today ? null : next }))
             }
           />

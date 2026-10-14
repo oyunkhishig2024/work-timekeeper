@@ -2,9 +2,11 @@
 
 import { useState, type FormEvent } from "react";
 import { api, ApiRequestError } from "@/lib/api";
-import { overlapNames, personalHoursProblem, type DailyItem, type Option } from "@/lib/daily";
-import { fieldClass, Modal, primaryButton, secondaryButton } from "../modal";
+import { overlapNames, personalHoursIssue, type DailyItem, type Option } from "@/lib/daily";
+import { Modal } from "../modal";
+import { fieldClass, primaryButton, secondaryButton } from "../styles";
 import { FormError } from "@/components/form-error";
+import { useFieldIssue } from "../use-field-issue";
 
 /**
  * Fix the hours (and, when needed, the places) of the selected employees for a range of dates (PRD 14.3): they replace the
@@ -31,7 +33,7 @@ export function PersonalHoursDialog({
   /** In the order they were ticked: the first is the main place. */
   const [places, setPlaces] = useState<string[]>([]);
   const [note, setNote] = useState("");
-  const [error, setError] = useState<string | null>(null);
+  const form = useFieldIssue("personal-hours-form");
   const [busy, setBusy] = useState(false);
 
   const toggle = (id: string) =>
@@ -39,10 +41,10 @@ export function PersonalHoursDialog({
 
   async function submit(event: FormEvent) {
     event.preventDefault();
-    const problem = personalHoursProblem({ fromDate, toDate, startTime, endTime });
-    if (problem) return setError(problem);
+    const issue = personalHoursIssue({ fromDate, toDate, startTime, endTime });
+    if (issue) return form.issue(issue.field, issue.message);
     setBusy(true);
-    setError(null);
+    form.clear();
     try {
       await api("/v1/personal-hours", {
         method: "POST",
@@ -65,7 +67,7 @@ export function PersonalHoursDialog({
               rows,
             )
           : [];
-      setError(
+      form.failure(
         clash.length > 0
           ? `Дараах ажилтанд энэ хугацаанд хувийн цаг тогтоосон байна: ${clash.join(", ")}. Сонголтоос хасаад дахин оролдоно уу.`
           : e instanceof ApiRequestError
@@ -93,12 +95,14 @@ export function PersonalHoursDialog({
           ))}
         </ul>
       )}
-      <form onSubmit={submit} className="mt-4 space-y-4">
+      <form ref={form.formRef} onSubmit={submit} className="mt-4 space-y-4">
         <div className="grid grid-cols-2 gap-3">
           <label className="block text-sm font-medium">
             Эхлэх огноо
             <input
               type="date"
+              name="fromDate"
+              {...form.flag("fromDate")}
               value={fromDate}
               onChange={(e) => setFromDate(e.target.value)}
               className={fieldClass}
@@ -109,6 +113,8 @@ export function PersonalHoursDialog({
             Дуусах огноо
             <input
               type="date"
+              name="toDate"
+              {...form.flag("toDate")}
               min={fromDate}
               value={toDate}
               onChange={(e) => setToDate(e.target.value)}
@@ -120,6 +126,8 @@ export function PersonalHoursDialog({
             Ажил эхлэх цаг
             <input
               type="time"
+              name="startTime"
+              {...form.flag("startTime")}
               value={startTime}
               onChange={(e) => setStartTime(e.target.value)}
               className={fieldClass}
@@ -130,6 +138,8 @@ export function PersonalHoursDialog({
             Ажил тарах цаг
             <input
               type="time"
+              name="endTime"
+              {...form.flag("endTime")}
               value={endTime}
               onChange={(e) => setEndTime(e.target.value)}
               className={fieldClass}
@@ -170,7 +180,7 @@ export function PersonalHoursDialog({
             className={fieldClass}
           />
         </label>
-        <FormError message={error} className="text-sm text-red-700" />
+        <FormError id={form.errorId} message={form.message} className="text-sm text-red-700" />
         <div className="flex justify-end gap-2">
           <button type="button" className={secondaryButton} onClick={onClose}>
             Болих

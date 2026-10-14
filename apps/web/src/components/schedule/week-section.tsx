@@ -11,7 +11,6 @@ import {
   inheritWorkingWeek,
   putRules,
   putWorkingWeek,
-  scheduleError,
   timesInOrder,
   upcomingStart,
   WEEKDAYS,
@@ -19,13 +18,9 @@ import {
   type WeekDay,
   type WorkingWeek,
 } from "@/lib/schedule";
-import { fieldClass, primaryButton, secondaryButton } from "../modal";
+import { fieldClass, primaryButton, secondaryButton } from "../styles";
+import { message } from "./schedule-message";
 import { FormError } from "@/components/form-error";
-
-const message = (e: unknown) =>
-  e instanceof ApiRequestError
-    ? scheduleError(e.code, e.message)
-    : "Холбогдож чадсангүй. Дахин оролдоно уу.";
 
 const nextDay = (date: string) => {
   const d = new Date(`${date}T00:00:00Z`);

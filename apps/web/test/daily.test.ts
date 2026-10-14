@@ -8,7 +8,9 @@ import {
   isReasonAssignable,
   overlapNames,
   parseDailyState,
+  personalHoursIssue,
   personalHoursProblem,
+  correctionFormIssue,
   reasonFormProblem,
   type Reason,
 } from "../src/lib/daily";
@@ -148,5 +150,32 @@ describe("offDayLabel", () => {
     expect(offDayLabel("HOLIDAY")).toBe("Баярын өдөр ажилласан");
     expect(offDayLabel("OFF_DAY")).toBe("Амралтын өдөр ажилласан");
     expect(offDayLabel(null)).toBe("Амралтын өдөр ажилласан");
+  });
+});
+
+describe("form issues name the field", () => {
+  it("personal hours point at the date or time that is wrong", () => {
+    const ok = {
+      fromDate: "2026-10-05",
+      toDate: "2026-10-05",
+      startTime: "08:00",
+      endTime: "17:00",
+    };
+    expect(personalHoursIssue(ok)).toBeNull();
+    expect(personalHoursIssue({ ...ok, toDate: "2026-10-04" })?.field).toBe("toDate");
+    expect(personalHoursIssue({ ...ok, startTime: "" })?.field).toBe("startTime");
+    expect(personalHoursIssue({ ...ok, endTime: "07:00" })?.field).toBe("endTime");
+  });
+
+  it("a correction points at the status or the note", () => {
+    const ok = {
+      status: "LATE" as const,
+      arrival: "09:00",
+      reasonCode: "OTHER",
+      note: "Утас эвдэрсэн",
+    };
+    expect(correctionFormIssue(ok)).toBeNull();
+    expect(correctionFormIssue({ ...ok, status: "NO_SHOW" })?.field).toBe("status");
+    expect(correctionFormIssue({ ...ok, note: "" })?.field).toBe("note");
   });
 });

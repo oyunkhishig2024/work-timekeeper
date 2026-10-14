@@ -1,9 +1,10 @@
 "use client";
 
+import { actionErrorText } from "@/components/api-error";
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import { useCallback, useEffect, useState, type FormEvent, type ReactNode } from "react";
-import { api, ApiRequestError } from "@/lib/api";
+import { useCallback, useEffect, useState } from "react";
+import { api } from "@/lib/api";
 import { fetchOrganization, type Organization } from "@/lib/attendance";
 import { fetchDepartments, fetchLocations, type Option } from "@/lib/daily";
 import {
@@ -24,38 +25,14 @@ import {
   type HistoryRow,
 } from "@/lib/employees";
 import type { SessionUser } from "@/lib/session";
-import { fieldClass, Modal, primaryButton, secondaryButton } from "../modal";
-import { NoteDialog } from "../review/note-dialog";
+import { Modal } from "../modal";
+import { primaryButton, smallButton } from "../styles";
 import { EmployeeFormDialog } from "./employee-form";
 import { ReplacementQrDialog } from "./qr-dialog";
-import { FormError } from "@/components/form-error";
-
-function errorText(e: unknown): string {
-  return e instanceof ApiRequestError ? e.message : "Алдаа гарлаа. Дахин оролдоно уу.";
-}
-
-function Card({
-  title,
-  children,
-  action,
-}: {
-  title: string;
-  children: ReactNode;
-  action?: ReactNode;
-}) {
-  return (
-    <section className="rounded-lg border border-slate-200 bg-white p-4">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <h2 className="text-lg font-semibold">{title}</h2>
-        {action}
-      </div>
-      <div className="mt-2 text-sm">{children}</div>
-    </section>
-  );
-}
-
-const small =
-  "min-h-11 rounded-md border border-slate-300 bg-white px-3 text-sm font-medium hover:bg-slate-100 disabled:opacity-60";
+import { Card, History } from "./detail-parts";
+import { TitleDialog } from "./title-dialog";
+import { DisableDialog, ReactivateDialog } from "./lifecycle-dialogs";
+import { DeviceDialog } from "./device-dialog";
 
 /** One employee (PRD 12): details, rank and position histories, login, devices and QR, consent, lifecycle. */
 export function EmployeeDetailScreen({ user }: { user: SessionUser }) {
@@ -98,7 +75,7 @@ export function EmployeeDetailScreen({ user }: { user: SessionUser }) {
         setPositions(p);
       }
     } catch (e) {
-      setError(errorText(e));
+      setError(actionErrorText(e));
     }
   }, [id, canEdit]);
 
@@ -161,7 +138,7 @@ export function EmployeeDetailScreen({ user }: { user: SessionUser }) {
           title="Үндсэн мэдээлэл"
           action={
             canEdit && employee.status !== "ARCHIVED" ? (
-              <button type="button" className={small} onClick={() => setDialog("edit")}>
+              <button type="button" className={smallButton} onClick={() => setDialog("edit")}>
                 Засах
               </button>
             ) : null
@@ -195,7 +172,7 @@ export function EmployeeDetailScreen({ user }: { user: SessionUser }) {
                 title="Цолны түүх"
                 action={
                   active && (
-                    <button type="button" className={small} onClick={() => setDialog("rank")}>
+                    <button type="button" className={smallButton} onClick={() => setDialog("rank")}>
                       Цол өөрчлөх
                     </button>
                   )
@@ -207,7 +184,11 @@ export function EmployeeDetailScreen({ user }: { user: SessionUser }) {
                 title="Албан тушаалын түүх"
                 action={
                   active && (
-                    <button type="button" className={small} onClick={() => setDialog("position")}>
+                    <button
+                      type="button"
+                      className={smallButton}
+                      onClick={() => setDialog("position")}
+                    >
                       Албан тушаал өөрчлөх
                     </button>
                   )
@@ -221,7 +202,7 @@ export function EmployeeDetailScreen({ user }: { user: SessionUser }) {
               title="Утас ба нэвтрэх эрх"
               action={
                 active && (
-                  <button type="button" className={small} onClick={() => setDialog("qr")}>
+                  <button type="button" className={smallButton} onClick={() => setDialog("qr")}>
                     Утас солих QR
                   </button>
                 )
@@ -237,7 +218,7 @@ export function EmployeeDetailScreen({ user }: { user: SessionUser }) {
                 ) : active ? (
                   <button
                     type="button"
-                    className={small}
+                    className={smallButton}
                     onClick={() =>
                       void api<{ username: string; temporaryPassword: string }>(
                         `/v1/employees/${id}/account`,
@@ -248,7 +229,7 @@ export function EmployeeDetailScreen({ user }: { user: SessionUser }) {
                           setDialog("password");
                           void load();
                         },
-                        (e) => setError(errorText(e)),
+                        (e) => setError(actionErrorText(e)),
                       )
                     }
                   >
@@ -282,7 +263,11 @@ export function EmployeeDetailScreen({ user }: { user: SessionUser }) {
                         ) : null}
                       </span>
                       {d.status === "ACTIVE" && (
-                        <button type="button" className={small} onClick={() => setDialog("device")}>
+                        <button
+                          type="button"
+                          className={smallButton}
+                          onClick={() => setDialog("device")}
+                        >
                           Идэвхгүй болгох
                         </button>
                       )}
@@ -317,24 +302,28 @@ export function EmployeeDetailScreen({ user }: { user: SessionUser }) {
 
             <Card title="Ажилтны төлөв">
               {active ? (
-                <button type="button" className={small} onClick={() => setDialog("disable")}>
+                <button type="button" className={smallButton} onClick={() => setDialog("disable")}>
                   Идэвхгүй болгох (ажлаас гарсан)
                 </button>
               ) : employee.status === "DISABLED" ? (
                 <div className="flex flex-wrap gap-2">
-                  <button type="button" className={small} onClick={() => setDialog("reactivate")}>
+                  <button
+                    type="button"
+                    className={smallButton}
+                    onClick={() => setDialog("reactivate")}
+                  >
                     Дахин идэвхжүүлэх
                   </button>
                   <button
                     type="button"
-                    className={small}
+                    className={smallButton}
                     onClick={() =>
                       void api(`/v1/employees/${id}/archive`, {
                         method: "POST",
                         body: user.role === "ORG_ADMIN" ? {} : {},
                       }).then(
                         () => done("Архивлалаа."),
-                        (e) => setError(errorText(e)),
+                        (e) => setError(actionErrorText(e)),
                       )
                     }
                   >
@@ -444,330 +433,5 @@ export function EmployeeDetailScreen({ user }: { user: SessionUser }) {
         </Modal>
       )}
     </div>
-  );
-}
-
-function History({ rows, field }: { rows: HistoryRow[]; field: "rank" | "position" }) {
-  if (rows.length === 0) return <p className="text-slate-600">Бүртгэл байхгүй.</p>;
-  return (
-    <ul className="divide-y divide-slate-100">
-      {rows.map((r) => (
-        <li key={r.id} className="py-1.5">
-          <b>{r[field]}</b>
-          <span className="text-slate-600">
-            {" "}
-            · {r.validFrom} → {r.validTo ?? "одоог хүртэл"}
-          </span>
-          {r.note && <div className="text-xs text-slate-600">{r.note}</div>}
-        </li>
-      ))}
-    </ul>
-  );
-}
-
-function TitleDialog({
-  today,
-  kind,
-  current,
-  suggestions,
-  startDate,
-  employeeId,
-  onClose,
-  onSaved,
-}: {
-  /** The organization's date, not the browser's: the server rejects a date that is still in the future for it. */
-  today: string;
-  kind: "rank" | "position";
-  current: string | null;
-  suggestions: string[];
-  startDate: string | null;
-  employeeId: string;
-  onClose: () => void;
-  onSaved: () => void;
-}) {
-  const [value, setValue] = useState("");
-  const [date, setDate] = useState(today);
-  const [note, setNote] = useState("");
-  const [error, setError] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
-  const label = kind === "rank" ? "Шинэ цол" : "Шинэ албан тушаал";
-
-  async function submit(event: FormEvent) {
-    event.preventDefault();
-    if (!value.trim()) return setError(`${label} бичнэ үү.`);
-    if (date > today) return setError("Ирээдүйн огноо оруулж болохгүй.");
-    if (startDate && date < startDate) return setError("Ажилд орсон огнооноос өмнө байж болохгүй.");
-    setBusy(true);
-    setError(null);
-    try {
-      await api(`/v1/employees/${employeeId}/${kind}`, {
-        method: "PUT",
-        body: {
-          [kind]: value.trim(),
-          effectiveDate: date,
-          ...(note.trim() ? { note: note.trim() } : {}),
-        },
-      });
-      onSaved();
-    } catch (e) {
-      setError(errorText(e));
-      setBusy(false);
-    }
-  }
-  return (
-    <Modal title={kind === "rank" ? "Цол өөрчлөх" : "Албан тушаал өөрчлөх"} onClose={onClose}>
-      <p className="mt-1 text-sm text-slate-700">
-        Одоогийн: {current ?? "—"}. Нөгөөг нь хөндөхгүй, түүхэнд тусад нь хадгална. Өнөөдөр
-        бүртгэсэн утгыг «Засах»-аар засна.
-      </p>
-      <form onSubmit={submit} className="mt-4 space-y-3">
-        <label className="block text-sm font-medium">
-          {label}
-          <input
-            value={value}
-            onChange={(e) => setValue(e.target.value)}
-            list={`${kind}-list`}
-            maxLength={120}
-            className={fieldClass}
-          />
-          <datalist id={`${kind}-list`}>
-            {suggestions.map((s) => (
-              <option key={s} value={s} />
-            ))}
-          </datalist>
-        </label>
-        <label className="block text-sm font-medium">
-          Хүчинтэй болох огноо
-          <input
-            type="date"
-            value={date}
-            max={today}
-            onChange={(e) => setDate(e.target.value)}
-            className={fieldClass}
-          />
-        </label>
-        <label className="block text-sm font-medium">
-          Тэмдэглэл (тушаалын дугаар гэх мэт, заавал биш)
-          <input
-            value={note}
-            onChange={(e) => setNote(e.target.value)}
-            maxLength={300}
-            className={fieldClass}
-          />
-        </label>
-        <FormError message={error} className="text-sm text-red-700" />
-        <div className="flex justify-end gap-2">
-          <button type="button" className={secondaryButton} onClick={onClose}>
-            Болих
-          </button>
-          <button type="submit" disabled={busy} className={primaryButton}>
-            Хадгалах
-          </button>
-        </div>
-      </form>
-    </Modal>
-  );
-}
-
-function DisableDialog({
-  today,
-  employeeId,
-  startDate,
-  onClose,
-  onSaved,
-}: {
-  today: string;
-  employeeId: string;
-  startDate: string | null;
-  onClose: () => void;
-  onSaved: () => void;
-}) {
-  const [date, setDate] = useState(today);
-  return (
-    <NoteDialog
-      title="Ажилтныг идэвхгүй болгох"
-      intro={`Хүчинтэй болох огноо: ${date}. Нэвтрэх эрх, утас хаагдаж, хойшлох шалтгаан, түр томилолт цуцлагдана.`}
-      label="Шалтгаан"
-      required={false}
-      submitLabel="Идэвхгүй болгох"
-      validate={() =>
-        date > today
-          ? "Ирээдүйн огноо оруулж болохгүй."
-          : startDate && date < startDate
-            ? "Ажилд орсон огнооноос өмнө байж болохгүй."
-            : null
-      }
-      onSubmit={async (note) => {
-        try {
-          await api(`/v1/employees/${employeeId}/disable`, {
-            method: "POST",
-            body: { effectiveDate: date, ...(note.trim() ? { reason: note.trim() } : {}) },
-          });
-        } catch (e) {
-          throw new Error(errorText(e));
-        }
-        onSaved();
-      }}
-      onClose={onClose}
-      extra={
-        <label className="block text-sm font-medium">
-          Огноо
-          <input
-            type="date"
-            value={date}
-            max={today}
-            onChange={(e) => setDate(e.target.value)}
-            className={fieldClass}
-          />
-        </label>
-      }
-    />
-  );
-}
-
-function ReactivateDialog({
-  today,
-  employee,
-  departments,
-  locations,
-  onClose,
-  onSaved,
-}: {
-  today: string;
-  employee: EmployeeDetail;
-  departments: Option[];
-  locations: Option[];
-  onClose: () => void;
-  onSaved: (password: { username: string; temporaryPassword: string } | null) => void;
-}) {
-  const [departmentId, setDepartmentId] = useState(employee.departmentId);
-  const [locationId, setLocationId] = useState(employee.primaryLocationId);
-  const [startDate, setStartDate] = useState(today);
-  const [error, setError] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
-  async function submit(event: FormEvent) {
-    event.preventDefault();
-    setBusy(true);
-    setError(null);
-    try {
-      // An employee who has a login gets a new one-time password with the reactivation (PRD 12.2).
-      const res = await api<{ temporaryPassword?: string }>(
-        `/v1/employees/${employee.id}/reactivate`,
-        {
-          method: "POST",
-          body: { departmentId, primaryLocationId: locationId, startDate },
-        },
-      );
-      const pw =
-        res.temporaryPassword && employee.account
-          ? { username: employee.account.username, temporaryPassword: res.temporaryPassword }
-          : null;
-      onSaved(pw);
-    } catch (e) {
-      setError(errorText(e));
-      setBusy(false);
-    }
-  }
-  return (
-    <Modal title="Дахин идэвхжүүлэх" onClose={onClose}>
-      <p className="mt-1 text-sm text-slate-700">
-        Нэгж, салбараа дахин баталгаажуулна. Хуучин утас хаалттай хэвээр, шинэ QR хэрэгтэй.
-      </p>
-      <form onSubmit={submit} className="mt-4 space-y-3">
-        <label className="block text-sm font-medium">
-          Нэгж
-          <select
-            value={departmentId}
-            onChange={(e) => setDepartmentId(e.target.value)}
-            className={fieldClass}
-          >
-            {departments.map((d) => (
-              <option key={d.id} value={d.id}>
-                {d.name}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label className="block text-sm font-medium">
-          Үндсэн салбар
-          <select
-            value={locationId}
-            onChange={(e) => setLocationId(e.target.value)}
-            className={fieldClass}
-          >
-            {locations.map((l) => (
-              <option key={l.id} value={l.id}>
-                {l.name}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label className="block text-sm font-medium">
-          Ажилд орсон огноо
-          <input
-            type="date"
-            value={startDate}
-            onChange={(e) => setStartDate(e.target.value)}
-            className={fieldClass}
-          />
-        </label>
-        <FormError message={error} className="text-sm text-red-700" />
-        <div className="flex justify-end gap-2">
-          <button type="button" className={secondaryButton} onClick={onClose}>
-            Болих
-          </button>
-          <button type="submit" disabled={busy} className={primaryButton}>
-            Идэвхжүүлэх
-          </button>
-        </div>
-      </form>
-    </Modal>
-  );
-}
-
-function DeviceDialog({
-  deviceId,
-  onClose,
-  onSaved,
-}: {
-  deviceId: string;
-  onClose: () => void;
-  onSaved: () => void;
-}) {
-  const [reason, setReason] = useState<"LOST" | "STOLEN" | "OTHER">("LOST");
-  return (
-    <NoteDialog
-      title="Төхөөрөмжийг идэвхгүй болгох"
-      intro="Утас дараа нь ирц хүлээн авахаа болино, нэвтрэлт нь тасарна. Шинэ утсанд QR хэрэгтэй."
-      label="Тэмдэглэл"
-      required={false}
-      submitLabel="Идэвхгүй болгох"
-      onSubmit={async (note) => {
-        try {
-          await api(`/v1/devices/${deviceId}/disable`, {
-            method: "POST",
-            body: { reason, ...(note.trim() ? { note: note.trim() } : {}) },
-          });
-        } catch (e) {
-          throw new Error(errorText(e));
-        }
-        onSaved();
-      }}
-      onClose={onClose}
-      extra={
-        <label className="block text-sm font-medium">
-          Шалтгаан
-          <select
-            value={reason}
-            onChange={(e) => setReason(e.target.value as typeof reason)}
-            className={fieldClass}
-          >
-            <option value="LOST">Алдсан</option>
-            <option value="STOLEN">Хулгайд алдсан</option>
-            <option value="OTHER">Бусад</option>
-          </select>
-        </label>
-      }
-    />
   );
 }

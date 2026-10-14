@@ -1,9 +1,9 @@
 "use client";
 
+import { loadErrorText } from "@/components/api-error";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { ApiRequestError } from "@/lib/api";
 import { fetchOrganization, formatTime, type Organization } from "@/lib/attendance";
 import {
   decisionProblem,
@@ -20,7 +20,7 @@ import {
   type Decision,
   type QueueFilter,
 } from "@/lib/review";
-import { secondaryButton } from "../modal";
+import { secondaryButton } from "../styles";
 import { NoteDialog } from "./note-dialog";
 import { ReviewTabs } from "./review-tabs";
 
@@ -34,12 +34,6 @@ const dateTime = (iso: string, timeZone: string) =>
     hour: "2-digit",
     minute: "2-digit",
   }).format(new Date(iso));
-
-function errorText(e: unknown): string {
-  return e instanceof ApiRequestError
-    ? e.message
-    : "Мэдээллийг уншиж чадсангүй. Дахин оролдоно уу.";
-}
 
 /** Anomaly Review Queue (PRD 6.7): suspicious events are accepted and flagged; HR confirms, rejects or asks for a re-check. */
 export function AnomalyQueue() {
@@ -57,7 +51,7 @@ export function AnomalyQueue() {
   const [version, setVersion] = useState(0);
 
   useEffect(() => {
-    fetchOrganization().then(setOrg, (e) => setError(errorText(e)));
+    fetchOrganization().then(setOrg, (e) => setError(loadErrorText(e)));
   }, []);
 
   const load = useCallback(async () => {
@@ -65,7 +59,7 @@ export function AnomalyQueue() {
       setData(await fetchAnomalies(state));
       setError(null);
     } catch (e) {
-      setError(errorText(e));
+      setError(loadErrorText(e));
     }
   }, [state]);
   useEffect(() => {
@@ -91,7 +85,7 @@ export function AnomalyQueue() {
     try {
       await decide(item, "CONFIRM", "");
     } catch (e) {
-      setError(errorText(e));
+      setError(loadErrorText(e));
     } finally {
       setBusyId(null);
     }
@@ -207,7 +201,7 @@ export function AnomalyQueue() {
               await decide(dialog.item, dialog.decision, note);
               setDialog(null);
             } catch (e) {
-              throw new Error(errorText(e));
+              throw new Error(loadErrorText(e));
             }
           }}
           onClose={() => setDialog(null)}

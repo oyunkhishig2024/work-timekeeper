@@ -1,46 +1,35 @@
 "use client";
 
 import { addDaysIso, weekdayMn } from "@/lib/attendance";
+import { LinkButton } from "../link-button";
+import { smallButton } from "../styles";
 
-const btn =
-  "min-h-11 rounded-md border border-slate-300 bg-white px-3 text-sm font-medium hover:bg-slate-100";
-
-/** Previous day / Today / Next day (PRD 7) and a date picker. */
+/**
+ * Previous day / Today / Next day (PRD 7) as links to `hrefFor(date)` (null when `date` is today: no date in the address),
+ * and a date picker that calls `onPick`.
+ */
 export function DateNav({
   date,
   today,
-  onChange,
+  hrefFor,
+  onPick,
 }: {
   date: string;
   today: string;
-  onChange: (date: string) => void;
+  hrefFor: (date: string) => string;
+  onPick: (date: string) => void;
 }) {
   return (
     <div className="flex flex-wrap items-center gap-2">
-      <button
-        type="button"
-        className={btn}
-        onClick={() => onChange(addDaysIso(date, -1))}
-        aria-label="Өмнөх өдөр"
-      >
+      <LinkButton href={hrefFor(addDaysIso(date, -1))} className={smallButton} label="Өмнөх өдөр">
         ‹ Өмнөх
-      </button>
-      <button
-        type="button"
-        className={btn}
-        disabled={date === today}
-        onClick={() => onChange(today)}
-      >
+      </LinkButton>
+      <LinkButton href={hrefFor(today)} className={smallButton} disabled={date === today}>
         Өнөөдөр
-      </button>
-      <button
-        type="button"
-        className={btn}
-        onClick={() => onChange(addDaysIso(date, 1))}
-        aria-label="Дараах өдөр"
-      >
+      </LinkButton>
+      <LinkButton href={hrefFor(addDaysIso(date, 1))} className={smallButton} label="Дараах өдөр">
         Дараах ›
-      </button>
+      </LinkButton>
       <label className="ml-auto flex items-center gap-2 text-sm text-slate-700">
         <span className="hidden sm:inline">
           {date} · {weekdayMn(date)}
@@ -49,7 +38,7 @@ export function DateNav({
         <input
           type="date"
           value={date}
-          onChange={(e) => e.target.value && onChange(e.target.value)}
+          onChange={(e) => e.target.value && onPick(e.target.value)}
           className="min-h-11 rounded-md border border-slate-300 bg-white px-2"
         />
       </label>

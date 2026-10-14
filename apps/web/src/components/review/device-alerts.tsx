@@ -1,7 +1,7 @@
 "use client";
 
+import { loadErrorText } from "@/components/api-error";
 import { useCallback, useEffect, useState } from "react";
-import { ApiRequestError } from "@/lib/api";
 import { fetchOrganization, type Organization } from "@/lib/attendance";
 import {
   ALERT_LABEL,
@@ -10,7 +10,7 @@ import {
   resolveAlert,
   type DeviceAlert,
 } from "@/lib/review";
-import { secondaryButton } from "../modal";
+import { secondaryButton } from "../styles";
 import { NoteDialog } from "./note-dialog";
 import { ReviewTabs } from "./review-tabs";
 
@@ -24,12 +24,6 @@ const dateTime = (iso: string, timeZone: string) =>
     minute: "2-digit",
   }).format(new Date(iso));
 
-function errorText(e: unknown): string {
-  return e instanceof ApiRequestError
-    ? e.message
-    : "Мэдээллийг уншиж чадсангүй. Дахин оролдоно уу.";
-}
-
 /** Device alerts (PRD 6.7): attestation silent for five batches, one device or movement shared by two employees. */
 export function DeviceAlerts() {
   const [org, setOrg] = useState<Organization | null>(null);
@@ -41,14 +35,14 @@ export function DeviceAlerts() {
   const [version, setVersion] = useState(0);
 
   useEffect(() => {
-    fetchOrganization().then(setOrg, (e) => setError(errorText(e)));
+    fetchOrganization().then(setOrg, (e) => setError(loadErrorText(e)));
   }, []);
   const load = useCallback(async () => {
     try {
       setItems((await fetchAlerts(status)).items);
       setError(null);
     } catch (e) {
-      setError(errorText(e));
+      setError(loadErrorText(e));
     }
   }, [status]);
   useEffect(() => {
@@ -156,7 +150,7 @@ export function DeviceAlerts() {
             try {
               await resolveAlert(resolving.id, note);
             } catch (e) {
-              throw new Error(errorText(e));
+              throw new Error(loadErrorText(e));
             }
             setResolving(null);
             setMessage("Шийдсэн гэж тэмдэглэлээ.");

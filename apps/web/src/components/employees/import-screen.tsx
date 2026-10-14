@@ -17,7 +17,7 @@ import {
   type Mode,
   type OnDuplicate,
 } from "@/lib/employee-import";
-import { primaryButton, secondaryButton } from "../modal";
+import { primaryButton, secondaryButton } from "../styles";
 import { FormError } from "@/components/form-error";
 
 const STATUS_STYLE: Record<ImportRow["status"], string> = {

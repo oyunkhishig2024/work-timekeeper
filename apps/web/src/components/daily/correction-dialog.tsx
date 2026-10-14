@@ -3,10 +3,12 @@
 import { useState, type FormEvent } from "react";
 import { api, ApiRequestError } from "@/lib/api";
 import { STATUS_LABEL } from "@/lib/attendance";
-import { CORRECTION_REASONS, correctionFormProblem, type DailyItem } from "@/lib/daily";
+import { CORRECTION_REASONS, correctionFormIssue, type DailyItem } from "@/lib/daily";
 import { isoToZonedTime, zonedTimeToIso } from "@/lib/time";
-import { fieldClass, Modal, primaryButton, secondaryButton } from "../modal";
+import { Modal } from "../modal";
+import { fieldClass, primaryButton, secondaryButton } from "../styles";
 import { FormError } from "@/components/form-error";
+import { useFieldIssue } from "../use-field-issue";
 
 type Choice = "ON_TIME" | "LATE" | "NO_SHOW";
 
@@ -30,25 +32,25 @@ export function CorrectionDialog({
   );
   const [reasonCode, setReasonCode] = useState("PHONE_DEAD_LOST");
   const [note, setNote] = useState("");
-  const [error, setError] = useState<string | null>(null);
+  const form = useFieldIssue("correction-form");
   const [busy, setBusy] = useState(false);
 
   async function call(action: () => Promise<unknown>) {
     setBusy(true);
-    setError(null);
+    form.clear();
     try {
       await action();
       onSaved();
     } catch (e) {
-      setError(e instanceof ApiRequestError ? e.message : "Хадгалж чадсангүй.");
+      form.failure(e instanceof ApiRequestError ? e.message : "Хадгалж чадсангүй.");
       setBusy(false);
     }
   }
 
   function submit(event: FormEvent) {
     event.preventDefault();
-    const problem = correctionFormProblem({ status, arrival, reasonCode, note });
-    if (problem) return setError(problem);
+    const issue = correctionFormIssue({ status, arrival, reasonCode, note });
+    if (issue) return form.issue(issue.field, issue.message);
     void call(() =>
       api("/v1/attendance/corrections", {
         method: "POST",
@@ -85,7 +87,7 @@ export function CorrectionDialog({
           ? ` · системийн утга: ${STATUS_LABEL[row.systemStatus as keyof typeof STATUS_LABEL] ?? row.systemStatus}`
           : ""}
       </p>
-      <form onSubmit={submit} className="mt-4 space-y-4">
+      <form ref={form.formRef} onSubmit={submit} className="mt-4 space-y-4">
         <fieldset>
           <legend className="text-sm font-medium">Шинэ төлөв</legend>
           <div className="mt-1 flex flex-wrap gap-x-4">
@@ -106,6 +108,7 @@ export function CorrectionDialog({
         <label className="block text-sm font-medium">
           Засварын шалтгаан
           <select
+            name="reasonCode"
             value={reasonCode}
             onChange={(e) => setReasonCode(e.target.value)}
             className={fieldClass}
@@ -120,6 +123,8 @@ export function CorrectionDialog({
         <label className="block text-sm font-medium">
           Тайлбар{reasonCode === "OTHER" ? " (заавал)" : " (заавал биш)"}
           <textarea
+            name="note"
+            {...form.flag("note")}
             value={note}
             onChange={(e) => setNote(e.target.value)}
             maxLength={500}
@@ -127,7 +132,7 @@ export function CorrectionDialog({
             className={`${fieldClass} py-2`}
           />
         </label>
-        <FormError message={error} className="text-sm text-red-700" />
+        <FormError id={form.errorId} message={form.message} className="text-sm text-red-700" />
         <div className="flex flex-wrap justify-between gap-2">
           {row.correctionId ? (
             <button

@@ -209,7 +209,7 @@ export default function SetupPage() {
 
       <button
         type="button"
-        className="mt-6 inline-flex min-h-11 items-center text-sm text-slate-500 underline"
+        className="mt-6 inline-flex min-h-11 min-w-11 items-center justify-center text-sm text-slate-500 underline"
         onClick={() => void logout().then(() => router.replace("/login"))}
       >
         Гарах

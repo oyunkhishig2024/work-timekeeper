@@ -1,8 +1,9 @@
 "use client";
 
+import { loadErrorText } from "@/components/api-error";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { ApiRequestError, download } from "@/lib/api";
+import { download } from "@/lib/api";
 import { fetchOrganization, formatTime, type Organization } from "@/lib/attendance";
 import {
   departureText,
@@ -23,7 +24,8 @@ import {
   type ReportKind,
   type TimeReport,
 } from "@/lib/reports";
-import { fieldClass, secondaryButton } from "../modal";
+import { LinkButton } from "../link-button";
+import { chipClass, fieldClass, secondaryButton, smallButton } from "../styles";
 import { FormError } from "@/components/form-error";
 
 const KIND_LABEL: Record<ReportKind, string> = {
@@ -31,15 +33,6 @@ const KIND_LABEL: Record<ReportKind, string> = {
   overtime: "Илүү цаг",
   offday: "Баяр, амралтын өдөр ажилласан",
 };
-const btn =
-  "min-h-11 rounded-md border border-slate-300 bg-white px-3 text-sm font-medium hover:bg-slate-100";
-
-function errorText(e: unknown): string {
-  return e instanceof ApiRequestError
-    ? e.message
-    : "Мэдээллийг уншиж чадсангүй. Дахин оролдоно уу.";
-}
-
 /** Дутуу цаг, илүү цагийн тайлан: a week or a month, per employee, with the same numbers in Excel / CSV / PDF (PRD 9, 23.2). */
 export function ReportsScreen() {
   const router = useRouter();
@@ -53,7 +46,7 @@ export function ReportsScreen() {
   const request = useRef(0);
 
   useEffect(() => {
-    fetchOrganization().then(setOrg, (e) => setError(errorText(e)));
+    fetchOrganization().then(setOrg, (e) => setError(loadErrorText(e)));
     fetchLocations().then(setLocations, () => undefined);
     fetchDepartments().then(setDepartments, () => undefined);
   }, []);
@@ -75,7 +68,7 @@ export function ReportsScreen() {
           setError(null);
         }
       },
-      (e) => request.current === mine && setError(errorText(e)),
+      (e) => request.current === mine && setError(loadErrorText(e)),
     );
   }, [from, to, kind, locationId, departmentId]);
 
@@ -90,7 +83,7 @@ export function ReportsScreen() {
       link.click();
       URL.revokeObjectURL(url);
     } catch (e) {
-      setError(errorText(e));
+      setError(loadErrorText(e));
     }
   }
 
@@ -105,18 +98,13 @@ export function ReportsScreen() {
       <ul className="mt-4 flex gap-2" aria-label="Тайлангийн төрөл">
         {(["short", "overtime", "offday"] as const).map((k) => (
           <li key={k}>
-            <button
-              type="button"
-              aria-pressed={kind === k}
-              onClick={() => go({ kind: k })}
-              className={`min-h-11 rounded-full border px-4 text-sm ${
-                kind === k
-                  ? "border-teal-700 bg-teal-700 text-white"
-                  : "border-slate-300 bg-white hover:bg-slate-100"
-              }`}
+            <LinkButton
+              href={reportsHref({ ...state, kind: k })}
+              current={kind === k}
+              className={chipClass(kind === k)}
             >
               {KIND_LABEL[k]}
-            </button>
+            </LinkButton>
           </li>
         ))}
       </ul>
@@ -124,40 +112,36 @@ export function ReportsScreen() {
       {anchor && range && org && (
         <div className="mt-3 flex flex-wrap items-center gap-2">
           {(["week", "month"] as const).map((p) => (
-            <button
+            <LinkButton
               key={p}
-              type="button"
-              aria-pressed={state.period === p}
-              onClick={() => go({ period: p })}
-              className={`${btn} ${state.period === p ? "border-teal-700 bg-teal-50" : ""}`}
+              href={reportsHref({ ...state, period: p })}
+              current={state.period === p}
+              className={`${smallButton} ${state.period === p ? "border-teal-700 bg-teal-50" : ""}`}
             >
               {p === "week" ? "7 хоног" : "Сар"}
-            </button>
+            </LinkButton>
           ))}
-          <button
-            type="button"
-            className={btn}
-            aria-label="Өмнөх"
-            onClick={() => go({ date: shiftPeriod(state.period, anchor, -1) })}
+          <LinkButton
+            href={reportsHref({ ...state, date: shiftPeriod(state.period, anchor, -1) })}
+            className={smallButton}
+            label="Өмнөх"
           >
             ‹ Өмнөх
-          </button>
-          <button
-            type="button"
-            className={btn}
+          </LinkButton>
+          <LinkButton
+            href={reportsHref({ ...state, date: null })}
+            className={smallButton}
             disabled={state.date === null}
-            onClick={() => go({ date: null })}
           >
             Энэ {state.period === "week" ? "7 хоног" : "сар"}
-          </button>
-          <button
-            type="button"
-            className={btn}
-            aria-label="Дараах"
-            onClick={() => go({ date: shiftPeriod(state.period, anchor, 1) })}
+          </LinkButton>
+          <LinkButton
+            href={reportsHref({ ...state, date: shiftPeriod(state.period, anchor, 1) })}
+            className={smallButton}
+            label="Дараах"
           >
             Дараах ›
-          </button>
+          </LinkButton>
           <span className="ml-auto text-sm text-slate-700">
             {range.from} — {range.to}
           </span>

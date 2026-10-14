@@ -138,6 +138,9 @@ export const CORRECTION_REASONS: Array<[string, string]> = [
 ];
 
 /** A reason that must be explained in words («Бусад») cannot be saved with an empty text. */
+/** A problem found before sending a form, and the name of the field it is about. */
+export type FormIssue = { field: string; message: string };
+
 export function reasonFormProblem(reason: Reason | undefined, description: string): string | null {
   if (!reason) return "Шалтгаанаа сонгоно уу.";
   if (reason.requiresDescription && description.trim().length < 3)
@@ -146,17 +149,24 @@ export function reasonFormProblem(reason: Reason | undefined, description: strin
 }
 
 /** What the correction form may send; mirrors what the API accepts (PRD 6.9). */
-export function correctionFormProblem(input: {
+export function correctionFormIssue(input: {
   status: "ON_TIME" | "LATE" | "NO_SHOW";
   arrival: string;
   reasonCode: string;
   note: string;
-}): string | null {
-  if (input.status === "NO_SHOW" && input.arrival) return "«Ирээгүй» төлөвт ирсэн цаг оруулахгүй.";
-  if (input.reasonCode === "OTHER" && input.note.trim().length < 3)
-    return "«Бусад» үед тайлбар бичнэ үү.";
+}): FormIssue | null {
+  if (input.status === "NO_SHOW" && input.arrival) {
+    return { field: "status", message: "«Ирээгүй» төлөвт ирсэн цаг оруулахгүй." };
+  }
+  if (input.reasonCode === "OTHER" && input.note.trim().length < 3) {
+    return { field: "note", message: "«Бусад» үед тайлбар бичнэ үү." };
+  }
   return null;
 }
+
+export const correctionFormProblem = (
+  input: Parameters<typeof correctionFormIssue>[0],
+): string | null => correctionFormIssue(input)?.message ?? null;
 
 /** The most employees one reason assignment may cover (the API limit). */
 export const MAX_BULK_ASSIGN = 500;
@@ -189,23 +199,34 @@ export function departureText(
 }
 
 /** What the personal-hours form may send; mirrors what the API accepts (PRD 14.3). */
-export function personalHoursProblem(f: {
+export function personalHoursIssue(f: {
   fromDate: string;
   toDate: string;
   startTime: string;
   endTime: string;
-}): string | null {
-  if (!isIsoDate(f.fromDate) || !isIsoDate(f.toDate)) return "Огноогоо оруулна уу.";
-  if (f.toDate < f.fromDate) return "Дуусах огноо эхлэх огнооноос өмнө байж болохгүй.";
+}): FormIssue | null {
+  if (!isIsoDate(f.fromDate)) return { field: "fromDate", message: "Огноогоо оруулна уу." };
+  if (!isIsoDate(f.toDate)) return { field: "toDate", message: "Огноогоо оруулна уу." };
+  if (f.toDate < f.fromDate) {
+    return { field: "toDate", message: "Дуусах огноо эхлэх огнооноос өмнө байж болохгүй." };
+  }
   if ((Date.parse(f.toDate) - Date.parse(f.fromDate)) / 86_400_000 > 30) {
-    return "Нэг удаад дээд тал нь 31 хоногийн цаг тогтооно.";
+    return { field: "toDate", message: "Нэг удаад дээд тал нь 31 хоногийн цаг тогтооно." };
   }
-  if (!/^\d\d:\d\d$/.test(f.startTime) || !/^\d\d:\d\d$/.test(f.endTime)) {
-    return "Эхлэх, дуусах цагаа оруулна уу.";
+  if (!/^\d\d:\d\d$/.test(f.startTime)) {
+    return { field: "startTime", message: "Эхлэх, дуусах цагаа оруулна уу." };
   }
-  if (f.endTime <= f.startTime) return "Дуусах цаг эхлэх цагаас хойш байх ёстой.";
+  if (!/^\d\d:\d\d$/.test(f.endTime)) {
+    return { field: "endTime", message: "Эхлэх, дуусах цагаа оруулна уу." };
+  }
+  if (f.endTime <= f.startTime) {
+    return { field: "endTime", message: "Дуусах цаг эхлэх цагаас хойш байх ёстой." };
+  }
   return null;
 }
+
+export const personalHoursProblem = (f: Parameters<typeof personalHoursIssue>[0]): string | null =>
+  personalHoursIssue(f)?.message ?? null;
 
 /** «Баярын өдөр ажилласан» or «Амралтын өдөр ажилласан»: the two kinds of day someone came on are told apart (PRD 14.2). */
 export function offDayLabel(kind: "HOLIDAY" | "OFF_DAY" | null | undefined): string {

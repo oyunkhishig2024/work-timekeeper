@@ -9,8 +9,10 @@ import {
   updateLocation,
   type LocationRow,
 } from "@/lib/locations";
-import { Modal, fieldClass } from "@/components/modal";
+import { Modal } from "@/components/modal";
+import { fieldClass } from "@/components/styles";
 import { FormError } from "@/components/form-error";
+import { useFieldIssue } from "../use-field-issue";
 
 const button =
   "min-h-11 rounded-md border border-slate-300 px-3 text-sm font-medium hover:bg-slate-100";
@@ -104,14 +106,14 @@ function LocationDialog({
 }) {
   const [coords, setCoords] = useState(row ? `${row.lat}, ${row.lng}` : "");
   const [active, setActive] = useState(row?.active ?? true);
-  const [error, setError] = useState<string | null>(null);
+  const issues = useFieldIssue("location-form");
   const [busy, setBusy] = useState(false);
   const [accuracy, setAccuracy] = useState<number | null>(null);
 
   const useMyPosition = () => {
-    setError(null);
+    issues.clear();
     if (!navigator.geolocation) {
-      setError("Энэ хөтөч байршил өгөхгүй байна.");
+      issues.failure("Энэ хөтөч байршил өгөхгүй байна.");
       return;
     }
     navigator.geolocation.getCurrentPosition(
@@ -119,7 +121,7 @@ function LocationDialog({
         setCoords(`${pos.coords.latitude.toFixed(6)}, ${pos.coords.longitude.toFixed(6)}`);
         setAccuracy(Math.round(pos.coords.accuracy));
       },
-      () => setError("Байршлыг авч чадсангүй. Хөтчид байршил ашиглахыг зөвшөөрнө үү."),
+      () => issues.failure("Байршлыг авч чадсангүй. Хөтчид байршил ашиглахыг зөвшөөрнө үү."),
       { enableHighAccuracy: true, timeout: 15000 },
     );
   };
@@ -129,7 +131,7 @@ function LocationDialog({
     const form = new FormData(event.currentTarget);
     const point = parseCoordinates(coords);
     if (!point) {
-      setError("Координат буруу байна. Жишээ: 47.918400, 106.917700");
+      issues.issue("coords", "Координат буруу байна. Жишээ: 47.918400, 106.917700");
       return;
     }
     const input = {
@@ -140,13 +142,13 @@ function LocationDialog({
       radiusM: Number(form.get("radius")),
     };
     setBusy(true);
-    setError(null);
+    issues.clear();
     try {
       if (row) await updateLocation(row.id, { ...input, active });
       else await createLocation(input);
       onSaved();
     } catch (e) {
-      setError(messageOf(e));
+      issues.failure(messageOf(e));
     } finally {
       setBusy(false);
     }
@@ -154,7 +156,7 @@ function LocationDialog({
 
   return (
     <Modal title={row ? "Байршил засах" : "Байршил нэмэх"} onClose={onClose}>
-      <form onSubmit={(e) => void onSubmit(e)} className="mt-4 space-y-4">
+      <form ref={issues.formRef} onSubmit={(e) => void onSubmit(e)} className="mt-4 space-y-4">
         <label className="block text-sm font-medium">
           Нэр
           <input
@@ -177,6 +179,8 @@ function LocationDialog({
         <label className="block text-sm font-medium">
           Координат (өргөрөг, уртраг)
           <input
+            name="coords"
+            {...issues.flag("coords")}
             value={coords}
             onChange={(e) => setCoords(e.target.value)}
             required
@@ -221,7 +225,7 @@ function LocationDialog({
             Идэвхтэй
           </label>
         )}
-        <FormError message={error} className="text-sm text-red-700" />
+        <FormError id={issues.errorId} message={issues.message} className="text-sm text-red-700" />
         <div className="flex justify-end gap-3">
           <button type="button" className={button} onClick={onClose}>
             Болих

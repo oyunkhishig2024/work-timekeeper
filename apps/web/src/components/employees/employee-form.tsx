@@ -4,7 +4,8 @@ import { useRef, useState, type FormEvent } from "react";
 import { ApiRequestError } from "@/lib/api";
 import type { Option } from "@/lib/daily";
 import { employeeFormIssue, type EmployeeForm } from "@/lib/employees";
-import { fieldClass, Modal, primaryButton, secondaryButton } from "../modal";
+import { Modal } from "../modal";
+import { fieldClass, primaryButton, secondaryButton } from "../styles";
 import { FormError } from "@/components/form-error";
 
 /** Create / edit form of an employee (PRD 12). The code is assigned by the system, so it is not a field. */

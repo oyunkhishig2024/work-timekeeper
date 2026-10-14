@@ -4,7 +4,8 @@ import QRCode from "qrcode";
 import { useEffect, useState } from "react";
 import { api, ApiRequestError } from "@/lib/api";
 import type { ReplacementQr } from "@/lib/employees";
-import { fieldClass, Modal, primaryButton, secondaryButton } from "../modal";
+import { Modal } from "../modal";
+import { fieldClass, primaryButton, secondaryButton } from "../styles";
 import { FormError } from "@/components/form-error";
 
 /**
