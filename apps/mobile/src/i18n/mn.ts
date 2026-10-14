@@ -8,6 +8,8 @@ export const mn = {
     loading: "Ачаалж байна…",
     back: "Буцах",
     refresh: "Шинэчлэх",
+    showPassword: "Харуулах",
+    hidePassword: "Нуух",
   },
   login: {
     title: "Нэвтрэх",

@@ -1,4 +1,5 @@
-import type { ReactNode } from "react";
+import { useState, type ReactNode } from "react";
+import { mn } from "@/i18n/mn";
 import {
   ActivityIndicator,
   Pressable,
@@ -76,16 +77,42 @@ export function Button({
   );
 }
 
+/** A labelled text field. A secure (password) field gets a button that shows or hides what was typed. */
 export function Field({ label, ...props }: { label: string } & TextInputProps) {
+  const [shown, setShown] = useState(false);
+  const secure = props.secureTextEntry === true;
   return (
     <View style={{ gap: 4 }}>
       <Text style={styles.label}>{label}</Text>
-      <TextInput
-        {...props}
-        accessibilityLabel={label}
-        placeholderTextColor="#7C918B"
-        style={styles.input}
-      />
+      <View>
+        <TextInput
+          {...props}
+          secureTextEntry={secure && !shown}
+          accessibilityLabel={label}
+          placeholderTextColor="#7C918B"
+          style={[styles.input, secure && { paddingRight: 96 }]}
+        />
+        {secure && (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={shown ? mn.common.hidePassword : mn.common.showPassword}
+            onPress={() => setShown((v) => !v)}
+            style={{
+              position: "absolute",
+              right: 0,
+              top: 0,
+              bottom: 0,
+              minWidth: 88,
+              alignItems: "center",
+              justifyContent: "center",
+            }}
+          >
+            <Text style={{ color: colors.primary, fontWeight: "600" }}>
+              {shown ? mn.common.hidePassword : mn.common.showPassword}
+            </Text>
+          </Pressable>
+        )}
+      </View>
     </View>
   );
 }

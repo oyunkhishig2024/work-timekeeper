@@ -5,6 +5,7 @@ import { useState, type FormEvent } from "react";
 import { ApiRequestError } from "@/lib/api";
 import { login, verifyTotp } from "@/lib/session";
 import { FormError } from "@/components/form-error";
+import { PasswordField } from "@/components/password-field";
 import { fieldClass, primaryButton } from "@/components/styles";
 
 export default function LoginPage() {
@@ -63,16 +64,7 @@ export default function LoginPage() {
             Нэвтрэх нэр
             <input name="username" required autoComplete="username" className={fieldClass} />
           </label>
-          <label className="block text-sm font-medium">
-            Нууц үг
-            <input
-              name="password"
-              type="password"
-              required
-              autoComplete="current-password"
-              className={fieldClass}
-            />
-          </label>
+          <PasswordField label="Нууц үг" name="password" required autoComplete="current-password" />
           <FormError message={error} className="text-sm text-red-700" />
           <button type="submit" disabled={busy} className={`${primaryButton} w-full`}>
             Үргэлжлүүлэх

@@ -7,6 +7,7 @@ import { ApiRequestError } from "@/lib/api";
 import { changePassword, currentRequires, logout, totpEnable, totpSetup } from "@/lib/session";
 import { useSession } from "@/components/use-session";
 import { FormError } from "@/components/form-error";
+import { PasswordField } from "@/components/password-field";
 import { fieldClass, primaryButton } from "@/components/styles";
 import { useFieldIssue } from "@/components/use-field-issue";
 
@@ -126,41 +127,29 @@ export default function SetupPage() {
           <p className="text-sm text-slate-600">
             Анх нэвтэрч байна. Түр нууц үгээ өөрийн нууц үгээр солино уу (10-аас дээш тэмдэгт).
           </p>
-          <label className="block text-sm font-medium">
-            Түр нууц үг
-            <input
-              name="current"
-              {...issues.flag("current")}
-              type="password"
-              required
-              autoComplete="current-password"
-              className={fieldClass}
-            />
-          </label>
-          <label className="block text-sm font-medium">
-            Шинэ нууц үг
-            <input
-              name="next"
-              {...issues.flag("next")}
-              type="password"
-              required
-              minLength={10}
-              autoComplete="new-password"
-              className={fieldClass}
-            />
-          </label>
-          <label className="block text-sm font-medium">
-            Шинэ нууц үг дахин
-            <input
-              name="again"
-              {...issues.flag("again")}
-              type="password"
-              required
-              minLength={10}
-              autoComplete="new-password"
-              className={fieldClass}
-            />
-          </label>
+          <PasswordField
+            label="Түр нууц үг"
+            name="current"
+            {...issues.flag("current")}
+            required
+            autoComplete="current-password"
+          />
+          <PasswordField
+            label="Шинэ нууц үг"
+            name="next"
+            {...issues.flag("next")}
+            required
+            minLength={10}
+            autoComplete="new-password"
+          />
+          <PasswordField
+            label="Шинэ нууц үг дахин"
+            name="again"
+            {...issues.flag("again")}
+            required
+            minLength={10}
+            autoComplete="new-password"
+          />
           <FormError
             id={issues.errorId}
             message={issues.message}
