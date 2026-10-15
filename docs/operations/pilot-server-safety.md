@@ -51,7 +51,9 @@ shred -u /tmp/key.txt
 
 Type `YES` when asked. Then open the admin web app: employees and the daily list must still be there.
 
-A safer first test that never touches the live data: `bash infra/deploy/restore-test.sh <backup file> <key file>` restores a backup into a scratch database, prints row counts and removes it.
+A safer first test that never touches the live data: `bash infra/deploy/restore-test.sh <backup file> <key file>` restores a backup into a scratch database, prints row counts and removes it. It also checks that the uploaded files (signed consent scans) are in the backup: every scan the database points at must be inside it, otherwise the test fails.
+
+If the nightly backup could save the database but not the uploaded files, `backup.sh` exits with code 3, writes `partial` to `/var/backups/timekeeper/.last-status` and `monitor.sh` sends an alert. Offline test of these scripts: `bash infra/deploy/test-backup-scripts.sh`.
 
 ## 4. Does it come back after a reboot?
 

@@ -50,6 +50,11 @@ if [ -f /etc/cron.d/timekeeper-pitr ]; then
   fi
 fi
 
+# A nightly backup that saved the database but not the uploaded files says so in .last-status.
+if [ -f "$BACKUP_DIR/.last-status" ] && [ "$(cut -d' ' -f1 "$BACKUP_DIR/.last-status")" = partial ]; then
+  problems+=("the last backup did not include the uploaded files (see /var/log/timekeeper-backup.log)")
+fi
+
 now=$(date +%s)
 last_status=ok
 last_sent=0
