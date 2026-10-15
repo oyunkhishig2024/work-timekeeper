@@ -20,6 +20,14 @@ const PAGES: Array<[href: string, label: string]> = [
   ["/notifications", "Мэдэгдэл"],
 ];
 
+/** Pages only some roles can open; every other page is open to all roles that use the web app. */
+const ROLES_FOR: Record<string, string[]> = {
+  "/locations": ["ORG_ADMIN"],
+  "/users": ["ORG_ADMIN"],
+  "/notifications": ["ORG_ADMIN"],
+  "/review": ["ORG_ADMIN", "HR"],
+};
+
 /** The review lists share one menu entry. */
 const active = (pathname: string, href: string) =>
   href === "/review"
@@ -68,24 +76,23 @@ export function AppShell({ children }: { children: (user: SessionUser) => ReactN
       </header>
       <nav aria-label="Үндсэн цэс" className="border-b border-slate-200 bg-white">
         <ul className="mx-auto flex max-w-5xl flex-wrap gap-x-1 px-4">
-          {PAGES.filter(
-            ([href]) =>
-              (href !== "/locations" && href !== "/users") || session.user.role === "ORG_ADMIN",
-          ).map(([href, label]) => (
-            <li key={href}>
-              <Link
-                href={href}
-                aria-current={active(pathname, href) ? "page" : undefined}
-                className={`inline-flex min-h-11 items-center border-b-2 px-3 text-sm font-medium ${
-                  pathname === href
-                    ? "border-teal-700 text-teal-800"
-                    : "border-transparent text-slate-600 hover:text-slate-900"
-                }`}
-              >
-                {label}
-              </Link>
-            </li>
-          ))}
+          {PAGES.filter(([href]) => ROLES_FOR[href]?.includes(session.user.role) ?? true).map(
+            ([href, label]) => (
+              <li key={href}>
+                <Link
+                  href={href}
+                  aria-current={active(pathname, href) ? "page" : undefined}
+                  className={`inline-flex min-h-11 items-center border-b-2 px-3 text-sm font-medium ${
+                    active(pathname, href)
+                      ? "border-teal-700 text-teal-800"
+                      : "border-transparent text-slate-600 hover:text-slate-900"
+                  }`}
+                >
+                  {label}
+                </Link>
+              </li>
+            ),
+          )}
         </ul>
       </nav>
       <main id="main" tabIndex={-1} className="mx-auto max-w-5xl px-4 py-6 focus:outline-none">
