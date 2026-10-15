@@ -522,14 +522,21 @@ export class AttendanceService {
 
   /** Worker tick (every minute): moves PENDING to NO_SHOW at the cut-off for yesterday and today, in every tenant. */
   async tick(): Promise<number> {
-    const tenants = await this.db.asPlatform(async (tx) =>
-      (await tx.query<{ id: string }>("SELECT id FROM tenant")).rows.map((r) => r.id),
-    );
+    const tenants = await this.activeTenantIds();
     let changed = 0;
     for (const tenantId of tenants) {
       changed += await this.tickTenant(tenantId);
     }
     return changed;
+  }
+
+  /** A suspended organization is not used by anyone: no point recomputing it every minute (it catches up when reactivated). */
+  async activeTenantIds(): Promise<string[]> {
+    return this.db.asPlatform(async (tx) =>
+      (await tx.query<{ id: string }>("SELECT id FROM tenant WHERE status = 'ACTIVE'")).rows.map(
+        (r) => r.id,
+      ),
+    );
   }
 
   async tickTenant(tenantId: string): Promise<number> {
@@ -752,7 +759,22 @@ export class AttendanceService {
              flagged_events = EXCLUDED.flagged_events, correction_id = EXCLUDED.correction_id,
              reason_note = EXCLUDED.reason_note, departure_at = EXCLUDED.departure_at,
              departure_state = EXCLUDED.departure_state, early_leave_minutes = EXCLUDED.early_leave_minutes,
-             overtime_minutes = EXCLUDED.overtime_minutes, off_day_kind = EXCLUDED.off_day_kind`,
+             overtime_minutes = EXCLUDED.overtime_minutes, off_day_kind = EXCLUDED.off_day_kind
+           -- The worker tick recomputes every employee every minute: write only when something differs (computed_at is "last
+           -- changed"), otherwise each minute would rewrite every row, bloat the table and fill the WAL archive.
+           WHERE (attendance_result.status, attendance_result.location_id, attendance_result.expected_start,
+                  attendance_result.expected_cutoff, attendance_result.arrival_at, attendance_result.late_minutes,
+                  attendance_result.reason_name, attendance_result.missing, attendance_result.source,
+                  attendance_result.system_status, attendance_result.system_arrival_at, attendance_result.flagged_events,
+                  attendance_result.correction_id, attendance_result.reason_note, attendance_result.departure_at,
+                  attendance_result.departure_state, attendance_result.early_leave_minutes,
+                  attendance_result.overtime_minutes, attendance_result.off_day_kind)
+              IS DISTINCT FROM
+                 (EXCLUDED.status, EXCLUDED.location_id, EXCLUDED.expected_start, EXCLUDED.expected_cutoff,
+                  EXCLUDED.arrival_at, EXCLUDED.late_minutes, EXCLUDED.reason_name, EXCLUDED.missing, EXCLUDED.source,
+                  EXCLUDED.system_status, EXCLUDED.system_arrival_at, EXCLUDED.flagged_events, EXCLUDED.correction_id,
+                  EXCLUDED.reason_note, EXCLUDED.departure_at, EXCLUDED.departure_state, EXCLUDED.early_leave_minutes,
+                  EXCLUDED.overtime_minutes, EXCLUDED.off_day_kind)`,
           [
             tenantId,
             e.id,

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Health check for the pilot server, run by cron every 5 minutes (see monitor-setup.sh). Checks: the site answers over
-# HTTPS, every container is running, the disk is not nearly full, and the newest backup is recent.
+# HTTPS, every container is running, the disk is not nearly full, memory and CPU are not exhausted, and the newest backup is recent.
 # It sends a message to ALERT_WEBHOOK (a Telegram / Slack / Discord / ntfy URL, see docs/operations/monitoring-and-incidents.md)
 # when something turns bad, a reminder every 6 hours while it stays bad, and a message when it recovers.
 # A server that is completely down cannot report itself: also add the free external check described in that document.
@@ -31,6 +31,31 @@ used=$(df --output=pcent / | tail -n 1 | tr -dc '0-9')
 if [ "${used:-0}" -ge "${MONITOR_DISK_PERCENT:-85}" ]; then
   problems+=("disk is ${used}% full")
 fi
+
+# Memory, swap and CPU: a small server that runs out of memory kills a container (the kernel picks one) or crawls in swap.
+mem_total=$(awk '/^MemTotal:/ {print $2}' /proc/meminfo)
+mem_avail=$(awk '/^MemAvailable:/ {print $2}' /proc/meminfo)
+if [ $((mem_avail * 100 / mem_total)) -lt "${MONITOR_MEM_FREE_PERCENT:-10}" ]; then
+  problems+=("memory is nearly used up ($((mem_avail / 1024)) MB of $((mem_total / 1024)) MB available)")
+fi
+swap_total=$(awk '/^SwapTotal:/ {print $2}' /proc/meminfo)
+swap_free=$(awk '/^SwapFree:/ {print $2}' /proc/meminfo)
+if [ "$swap_total" -gt 0 ] && [ $(((swap_total - swap_free) * 100 / swap_total)) -ge "${MONITOR_SWAP_PERCENT:-60}" ]; then
+  problems+=("swap is $(((swap_total - swap_free) * 100 / swap_total))% used: the server is short of memory")
+fi
+# 15-minute load average per CPU core above the limit (default 1.5): the server is overloaded for a long time, not just a spike.
+load15=$(awk '{print $3}' /proc/loadavg)
+cores=$(nproc)
+if awk -v l="$load15" -v c="$cores" -v m="${MONITOR_LOAD_PER_CORE:-1.5}" 'BEGIN { exit !(l / c > m) }'; then
+  problems+=("the server is overloaded (15-minute load $load15 on $cores CPU core(s))")
+fi
+# A container the kernel stopped for lack of memory (it restarts by itself, so nothing else shows it).
+for service in postgres api worker web caddy; do
+  cid=$("${COMPOSE[@]}" ps --all --quiet "$service" 2>/dev/null | head -n 1 || true)
+  if [ -n "$cid" ] && [ "$(docker inspect -f '{{.State.OOMKilled}}' "$cid" 2>/dev/null || echo false)" = true ]; then
+    problems+=("container $service was stopped for running out of memory")
+  fi
+done
 
 # shellcheck disable=SC2012
 newest=$(ls -1t "$BACKUP_DIR"/tk-*.tar.age 2>/dev/null | head -n 1 || true)

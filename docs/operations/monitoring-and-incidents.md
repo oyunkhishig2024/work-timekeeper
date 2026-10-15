@@ -4,7 +4,7 @@
 
 Two checks, because a server that is completely down cannot report itself.
 
-**a) From the server (`infra/deploy/monitor.sh`, every 5 minutes).** Checks the site over HTTPS, the 5 containers, disk space and the age of the
+**a) From the server (`infra/deploy/monitor.sh`, every 5 minutes).** Checks the site over HTTPS, the 5 containers, disk space, memory, swap and CPU load (limits `MONITOR_MEM_FREE_PERCENT` 10, `MONITOR_SWAP_PERCENT` 60, `MONITOR_LOAD_PER_CORE` 1.5), a container stopped for lack of memory, and the age of the
 newest backup. It sends a message when something turns bad, a reminder every 6 hours, and a message when it recovers.
 
 1. Choose where messages go. Simplest: the free **ntfy** app (Android/iOS). Install it, subscribe to a topic with a long random name,
@@ -41,3 +41,9 @@ the server taken over; ransomware; a data export sent to the wrong person.
 6. **Review within a week:** what happened, why it was possible, what changes. Add it to this page.
 
 Keep a printed copy of this page and the phone numbers: you may not be able to open the server when you need them.
+
+## Memory, swap and sizing
+
+- A 2 GB server needs swap for short peaks (a deploy build, a heavy report): `sudo bash infra/deploy/swap.sh` (once; creates a 2 GB swap file, `vm.swappiness=10`; does nothing if swap exists).
+- Every container has a memory cap in `infra/deploy/docker-compose.yml` (`mem_limit`: postgres 1 GB, api 640 MB, worker 512 MB, web 640 MB, caddy 192 MB). They are caps, not reservations; raise them when the server grows. Real use: `docker stats --no-stream` and `free -h`.
+- When `monitor.sh` reports memory, swap or load problems repeatedly, move to the next droplet size (2 vCPU / 4 GB) before anything else.

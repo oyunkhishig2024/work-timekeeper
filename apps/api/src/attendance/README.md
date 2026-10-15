@@ -133,3 +133,7 @@ The worker ticker (`attendance.ticker.ts`) does three things on top of the statu
 - the deletes run through the `SECURITY DEFINER` functions `purge_old_attendance(date)` (tenant from `current_tenant_id()`, granted to `app_user`) and `purge_old_audit(timestamptz)` (granted to `platform_admin`) of migration 0030, because the application roles have no `DELETE` on the append-only tables. Test: `test/e2e/retention.test.ts`.
 
 There is no heartbeat history: a heartbeat only updates `device.last_seen_at`.
+
+## The minute tick writes only changes
+
+`tick()` (worker, every minute) recomputes yesterday and today for every employee of every **active** organization (a suspended one is skipped until it is reactivated). The upsert into `attendance_result` carries a `WHERE ... IS DISTINCT FROM` guard, so a minute in which nothing changed rewrites no row: `computed_at` means "when the value last changed", and the table and the WAL archive do not grow by 1,440 rewrites per employee per day. When you add a column to `attendance_result`, add it to that comparison as well. Test: `test/e2e/tick-writes.test.ts`.

@@ -32,6 +32,9 @@ services:
       dockerfile: infra/deploy/postgres.Dockerfile
     image: timekeeper-postgres:16
     restart: unless-stopped
+    # Memory caps (not reservations): a runaway container is stopped by Docker instead of starving the others. Sized for a
+    # 2 GB server; raise them with the server. Check real use with: docker stats --no-stream
+    mem_limit: 1g
     command:
       - postgres
       - -c
@@ -85,6 +88,7 @@ services:
       NODE_ENV: production
       STORAGE_DIR: /data/storage
       TRUST_PROXY: "1"
+    mem_limit: 640m
     command: ["node", "apps/api/dist/main.js"]
 
   worker:
@@ -96,11 +100,13 @@ services:
       TRUST_PROXY: "1"
       # Background jobs (recompute, retention deletes) may legitimately run longer than a web request.
       DB_STATEMENT_TIMEOUT_MS: "300000"
+    mem_limit: 512m
     command: ["node", "apps/api/dist/worker.js"]
 
   web:
     <<: *app
     working_dir: /app/apps/web
+    mem_limit: 640m
     command: ["pnpm", "start"]
     environment:
       NODE_ENV: production
@@ -109,6 +115,7 @@ services:
   caddy:
     image: caddy:2
     restart: unless-stopped
+    mem_limit: 192m
     ports:
       - "80:80"
       - "443:443"
