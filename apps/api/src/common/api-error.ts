@@ -18,3 +18,9 @@ export const unauthorized = (detail = "Authentication required.") =>
   new ApiError(401, "UNAUTHENTICATED", detail);
 export const forbidden = (detail = "You do not have permission to perform this action.") =>
   new ApiError(403, "FORBIDDEN", detail);
+export const tempPasswordExpired = () =>
+  new ApiError(
+    401,
+    "TEMP_PASSWORD_EXPIRED",
+    "This one-time password has expired. Ask an administrator for a new one.",
+  );

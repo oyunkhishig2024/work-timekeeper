@@ -5,6 +5,8 @@ export interface SessionUser {
   username: string;
   displayName: string | null;
   role: "ORG_ADMIN" | "HR" | "MANAGER" | "BOSS" | "EMPLOYEE";
+  /** Set while the password is a one-time one an admin issued: the role that did it and when. */
+  passwordReset?: { at: string; by: string } | null;
 }
 
 interface Tokens {

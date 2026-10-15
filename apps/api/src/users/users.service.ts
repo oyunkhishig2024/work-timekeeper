@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { Injectable } from "@nestjs/common";
 import { ApiError, forbidden } from "../common/api-error";
 import { DatabaseService, type Db } from "../database/database.service";
@@ -6,6 +7,8 @@ import type { AuthContext, RequestMeta } from "../auth/auth.types";
 import { PasswordService } from "../auth/password.service";
 import { canManageRole, type Role } from "../auth/roles";
 import { SessionService } from "../auth/session.service";
+import { ScopeService } from "../access/scope.service";
+import { notifyOrgAdmins } from "../notifications/enqueue";
 
 export interface CreatedUser {
   id: string;
@@ -28,6 +31,7 @@ export class UsersService {
     private readonly audit: AuditService,
     private readonly passwords: PasswordService,
     private readonly sessions: SessionService,
+    private readonly scopes: ScopeService,
   ) {}
 
   /** Used by the API (Org Admin creates HR/Manager) and by the bootstrap CLI. */
@@ -293,7 +297,8 @@ export class UsersService {
     const passwordHash = await this.passwords.hash(temporaryPassword);
     return this.db.withTenant(auth.tenantId, async (tx) => {
       const target = await this.loadManageable(tx, auth, targetId);
-      await this.applyPasswordReset(tx, target.id, passwordHash);
+      await this.applyPasswordReset(tx, target.id, passwordHash, auth.role);
+      await this.announceReset(tx, auth.tenantId);
       await this.audit.record(tx, {
         tenantId: auth.tenantId,
         action: "user.password_reset",
@@ -347,6 +352,7 @@ export class UsersService {
     return this.db.withTenant(auth.tenantId, async (tx) => {
       const target = await this.loadManageable(tx, auth, targetId);
       await this.applyTotpReset(tx, target.id);
+      await this.announceReset(tx, auth.tenantId);
       await this.audit.record(tx, {
         tenantId: auth.tenantId,
         action: "user.totp_reset",
@@ -396,8 +402,14 @@ export class UsersService {
           `The account "${target.username}" is disabled; reactivate it first.`,
         );
       }
-      await this.applyPasswordReset(tx, target.id, passwordHash);
+      await this.applyPasswordReset(
+        tx,
+        target.id,
+        passwordHash,
+        actorOverride?.role ?? "system:cli",
+      );
       if (options.totp) await this.applyTotpReset(tx, target.id);
+      await this.announceReset(tx, tenantId);
       const actor = {
         tenantId,
         actorUserId: actorOverride?.userId ?? null,
@@ -422,12 +434,19 @@ export class UsersService {
   }
 
   /** A new one-time password: the old one stops working, every session ends, a lockout is cleared, a change is forced. */
-  private async applyPasswordReset(tx: Db, userId: string, passwordHash: string): Promise<void> {
+  private async applyPasswordReset(
+    tx: Db,
+    userId: string,
+    passwordHash: string,
+    by: string,
+  ): Promise<void> {
+    // The one-time password expires after 72 hours (trigger of migration 0037); `by` is shown to the person at first sign-in.
     await tx.query(
       `UPDATE user_account
-          SET password_hash = $2, must_change_password = true, failed_login_count = 0, locked_until = NULL
+          SET password_hash = $2, must_change_password = true, failed_login_count = 0, locked_until = NULL,
+              password_reset_at = now(), password_reset_by = $3
         WHERE id = $1`,
-      [userId, passwordHash],
+      [userId, passwordHash, by],
     );
     await this.sessions.revokeAllForUser(tx, userId);
   }
@@ -459,6 +478,29 @@ export class UsersService {
       throw forbidden("Use the account settings to change your own credentials.");
     }
     if (!canManageRole(auth.role, target.role)) throw forbidden();
+    // An employee login belongs to an employee; only someone who may see that employee may reset it (data scope, PRD 4).
+    if (target.role === "EMPLOYEE") {
+      const scope = await this.scopes.forUser(tx, auth);
+      const params: unknown[] = [target.id];
+      const visible = await tx.query(
+        `SELECT 1 FROM user_account u JOIN employee e ON e.id = u.employee_id
+          WHERE u.id = $1 AND ${this.scopes.employeeCondition(scope, "e", params)}`,
+        params,
+      );
+      if ((visible.rowCount ?? 0) === 0)
+        throw new ApiError(404, "USER_NOT_FOUND", "User not found.");
+    }
     return target;
+  }
+
+  /** Every admin-made reset is announced to the Organization Admins (generic text: it passes through push services). */
+  private async announceReset(tx: Db, tenantId: string): Promise<void> {
+    await notifyOrgAdmins(tx, tenantId, {
+      kind: "PASSWORD_RESET",
+      title: "Нууц үг сэргээгдлээ",
+      body: "Хэрэглэгчийн нууц үг эсвэл authenticator сэргээгдлээ. Аудитын бүртгэлээс шалгана уу.",
+      link: "/users",
+      dedupeKey: `password-reset:${randomUUID()}`,
+    });
   }
 }

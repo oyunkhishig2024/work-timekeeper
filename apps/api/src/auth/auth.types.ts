@@ -37,10 +37,14 @@ export interface UserRow {
   totp_last_step: string | null;
   failed_login_count: number;
   locked_until: Date | null;
+  temp_password_expires_at: Date | null;
+  password_reset_at: Date | null;
+  password_reset_by: string | null;
 }
 
 export const USER_COLUMNS = `id, tenant_id, username, display_name, password_hash, role, employee_id, status,
-  must_change_password, totp_enabled, totp_secret_enc, totp_last_step, failed_login_count, locked_until`;
+  must_change_password, totp_enabled, totp_secret_enc, totp_last_step, failed_login_count, locked_until,
+  temp_password_expires_at, password_reset_at, password_reset_by`;
 
 export interface AuthTokens {
   tokenType: "Bearer";
@@ -48,7 +52,14 @@ export interface AuthTokens {
   /** Seconds until the access token expires. */
   expiresIn: number;
   refreshToken: string;
-  user: { id: string; username: string; displayName: string | null; role: Role };
+  user: {
+    id: string;
+    username: string;
+    displayName: string | null;
+    role: Role;
+    /** Set while the one-time password was issued by an admin: who (role) and when. The person sees it at first sign-in. */
+    passwordReset: { at: string; by: string } | null;
+  };
   /** Non-empty until the user finishes the listed steps; most endpoints answer 403 SETUP_REQUIRED. */
   requires: LimitReason[];
 }

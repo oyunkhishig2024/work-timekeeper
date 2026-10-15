@@ -25,10 +25,11 @@ export interface PlatformUserRow {
   totp_last_step: string | null;
   failed_login_count: number;
   locked_until: Date | null;
+  temp_password_expires_at: Date | null;
 }
 
 export const PLATFORM_USER_COLUMNS = `id, username, display_name, password_hash, status, must_change_password,
-  totp_enabled, totp_secret_enc, totp_last_step, failed_login_count, locked_until`;
+  totp_enabled, totp_secret_enc, totp_last_step, failed_login_count, locked_until, temp_password_expires_at`;
 
 export interface PlatformTokens {
   tokenType: "Bearer";

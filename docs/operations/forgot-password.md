@@ -33,7 +33,7 @@ docker compose --env-file infra/deploy/.env -f infra/deploy/docker-compose.yml e
 # lost authenticator phone as well: add  --totp
 ```
 
-It prints a one-time password. The reset is recorded in the audit log as `system:cli`. **Create a second Organization Admin** so this is
+It prints a one-time password, valid for 72 hours (after that the person asks for a new one). The reset is recorded in the audit log as `system:cli`. **Create a second Organization Admin** so this is
 rarely needed (`create-user.js --role ORG_ADMIN`); the tool warns when the account is the only one.
 
 ## Not built yet

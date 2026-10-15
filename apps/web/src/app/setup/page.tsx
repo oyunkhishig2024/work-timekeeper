@@ -6,10 +6,18 @@ import { useEffect, useState, type FormEvent } from "react";
 import { ApiRequestError } from "@/lib/api";
 import { changePassword, currentRequires, logout, totpEnable, totpSetup } from "@/lib/session";
 import { useSession } from "@/components/use-session";
+import { currentUser } from "@/lib/session";
 import { FormError } from "@/components/form-error";
 import { PasswordField } from "@/components/password-field";
 import { fieldClass, primaryButton } from "@/components/styles";
 import { useFieldIssue } from "@/components/use-field-issue";
+
+const ROLE_TEXT: Record<string, string> = {
+  ORG_ADMIN: "Байгууллагын админ",
+  HR: "Хүний нөөц",
+  SUPER_ADMIN: "Платформын админ",
+  "system:cli": "Серверийн админ",
+};
 
 const REASONS: Record<string, string> = {
   TOO_SHORT: "Хамгийн багадаа 10 тэмдэгт байна.",
@@ -127,6 +135,16 @@ export default function SetupPage() {
           <p className="text-sm text-slate-600">
             Анх нэвтэрч байна. Түр нууц үгээ өөрийн нууц үгээр солино уу (10-аас дээш тэмдэгт).
           </p>
+          {currentUser()?.passwordReset && (
+            <p role="note" className="rounded-md bg-amber-50 p-2 text-sm text-amber-900">
+              Энэ түр нууц үгийг{" "}
+              {new Date(currentUser()!.passwordReset!.at)
+                .toLocaleString("sv-SE", { timeZone: "Asia/Ulaanbaatar" })
+                .slice(0, 16)}
+              -д «{ROLE_TEXT[currentUser()!.passwordReset!.by] ?? currentUser()!.passwordReset!.by}»
+              олгосон. Хэрэв та хүсээгүй бол өөрийн админд мэдэгдээрэй.
+            </p>
+          )}
           <PasswordField
             label="Түр нууц үг"
             name="current"

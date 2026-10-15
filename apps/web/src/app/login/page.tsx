@@ -22,7 +22,12 @@ export default function LoginPage() {
     try {
       await action();
     } catch (e) {
-      if (e instanceof ApiRequestError) issues.issue(field, e.message);
+      if (e instanceof ApiRequestError && e.code === "TEMP_PASSWORD_EXPIRED") {
+        issues.issue(
+          field,
+          "Энэ нэг удаагийн нууц үгийн хугацаа (72 цаг) дууссан. Админаасаа шинээр авна уу.",
+        );
+      } else if (e instanceof ApiRequestError) issues.issue(field, e.message);
       else issues.failure("Холбогдож чадсангүй. Дахин оролдоно уу.");
     } finally {
       setBusy(false);

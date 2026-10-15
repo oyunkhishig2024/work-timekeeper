@@ -20,7 +20,8 @@ export function OneTimePasswordDialog({
       </p>
       <p className="mt-2 rounded-md bg-slate-100 p-3 text-center font-mono text-lg">{password}</p>
       <p className="mt-2 rounded-md bg-amber-50 p-2 text-sm text-amber-900">
-        Нууц үгийг дахин харах боломжгүй. Тухайн хүнд өгнө үү; эхний нэвтрэлтээр солино.
+        Нууц үгийг дахин харах боломжгүй. Тухайн хүнд өгнө үү; эхний нэвтрэлтээр солино. 72 цагийн
+        дотор ашиглаагүй бол хүчингүй болно.
       </p>
       <div className="mt-3 flex justify-end">
         <button type="button" className={primaryButton} onClick={onClose}>

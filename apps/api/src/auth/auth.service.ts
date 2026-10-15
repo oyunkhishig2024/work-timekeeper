@@ -3,7 +3,12 @@ import { Inject, Injectable } from "@nestjs/common";
 import { APP_CONFIG, type AppConfig } from "../common/config";
 import { Clock } from "../common/clock";
 import { todayIn } from "../common/dates";
-import { ApiError, invalidCredentials, unauthorized } from "../common/api-error";
+import {
+  ApiError,
+  invalidCredentials,
+  tempPasswordExpired,
+  unauthorized,
+} from "../common/api-error";
 import { type Db, DatabaseService } from "../database/database.service";
 import { AuditService } from "../audit/audit.service";
 import { PasswordService } from "./password.service";
@@ -70,6 +75,15 @@ export class AuthService {
         return { kind: "fail", error: await this.registerFailure(tx, user, "password", meta) };
       }
 
+      // A one-time password nobody used within its time: the person asks the admin for a new one. Said only after the
+      // password itself was right, so it tells nobody anything about accounts they cannot already sign in to.
+      if (
+        user.must_change_password &&
+        user.temp_password_expires_at &&
+        user.temp_password_expires_at <= this.clock.now()
+      ) {
+        return { kind: "fail", error: tempPasswordExpired() };
+      }
       await this.clearFailures(tx, user.id);
       if (requiresTotp(user.role) && user.totp_enabled) {
         return {
@@ -304,7 +318,7 @@ export class AuthService {
       await tx.query(
         `UPDATE user_account
             SET password_hash = $2, must_change_password = false, password_changed_at = $3,
-                failed_login_count = 0, locked_until = NULL
+                failed_login_count = 0, locked_until = NULL, password_reset_at = NULL, password_reset_by = NULL
           WHERE id = $1`,
         [user.id, await this.passwords.hash(input.newPassword), this.clock.now()],
       );

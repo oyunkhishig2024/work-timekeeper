@@ -1,5 +1,10 @@
 import { Inject, Injectable } from "@nestjs/common";
-import { ApiError, invalidCredentials, unauthorized } from "../common/api-error";
+import {
+  ApiError,
+  invalidCredentials,
+  tempPasswordExpired,
+  unauthorized,
+} from "../common/api-error";
 import { Clock } from "../common/clock";
 import { APP_CONFIG, type AppConfig } from "../common/config";
 import { AuditService } from "../audit/audit.service";
@@ -63,6 +68,13 @@ export class PlatformAuthService {
       }
       if (!(await this.passwords.verify(user.password_hash, input.password))) {
         return { kind: "fail", error: await this.registerFailure(tx, user, "password", meta) };
+      }
+      if (
+        user.must_change_password &&
+        user.temp_password_expires_at &&
+        user.temp_password_expires_at <= this.clock.now()
+      ) {
+        return { kind: "fail", error: tempPasswordExpired() };
       }
       await this.clearFailures(tx, user.id);
       if (user.totp_enabled) {

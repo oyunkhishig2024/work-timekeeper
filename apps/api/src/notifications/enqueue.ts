@@ -5,6 +5,7 @@ export type NotificationKind =
   | "DEVICE_ALERT_CONFLICT"
   | "CORRECTION_VOLUME"
   | "EARLY_LEAVE"
+  | "PASSWORD_RESET"
   | "TEST";
 
 export interface NotificationInput {

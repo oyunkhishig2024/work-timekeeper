@@ -45,6 +45,8 @@ node dist/cli/reset-password.js --org <code> --username <name> [--totp]   server
   the whole token family and is audited.
 - TOTP (RFC 6238, SHA-1, 30 s, 6 digits): required for Org Admin and HR, optional for Manager. Seeds are
   stored AES-256-GCM encrypted; a code cannot be reused (last accepted step stored); ±1 step drift allowed.
+- One-time passwords (new account, admin reset) expire after 72 hours: a trigger on `user_account` and `platform_user` sets `temp_password_expires_at`, so no path can forget it. A correct but expired password answers `401 TEMP_PASSWORD_EXPIRED`; an admin issues a new one.
+- Resets: HR resets only employees inside their data scope (`loadManageable`; outside it 404). The reset records who and when (`password_reset_by/at`, shown to the person at first sign-in as `user.passwordReset`, cleared when they choose their own password) and notifies the Organization Admins (`PASSWORD_RESET`, generic text).
 - Recovery codes: 8 per enrolment, 80 bits each, stored as keyed HMAC, single use.
 - Every authentication event is written to `audit_log` in the same transaction.
 

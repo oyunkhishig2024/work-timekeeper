@@ -77,6 +77,10 @@ export class SessionService {
         username: user.username,
         displayName: user.display_name,
         role: user.role,
+        passwordReset:
+          user.password_reset_at && user.password_reset_by
+            ? { at: user.password_reset_at.toISOString(), by: user.password_reset_by }
+            : null,
       },
       requires: limits,
     };
