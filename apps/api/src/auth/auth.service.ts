@@ -180,6 +180,11 @@ export class AuthService {
       if (!session) return { kind: "fail", error: invalid };
 
       const user = await this.findUserById(tx, session.user_id, false);
+      // A suspended organization cannot keep signing in through refresh tokens (Super Admin suspended it).
+      const tenant = await tx.query("SELECT 1 FROM tenant WHERE id = $1 AND status = 'ACTIVE'", [
+        tenantId,
+      ]);
+      if ((tenant.rowCount ?? 0) === 0) return { kind: "fail", error: invalid };
       if (session.revoked_at) {
         // Replaced moments ago, and the family is still alive: a retry, not theft. Hand out a fresh token in the same family.
         const graceMs = this.config.REFRESH_REUSE_GRACE_SECONDS * 1000;

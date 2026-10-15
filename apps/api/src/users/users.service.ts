@@ -370,6 +370,8 @@ export class UsersService {
     username: string,
     options: { totp: boolean },
     meta: RequestMeta,
+    /** Who runs it: the server console by default, or a Super Admin from the platform page. */
+    actorOverride?: Actor,
   ): Promise<{
     username: string;
     role: Role;
@@ -398,8 +400,8 @@ export class UsersService {
       if (options.totp) await this.applyTotpReset(tx, target.id);
       const actor = {
         tenantId,
-        actorUserId: null,
-        actorRole: "system:cli",
+        actorUserId: actorOverride?.userId ?? null,
+        actorRole: actorOverride?.role ?? "system:cli",
         entityType: "user_account",
         entityId: target.id,
         ...meta,

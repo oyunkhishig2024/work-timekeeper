@@ -26,6 +26,8 @@ const envSchema = z.object({
   ACCESS_TOKEN_TTL_SECONDS: z.coerce.number().int().min(60).max(3600).default(900), // PRD 15.2: <= 15 min
   /** Web admin sessions expire after this idle time (PRD 15.2: 30 min). */
   STAFF_SESSION_IDLE_MINUTES: z.coerce.number().int().min(5).default(30),
+  /** A Super Admin (platform) session lasts this long from sign-in; there is no refresh, they sign in again. */
+  PLATFORM_SESSION_MINUTES: z.coerce.number().int().min(5).max(480).default(60),
   /** Mobile (employee) refresh tokens are long-lived but rotate on every use. */
   EMPLOYEE_SESSION_DAYS: z.coerce.number().int().min(1).default(30),
   /**

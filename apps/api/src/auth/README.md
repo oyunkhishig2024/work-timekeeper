@@ -50,8 +50,7 @@ node dist/cli/reset-password.js --org <code> --username <name> [--totp]   server
 
 ## Not done yet (deliberate)
 
-- Super Admin (platform) login — Release 1 creates tenants and the first Org Admin by script
-  (`pnpm --filter @timekeeper/api cli:create-user`, PRD 17.1).
+- Super Admin (platform) sign-in is built: see `apps/api/src/platform/README.md`. A suspended organization cannot sign in, refresh or keep a live session.
 - Device-bound mobile tokens and the employee invite/activation flow — they come with the devices module.
 - Breached-password check against the full Have I Been Pwned list: needs an external call (a new entry in
   the PRD 15.3 foreign-processors register). A built-in denylist of very common passwords is used meanwhile.

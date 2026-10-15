@@ -29,6 +29,7 @@ SQL-first migrations run by [`node-pg-migrate`](https://github.com/salsita/node-
 
 | `0032_app_login_role` | login role `tk_app` (not superuser, owns nothing, member of `app_user` / `platform_admin`); the API and worker connect as it. The password is set by `infra/deploy/app-login.sh` or the test setup, never in a migration |
 | `0034_boss_role` | `user_account.role` accepts `BOSS` (web-only, view-only, not tracked; down turns a Boss into a disabled Manager) |
+| `0036_platform_admin` | `platform_user` gets lockout, one-time-password and authenticator columns; `platform_session` (one row per Super Admin session, revocable) |
 | `0035_fk_indexes` | Indexes for four foreign keys that had none (consent text version, QR use employee, device alert employee, scope department); guarded by `fk-indexes.test.ts` |
 | `0033_indexes` | indexes for foreign keys / filters found without one (event time and location, result location, QR and alert by employee, audit log by time alone) |
 | `0030_retention` | `purge_old_attendance(date)` and `purge_old_audit(timestamptz)` (SECURITY DEFINER) for the retention deletes of the worker; owner DELETE policies |

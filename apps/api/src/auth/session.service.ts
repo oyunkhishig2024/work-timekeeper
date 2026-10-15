@@ -93,6 +93,7 @@ export class SessionService {
       `SELECT u.role, u.status, u.must_change_password, u.totp_enabled, u.employee_id
          FROM auth_session s
          JOIN user_account u ON u.tenant_id = s.tenant_id AND u.id = s.user_id
+         JOIN tenant t ON t.id = s.tenant_id AND t.status = 'ACTIVE'
         WHERE s.id = $1 AND s.user_id = $2 AND s.revoked_at IS NULL AND s.expires_at > $3`,
       [claims.sid, claims.sub, this.clock.now()],
     );

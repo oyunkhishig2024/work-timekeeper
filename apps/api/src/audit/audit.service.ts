@@ -2,7 +2,8 @@ import { Injectable } from "@nestjs/common";
 import type { Db } from "../database/database.service";
 
 export interface AuditEntry {
-  tenantId: string;
+  /** null for platform-level actions (Super Admin sign-in). */
+  tenantId: string | null;
   action: string;
   actorUserId?: string | null;
   actorRole?: string | null;

@@ -147,3 +147,7 @@ Checked at 375 px with Playwright (no page scrolls sideways; wide tables scroll 
 - The first Tab stop is the «Үндсэн агуулга руу очих» skip link (`#main` in `AppShell`); one focus ring for everything (`globals.css`).
 - Errors use `<FormError>` (`components/form-error.tsx`): `role="alert"` and scrolls into view. A field-level error also marks the field `aria-invalid`, links it with `aria-describedby` and focuses it (see `employee-form.tsx` and `employeeFormIssue` in `lib/employees.ts`); do the same when you add a form.
 - Interactive elements are at least 44 px tall (`min-h-11`).
+
+## Super Admin pages
+
+`/platform/login`, `/platform/setup` and `/platform` (organizations, activity) are for the platform owner only. They use their own client `src/lib/platform.ts` (own token and storage key, no refresh), not the staff session. See `apps/api/src/platform/README.md`.
