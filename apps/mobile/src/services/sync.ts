@@ -20,7 +20,13 @@ export function toApiEvent(e: OutboxEvent, now: number): ApiEvent {
 
 export type FlushOutcome =
   | { state: "EMPTY" | "DONE"; sent: number }
-  | { state: "OFFLINE" | "SIGNED_OUT" | "BLOCKED"; sent: number; code?: string };
+  | {
+      state: "OFFLINE" | "SIGNED_OUT" | "BLOCKED";
+      sent: number;
+      code?: string;
+      /** The server said when to come back (429 Retry-After): do not try again before then. */
+      retryAfterSeconds?: number;
+    };
 
 /**
  * Uploads the outbox in batches (Architecture 7.4). Safe to retry: the server treats a repeated `clientEventId` as a duplicate.
@@ -61,7 +67,13 @@ export async function flushOutbox(
         }
         if (e.status === 401) return { state: "SIGNED_OUT", sent };
         if (e.status === 403) return { state: "BLOCKED", sent, code: e.code };
-        return { state: "OFFLINE", sent }; // 429 and 5xx: later
+        if (e.status === 429) {
+          const wait = Number(e.extra.retryAfterSeconds);
+          return Number.isFinite(wait) && wait > 0
+            ? { state: "OFFLINE", sent, retryAfterSeconds: wait }
+            : { state: "OFFLINE", sent };
+        }
+        return { state: "OFFLINE", sent }; // 5xx: later
       }
       throw e;
     }

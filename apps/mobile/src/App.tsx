@@ -95,8 +95,15 @@ export default function App() {
 
   // ------------------------------------------------------------------ the work of the main screens
 
+  // After a 429 the server says when to come back; until then nothing is sent (the queue keeps everything).
+  const holdUploadUntil = useRef(0);
+
   const upload = useCallback(async () => {
+    if (Date.now() < holdUploadUntil.current) return;
     let result = await flushOutbox(outbox, api);
+    if (result.state === "OFFLINE" && result.retryAfterSeconds) {
+      holdUploadUntil.current = Date.now() + result.retryAfterSeconds * 1000;
+    }
     if (result.state === "BLOCKED") {
       // Refused because this session belongs to no device (a fresh login): rejoin the registered device and try once more.
       const joined = await api.rebindDevice(await installKey()).catch(() => null);

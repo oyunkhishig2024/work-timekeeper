@@ -14,6 +14,7 @@ import { DeviceAlertsService } from "./device-alerts.service";
 import { CorrectionsService } from "./corrections.service";
 import { AttendanceService } from "./attendance.service";
 import { DailyAttendanceService } from "./daily.service";
+import { DeviceLimits } from "./device-limits.service";
 import { MobilePlanService } from "./mobile-plan.service";
 import { TimeReportService } from "./time-report.service";
 
@@ -34,6 +35,7 @@ import { TimeReportService } from "./time-report.service";
     CorrectionsService,
     AnomaliesService,
     DeviceAlertsService,
+    DeviceLimits,
   ],
   exports: [AttendanceService, DailyAttendanceService, TimeReportService],
 })

@@ -6,12 +6,13 @@
 x-app-db: &app-db
   DATABASE_URL: postgres://tk_app:${APP_DB_PASSWORD:?run infra/deploy/app-login.sh first}@postgres:5432/timekeeper
 
+# Secrets: only the services that need them read .env (env_file below). The web page server gets none, and the API and
+# worker blank the database OWNER password (they connect as tk_app and must never be able to bypass the row-level rules).
 x-app: &app
   build:
     context: ../..
     dockerfile: infra/deploy/Dockerfile
   restart: unless-stopped
-  env_file: .env
   environment:
     NODE_ENV: production
     STORAGE_DIR: /data/storage
@@ -73,6 +74,7 @@ services:
   migrate:
     <<: *app
     restart: "no"
+    env_file: .env
     environment:
       NODE_ENV: production
       DATABASE_URL: postgres://timekeeper:${POSTGRES_PASSWORD}@postgres:5432/timekeeper
@@ -83,21 +85,25 @@ services:
 
   api:
     <<: *app
+    env_file: .env
     environment:
       <<: *app-db
       NODE_ENV: production
       STORAGE_DIR: /data/storage
       TRUST_PROXY: "1"
+      POSTGRES_PASSWORD: ""
     mem_limit: 640m
     command: ["node", "apps/api/dist/main.js"]
 
   worker:
     <<: *app
+    env_file: .env
     environment:
       <<: *app-db
       NODE_ENV: production
       STORAGE_DIR: /data/storage
       TRUST_PROXY: "1"
+      POSTGRES_PASSWORD: ""
       # Background jobs (recompute, retention deletes) may legitimately run longer than a web request.
       DB_STATEMENT_TIMEOUT_MS: "300000"
     mem_limit: 512m

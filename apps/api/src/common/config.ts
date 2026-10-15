@@ -42,6 +42,14 @@ const envSchema = z.object({
   AUDIT_RETENTION_DAYS: z.coerce.number().int().min(365).default(730),
   LOGIN_MAX_FAILURES: z.coerce.number().int().min(3).default(5),
   LOGIN_LOCK_MINUTES: z.coerce.number().int().min(1).default(15),
+  /**
+   * Limits for a signed-in phone (per account per minute): calls to POST /events and POST /heartbeat, and the same for a whole
+   * organization. Far above normal use (a phone sends a few calls an hour); they stop a buggy app version or a stolen login from
+   * filling the database. Over the limit: 429 DEVICE_RATE_LIMITED with Retry-After; the phone keeps its queue and tries later.
+   */
+  DEVICE_EVENT_CALLS_PER_MINUTE: z.coerce.number().int().min(1).default(60),
+  DEVICE_HEARTBEATS_PER_MINUTE: z.coerce.number().int().min(1).default(12),
+  TENANT_DEVICE_CALLS_PER_MINUTE: z.coerce.number().int().min(10).default(6000),
   /** Per-IP rate limit for the auth endpoints. */
   AUTH_RATE_LIMIT_PER_MINUTE: z.coerce.number().int().min(1).default(10),
   /**

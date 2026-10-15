@@ -47,3 +47,9 @@ Keep a printed copy of this page and the phone numbers: you may not be able to o
 - A 2 GB server needs swap for short peaks (a deploy build, a heavy report): `sudo bash infra/deploy/swap.sh` (once; creates a 2 GB swap file, `vm.swappiness=10`; does nothing if swap exists).
 - Every container has a memory cap in `infra/deploy/docker-compose.yml` (`mem_limit`: postgres 1 GB, api 640 MB, worker 512 MB, web 640 MB, caddy 192 MB). They are caps, not reservations; raise them when the server grows. Real use: `docker stats --no-stream` and `free -h`.
 - When `monitor.sh` reports memory, swap or load problems repeatedly, move to the next droplet size (2 vCPU / 4 GB) before anything else.
+
+## Weekly usage summary
+
+`monitor-setup.sh` also installs `infra/deploy/usage-report.sh` (Monday 10:30 in Ulaanbaatar). It sends one message to the same alert address: per organization the active employees, events in the last 7 days and the last event; database size and the three biggest tables; disk, backup and point-in-time archive sizes; growth since last week and about how many weeks until the disk is full at that pace; memory and load; and how many calls were refused (phone limits, blocked addresses). Run it by hand any time: `sudo bash infra/deploy/usage-report.sh`. Offline test: `TEST_DATABASE_URL=... bash infra/deploy/test-usage-report.sh`.
+
+A sudden jump in "events in 7 days" or in growth is the early sign of a buggy phone-app version or a stolen login. The phone limits (`apps/api/src/attendance/README.md`) cap the damage meanwhile.

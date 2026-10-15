@@ -93,6 +93,10 @@ export class ProblemFilter implements ExceptionFilter {
       const body = exception.getResponse();
       const payload =
         typeof body === "string" ? { detail: body } : (body as Record<string, unknown>);
+      // A refusal that says when to come back (429 limits, busy gates) also says it in the standard header.
+      if (status === 429 && typeof payload.retryAfterSeconds === "number") {
+        res.setHeader("Retry-After", String(Math.max(1, Math.ceil(payload.retryAfterSeconds))));
+      }
       res
         .status(status)
         .type("application/problem+json")

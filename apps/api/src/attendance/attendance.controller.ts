@@ -7,6 +7,7 @@ import { AnomaliesService } from "./anomalies.service";
 import { DeviceAlertsService } from "./device-alerts.service";
 import { AttendanceService } from "./attendance.service";
 import { DailyAttendanceService } from "./daily.service";
+import { DeviceLimits } from "./device-limits.service";
 import { MobilePlanService } from "./mobile-plan.service";
 import { TimeReportService } from "./time-report.service";
 import { CORRECTION_REASONS, CorrectionsService } from "./corrections.service";
@@ -86,12 +87,14 @@ export class DeviceEventsController {
   constructor(
     private readonly attendance: AttendanceService,
     private readonly mobilePlan: MobilePlanService,
+    private readonly limits: DeviceLimits,
   ) {}
 
   @Roles("EMPLOYEE", "HR", "MANAGER", "ORG_ADMIN")
   @Post("events")
   @HttpCode(200)
   ingest(@CurrentAuth() auth: AuthContext, @Body() body: unknown) {
+    this.limits.checkEvents(auth);
     const b = ingestSchema.parse(body);
     return this.attendance.ingest(auth, b.events, {
       attestationToken: b.attestationToken,
@@ -103,6 +106,7 @@ export class DeviceEventsController {
   @Post("heartbeat")
   @HttpCode(200)
   heartbeat(@CurrentAuth() auth: AuthContext) {
+    this.limits.checkHeartbeat(auth);
     return this.attendance.heartbeat(auth);
   }
 

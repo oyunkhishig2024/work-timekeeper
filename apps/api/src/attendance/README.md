@@ -137,3 +137,7 @@ There is no heartbeat history: a heartbeat only updates `device.last_seen_at`.
 ## The minute tick writes only changes
 
 `tick()` (worker, every minute) recomputes yesterday and today for every employee of every **active** organization (a suspended one is skipped until it is reactivated). The upsert into `attendance_result` carries a `WHERE ... IS DISTINCT FROM` guard, so a minute in which nothing changed rewrites no row: `computed_at` means "when the value last changed", and the table and the WAL archive do not grow by 1,440 rewrites per employee per day. When you add a column to `attendance_result`, add it to that comparison as well. Test: `test/e2e/tick-writes.test.ts`.
+
+## Limits on what a phone may send
+
+`DeviceLimits` (`device-limits.service.ts`) counts calls per minute in process (`common/rate-window.ts`): `POST /events` 60 per account, `POST /heartbeat` 12 per account, and 6,000 per organization (config `DEVICE_EVENT_CALLS_PER_MINUTE`, `DEVICE_HEARTBEATS_PER_MINUTE`, `TENANT_DEVICE_CALLS_PER_MINUTE`). Normal use is a few calls an hour; the limits only stop a runaway app version or a stolen login from filling the database. Over the limit: `429 DEVICE_RATE_LIMITED` with `retryAfterSeconds` and the `Retry-After` header; the phone keeps its queue (`apps/mobile/src/services/sync.ts`) and waits. One log line `limit.device_rate` per account and minute (counted in the weekly usage report). With several API instances each counts alone. Tests: `test/e2e/device-limits.test.ts`.

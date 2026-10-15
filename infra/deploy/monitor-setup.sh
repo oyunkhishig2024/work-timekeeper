@@ -27,6 +27,12 @@ cat >/etc/cron.d/timekeeper-monitor <<CRON
 CRON
 chmod 644 /etc/cron.d/timekeeper-monitor
 
+# Weekly usage summary (Monday 02:30 UTC = 10:30 in Ulaanbaatar), sent to the same alert address.
+cat >/etc/cron.d/timekeeper-usage <<CRON
+30 2 * * 1 root bash $ROOT/infra/deploy/usage-report.sh >>/var/log/timekeeper-usage.log 2>&1
+CRON
+chmod 644 /etc/cron.d/timekeeper-usage
+
 echo "Checking now:"
 bash "$ROOT/infra/deploy/monitor.sh"
 echo "Done. A test message is sent only when something is wrong; to test the alert address run:"

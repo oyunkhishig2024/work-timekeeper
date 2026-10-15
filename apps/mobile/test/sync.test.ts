@@ -116,6 +116,16 @@ describe("flushOutbox", () => {
     }
   });
 
+  it("a 429 with a Retry-After hint passes the wait on and keeps the events", async () => {
+    const box = await filled(2);
+    const out = await flushOutbox(box, {
+      postEvents: async () =>
+        Promise.reject(new ApiError(429, "DEVICE_RATE_LIMITED", "x", { retryAfterSeconds: 42 })),
+    });
+    expect(out).toEqual({ state: "OFFLINE", sent: 0, retryAfterSeconds: 42 });
+    expect(await box.size()).toBe(2);
+  });
+
   it("a disabled phone or withdrawn consent (403) stops the upload and keeps the events", async () => {
     const box = await filled(2);
     const out = await flushOutbox(box, {
