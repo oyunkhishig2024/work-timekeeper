@@ -44,8 +44,9 @@ disk_free_mb=$(df -m --output=avail / | tail -n 1 | tr -dc '0-9')
 disk_used=$(df --output=pcent / | tail -n 1 | tr -dc '0-9')
 archive_mb=$(du -sm "$PITR_DIR" 2>/dev/null | cut -f1 || echo 0)
 backups_mb=$(du -sm "$BACKUP_DIR" 2>/dev/null | cut -f1 || echo 0)
+docker_cache=$(docker system df --format '{{.Type}} {{.Size}}' 2>/dev/null | awk '$1 == "Build" {print $3}' || true)
 add ""
-add "Disk: ${disk_used}% used, ${disk_free_mb} MB free. Backups: ${backups_mb} MB, point-in-time archive: ${archive_mb:-0} MB."
+add "Disk: ${disk_used}% used, ${disk_free_mb} MB free. Backups: ${backups_mb} MB, point-in-time archive: ${archive_mb:-0} MB. Docker build cache: ${docker_cache:-?}."
 
 # Growth since last week (database + both backup folders): when would the free space run out at this pace?
 total_now=$((db_mb + ${archive_mb:-0} + ${backups_mb:-0}))

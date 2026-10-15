@@ -33,6 +33,12 @@ cat >/etc/cron.d/timekeeper-usage <<CRON
 CRON
 chmod 644 /etc/cron.d/timekeeper-usage
 
+# Safety net for the disk: build cache older than 3 days is removed every Sunday (update.sh already cleans after each update).
+cat >/etc/cron.d/timekeeper-docker-clean <<CRON
+15 3 * * 0 root docker builder prune -f --filter until=72h >>/var/log/timekeeper-docker-clean.log 2>&1
+CRON
+chmod 644 /etc/cron.d/timekeeper-docker-clean
+
 echo "Checking now:"
 bash "$ROOT/infra/deploy/monitor.sh"
 echo "Done. A test message is sent only when something is wrong; to test the alert address run:"

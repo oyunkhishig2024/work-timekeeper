@@ -21,9 +21,10 @@ sudo bash infra/deploy/setup.sh
 ## Update after a code change
 
 ```bash
-git pull
-docker compose --env-file infra/deploy/.env -f infra/deploy/docker-compose.yml up -d --build
+bash infra/deploy/update.sh
 ```
+
+It pulls the new version, rebuilds and restarts, checks that the site answers, and only then removes build cache older than 24 hours and unused images (every build leaves several GB behind; before this script existed the cache grew to 24 GB). If the site does not answer, nothing is cleaned up and the script says so. The by-hand equivalent is `git pull` and `docker compose --env-file infra/deploy/.env -f infra/deploy/docker-compose.yml up -d --build`, followed by `docker builder prune -f --filter until=24h`. `monitor-setup.sh` also installs a Sunday cleanup of cache older than 3 days. Test: `bash infra/deploy/test-update.sh`.
 
 Migrations run automatically (`migrate` service) before the API starts.
 

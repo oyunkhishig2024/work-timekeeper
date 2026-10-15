@@ -53,3 +53,7 @@ Keep a printed copy of this page and the phone numbers: you may not be able to o
 `monitor-setup.sh` also installs `infra/deploy/usage-report.sh` (Monday 10:30 in Ulaanbaatar). It sends one message to the same alert address: per organization the active employees, events in the last 7 days and the last event; database size and the three biggest tables; disk, backup and point-in-time archive sizes; growth since last week and about how many weeks until the disk is full at that pace; memory and load; and how many calls were refused (phone limits, blocked addresses). Run it by hand any time: `sudo bash infra/deploy/usage-report.sh`. Offline test: `TEST_DATABASE_URL=... bash infra/deploy/test-usage-report.sh`.
 
 A sudden jump in "events in 7 days" or in growth is the early sign of a buggy phone-app version or a stolen login. The phone limits (`apps/api/src/attendance/README.md`) cap the damage meanwhile.
+
+## Disk: Docker build cache
+
+Each rebuild leaves several GB of Docker build cache. `infra/deploy/update.sh` removes cache older than 24 hours after every healthy update, a Sunday job removes cache older than 3 days, and the weekly usage summary shows the cache size. If the disk alert fires anyway: `docker system df` shows what is using space, `docker builder prune -f` frees the cache (running containers and data volumes are never touched).
