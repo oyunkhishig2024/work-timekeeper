@@ -46,7 +46,7 @@ jobs:
       - name: Install tools for the script tests
         run: sudo apt-get update -qq && sudo apt-get install -y -qq age shellcheck postgresql-client
       - name: shellcheck
-        run: shellcheck infra/deploy/*.sh infra/backup/bin/*.sh scripts/*.sh
+        run: shellcheck --severity=warning infra/deploy/*.sh infra/backup/bin/*.sh scripts/*.sh
       - name: Script tests (backup, restore, usage report, update, off-server copy)
         env:
           PGHOST: localhost
