@@ -26,6 +26,10 @@ docs/         PRD and architecture
 - pnpm 10 (`corepack enable` picks the version from `package.json`)
 - Docker (optional, for local PostgreSQL)
 
+## Changing the project
+
+Every change is a pull request that must pass the automatic checks before it joins `main`; see `docs/operations/change-workflow.md`.
+
 ## Getting started
 
 ```bash
