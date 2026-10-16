@@ -151,3 +151,10 @@ Checked at 375 px with Playwright (no page scrolls sideways; wide tables scroll 
 ## Super Admin pages
 
 `/platform/login`, `/platform/setup` and `/platform` (organizations, activity) are for the platform owner only. They use their own client `src/lib/platform.ts` (own token and storage key, no refresh), not the staff session. See `apps/api/src/platform/README.md`.
+
+## Security headers
+
+Every page (not `/v1`) gets a Content-Security-Policy, `X-Frame-Options: DENY`, `nosniff`, `Referrer-Policy: no-referrer` and a
+Permissions-Policy from `security-headers.ts` (tested in `test/security-headers.test.ts`); `X-Powered-By` is off. HSTS is sent
+by Caddy (`infra/deploy/Caddyfile`). Scripts keep `'unsafe-inline'` because Next.js needs inline scripts to start a page; when
+adding anything that loads from another site (a map, analytics, fonts), add its address to the policy on purpose, never `*`.

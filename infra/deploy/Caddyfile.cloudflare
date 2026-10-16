@@ -4,6 +4,9 @@
 # If the server were reachable directly, anybody could forge that header, so never use this file without the firewall rule.
 {$DOMAIN} {
 	encode zstd gzip
+	# Tell browsers to use HTTPS only (one year). No includeSubDomains/preload: the domain may be shared.
+	header Strict-Transport-Security "max-age=31536000"
+	header -Server
 	handle /v1/* {
 		reverse_proxy api:3001 {
 			header_up X-Forwarded-For {header.CF-Connecting-IP}

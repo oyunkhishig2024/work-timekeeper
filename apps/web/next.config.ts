@@ -1,4 +1,5 @@
 import type { NextConfig } from "next";
+import { securityHeaders } from "./security-headers";
 
 // The browser talks to this app only; /v1/* is forwarded to the API, so there is no CORS and the API address is not
 // baked into the page. In production nginx routes /v1 to the API directly and this rewrite is not used.
@@ -6,11 +7,17 @@ const apiOrigin = process.env.API_ORIGIN ?? "http://localhost:3001";
 
 const nextConfig: NextConfig = {
   reactStrictMode: true,
+  poweredByHeader: false,
   async rewrites() {
     return [{ source: "/v1/:path*", destination: `${apiOrigin}/v1/:path*` }];
   },
   async headers() {
     return [
+      {
+        // Every page except /v1 (the API sets its own headers).
+        source: "/((?!v1/).*)",
+        headers: securityHeaders(process.env.NODE_ENV !== "production"),
+      },
       {
         // A service worker must always be re-checked, otherwise a fixed worker reaches users days late.
         source: "/sw.js",
