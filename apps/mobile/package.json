@@ -27,12 +27,12 @@
     "expo-splash-screen": "~57.0.9",
     "expo-status-bar": "~57.0.1",
     "expo-task-manager": "~57.0.21",
-    "react": "^19.2.3",
-    "react-native": "^0.86.3"
+    "react": "^19.3.0",
+    "react-native": "^0.87.1"
   },
   "devDependencies": {
     "@types/node": "^22.10.2",
-    "@types/react": "~19.2.18",
+    "@types/react": "~19.3.0",
     "typescript": "^5.7.2",
     "vitest": "^2.1.9"
   }
