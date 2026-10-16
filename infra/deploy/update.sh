@@ -4,7 +4,7 @@
 #   bash infra/deploy/update.sh <commit>     a specific version (the way back)
 #   bash infra/deploy/update.sh --previous   the version that ran before the current one
 #   bash infra/deploy/update.sh --list       the last 10 healthy deploys
-# It fetches the version, rebuilds and restarts, checks that the site answers, writes the deploy log, and only then frees the old
+# It fetches the version, rebuilds and restarts (Caddy too when its settings file changed), checks that the site answers, writes the deploy log, and only then frees the old
 # build cache (every build leaves several GB behind). Running containers and data volumes are never touched.
 # Going back does NOT undo database changes: the older code runs on the newer database. That is safe when the newer migrations
 # only added things (the usual case); the script lists the migrations it is skipping so you can judge. Add --yes to skip the question.
@@ -68,6 +68,21 @@ fi
 
 echo "== rebuilding and restarting (takes a few minutes)"
 "${COMPOSE[@]}" up -d --build
+
+# Caddy reads its settings file only when it starts, and `up -d` leaves it running when its image did not change. So compare the
+# file Caddy is using with the one just fetched, and restart Caddy (a few seconds, the certificate is kept) only if they differ.
+echo "== checking the Caddy settings"
+caddy_file=$(grep '^CADDYFILE=' "$ENV_FILE" | cut -d= -f2 || true)
+caddy_file=${caddy_file:-./Caddyfile}
+case "$caddy_file" in /*) ;; *) caddy_file=infra/deploy/$caddy_file ;; esac
+wanted=$(cksum <"$caddy_file")
+running=$("${COMPOSE[@]}" exec -T caddy cat /etc/caddy/Caddyfile 2>/dev/null | cksum || true)
+if [ "$wanted" != "$running" ]; then
+  echo "Caddy settings changed: restarting Caddy"
+  "${COMPOSE[@]}" restart caddy
+else
+  echo "Caddy settings unchanged"
+fi
 
 echo "== checking that the site answers"
 ok=0

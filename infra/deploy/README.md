@@ -24,7 +24,7 @@ sudo bash infra/deploy/setup.sh
 bash infra/deploy/update.sh
 ```
 
-It pulls the new version, rebuilds and restarts, checks that the site answers, writes the deploy log (`/var/log/timekeeper-deploys.log`) and only then removes build cache older than 24 hours and unused images (every build leaves several GB behind; before this script existed the cache grew to 24 GB). If the site does not answer, nothing is logged or cleaned up and the script says how to go back.
+It pulls the new version, rebuilds and restarts (and restarts Caddy for a few seconds when its settings file `Caddyfile` changed, because Caddy only reads it at start), checks that the site answers, writes the deploy log (`/var/log/timekeeper-deploys.log`) and only then removes build cache older than 24 hours and unused images (every build leaves several GB behind; before this script existed the cache grew to 24 GB). If the site does not answer, nothing is logged or cleaned up and the script says how to go back.
 
 **Going back to an earlier version:**
 

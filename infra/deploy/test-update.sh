@@ -11,6 +11,7 @@ check() { if [ "$2" = "$3" ]; then pass=$((pass + 1)); echo "  PASS  $1"; else f
 mkdir -p "$t/bin" "$t/repo/infra/deploy"
 cp "$here/update.sh" "$t/repo/infra/deploy/"
 echo "DOMAIN=example.test" >"$t/repo/infra/deploy/.env"
+echo "site { headers }" >"$t/repo/infra/deploy/Caddyfile"
 
 # fake git: HEAD is a file; "main" moves on `pull`; fetch/checkout are logged
 cat >"$t/bin/git" <<'FAKE'
@@ -32,7 +33,12 @@ case "$1" in
 esac
 FAKE
 # shellcheck disable=SC2016
-printf '#!/usr/bin/env bash\necho "docker $*" >>"$T_LOG"\n' >"$t/bin/docker"
+cat >"$t/bin/docker" <<'FAKE'
+#!/usr/bin/env bash
+echo "docker $*" >>"$T_LOG"
+# `compose ... exec -T caddy cat ...` prints the settings file Caddy is running with
+case "$*" in *" exec "*) printf '%s\n' "${T_CADDY_RUNNING:-}" ;; esac
+FAKE
 # shellcheck disable=SC2016
 printf '#!/usr/bin/env bash\nexit "${T_CURL_RC:-0}"\n' >"$t/bin/curl"
 printf '#!/usr/bin/env bash\nexit 0\n' >"$t/bin/sleep"
@@ -49,6 +55,23 @@ check "rebuilds" "$(grep -c 'up -d --build' "$T_LOG")" 1
 check "cleans the build cache after the check" "$(grep -c 'builder prune -f --filter until=24h' "$T_LOG")" 1
 check "logs the healthy deploy" "$(grep -c ' newsha ' "$DEPLOY_LOG")" 1
 check "never removes volumes" "$(grep -c 'volume\|system prune' "$T_LOG")" 0
+
+echo "== Caddy is restarted only when its settings file changed"
+cp "$DEPLOY_LOG" "$t/deploys.saved"
+: >"$T_LOG"
+T_CADDY_RUNNING="site { headers }" update
+check "unchanged settings: no restart" "$(grep -c 'restart caddy' "$T_LOG")" 0
+: >"$T_LOG"
+T_CADDY_RUNNING="old settings" update
+check "changed settings: Caddy restarts once" "$(grep -c 'restart caddy' "$T_LOG")" 1
+check "and says so" "$(grep -c 'Caddy settings changed' "$t/out")" 1
+echo "CADDYFILE=./Caddyfile.cloudflare" >>"$t/repo/infra/deploy/.env"
+echo "cloudflare { headers }" >"$t/repo/infra/deploy/Caddyfile.cloudflare"
+: >"$T_LOG"
+T_CADDY_RUNNING="cloudflare { headers }" update
+check "honours CADDYFILE from .env" "$(grep -c 'restart caddy' "$T_LOG")" 0
+sed -i '/^CADDYFILE=/d' "$t/repo/infra/deploy/.env"
+cp "$t/deploys.saved" "$DEPLOY_LOG"
 
 echo "== a second update, then --previous goes back to the first"
 echo "2026-10-15T00:00:00Z oldsha an older change" >"$DEPLOY_LOG.new"
