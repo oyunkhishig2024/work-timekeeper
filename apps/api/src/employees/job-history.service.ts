@@ -186,11 +186,21 @@ export class JobHistoryService {
     });
   }
 
-  /** Distinct values already used in the organization, for the suggestion lists of the text fields. */
+  /**
+   * Distinct values already used in the organization, for the suggestion lists of the text fields. Values that differ only in
+   * letter case count as one; the spelling shown is the most used one, and on a tie the one that sorts first by code point
+   * (COLLATE "C"), so the answer does not depend on the collation the database was created with (the production image uses
+   * en_US.utf8, which puts lower case first; a plain `min()` returned a different spelling there).
+   */
   async suggestions(tx: Db, kind: JobKind): Promise<string[]> {
     const k = JOB_KINDS[kind];
     const { rows } = await tx.query<{ title: string }>(
-      `SELECT min(title) AS title FROM ${k.assignment} GROUP BY lower(title) ORDER BY lower(title) LIMIT 500`,
+      `SELECT title FROM (
+         SELECT DISTINCT ON (lower(title)) title
+           FROM (SELECT title, count(*) AS n FROM ${k.assignment} GROUP BY title) used
+          ORDER BY lower(title), n DESC, title COLLATE "C"
+       ) picked
+        ORDER BY lower(title) LIMIT 500`,
     );
     return rows.map((r) => r.title);
   }

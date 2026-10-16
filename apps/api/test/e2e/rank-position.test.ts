@@ -261,6 +261,12 @@ describe.skipIf(!hasDb)(
         "Нярав",
         "Харуул",
       ]);
+      // the most used spelling is shown (here the lower case one, used twice)
+      await w.employee({ firstName: "Дөрөв", rank: "ахлагч" });
+      expect((await get(w.hr, "/v1/employees/job-titles/rank")).body).toEqual([
+        "ахлагч",
+        "Менежер",
+      ]);
       expect((await get(w.hr, "/v1/employees/job-titles/other")).status).toBe(400);
       expect((await get(w.mgr, "/v1/employees/job-titles/rank")).status).toBe(403);
       // another organization does not see these
