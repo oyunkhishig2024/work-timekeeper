@@ -28,7 +28,7 @@ jobs:
       # Integration tests rebuild this schema from the migrations on every run.
       TEST_DATABASE_URL: postgres://timekeeper:timekeeper@localhost:5432/timekeeper_test
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0 # the whole history, for the secret scan
       - uses: pnpm/action-setup@v4
