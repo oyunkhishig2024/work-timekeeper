@@ -1,0 +1,19 @@
+# Weekly pull requests for updated dependencies. Security updates arrive as their own pull requests as soon as they exist.
+# At most 3 are open at once, and minor and patch updates are grouped, so this never turns into noise.
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 3
+    groups:
+      minor-and-patch:
+        update-types: [minor, patch]
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 2

@@ -31,6 +31,7 @@ docs/         PRD and architecture
 ```bash
 pnpm install
 cp .env.example .env
+# then put real values in .env:  JWT_SECRET=$(openssl rand -base64 48)   DATA_ENCRYPTION_KEY=$(openssl rand -base64 32)
 pnpm db:up            # local PostgreSQL on :5432 (also creates timekeeper_test)
 export DATABASE_URL=postgres://timekeeper:timekeeper@localhost:5432/timekeeper
 pnpm --filter @timekeeper/api db:migrate && pnpm --filter @timekeeper/api db:seed

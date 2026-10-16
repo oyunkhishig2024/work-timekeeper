@@ -24,7 +24,20 @@ sudo bash infra/deploy/setup.sh
 bash infra/deploy/update.sh
 ```
 
-It pulls the new version, rebuilds and restarts, checks that the site answers, and only then removes build cache older than 24 hours and unused images (every build leaves several GB behind; before this script existed the cache grew to 24 GB). If the site does not answer, nothing is cleaned up and the script says so. The by-hand equivalent is `git pull` and `docker compose --env-file infra/deploy/.env -f infra/deploy/docker-compose.yml up -d --build`, followed by `docker builder prune -f --filter until=24h`. `monitor-setup.sh` also installs a Sunday cleanup of cache older than 3 days. Test: `bash infra/deploy/test-update.sh`.
+It pulls the new version, rebuilds and restarts, checks that the site answers, writes the deploy log (`/var/log/timekeeper-deploys.log`) and only then removes build cache older than 24 hours and unused images (every build leaves several GB behind; before this script existed the cache grew to 24 GB). If the site does not answer, nothing is logged or cleaned up and the script says how to go back.
+
+**Going back to an earlier version:**
+
+```bash
+bash infra/deploy/update.sh --list           # the last 10 healthy deploys (time, commit, what changed)
+bash infra/deploy/update.sh --previous       # the version that ran before the current one
+bash infra/deploy/update.sh <commit>         # any commit from `git log --oneline`
+bash infra/deploy/update.sh                  # later: back to the newest version of main
+```
+
+Going back does **not** undo database changes: the older code runs on the newer database. That is safe when the newer migrations only added things (the usual case: new tables, columns, indexes); the script lists the migrations it is skipping and asks before going on (`--yes` skips the question). A change that removed or renamed a column needs a database restore instead (`docs/operations/backup-and-restore.md`). Keep migrations additive. Test: `bash infra/deploy/test-update.sh`.
+
+`monitor-setup.sh` also installs a Sunday cleanup of build cache older than 3 days.
 
 Migrations run automatically (`migrate` service) before the API starts.
 
