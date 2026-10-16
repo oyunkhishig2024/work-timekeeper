@@ -3,8 +3,8 @@
 # Writes /var/backups/timekeeper/tk-<UTC time>.tar.age containing: the database dump, uploaded files and
 # infra/deploy/.env (it holds DATA_ENCRYPTION_KEY, without which stored 2FA secrets cannot be read).
 # Everything is encrypted with the public key in /etc/timekeeper-backup.env, then old backups are removed.
-# Exit 3 = the database was saved but the uploaded files could not be (see .last-status).
-# Optional off-server copy: set BACKUP_REMOTE (an rclone remote) in that file.
+# Exit 3 = the database was saved but the uploaded files could not be; exit 4 = saved here but the off-server copy failed
+# (see .last-status). Off-server copy: BACKUP_REMOTE (an rclone remote) and RCLONE_CONFIG in that file; offsite-setup.sh sets them.
 set -euo pipefail
 
 CONF=${TK_BACKUP_ENV:-/etc/timekeeper-backup.env}
@@ -46,16 +46,28 @@ mv "$work/tk.tar.age" "$DEST/tk-$stamp.tar.age"
 # shellcheck disable=SC2012
 ls -1t "$DEST"/tk-*.tar.age | tail -n "+$((KEEP + 1))" | xargs -r rm -f
 
+# Off-server copy of the (already encrypted) archive. A failure never loses the local backup: it is reported below.
+offsite_ok=1
 if [ -n "${BACKUP_REMOTE:-}" ]; then
-  rclone copyto "$DEST/tk-$stamp.tar.age" "$BACKUP_REMOTE/tk-$stamp.tar.age"
+  RCLONE=(rclone)
+  [ -z "${RCLONE_CONFIG:-}" ] || RCLONE+=(--config "$RCLONE_CONFIG")
+  if "${RCLONE[@]}" copyto "$DEST/tk-$stamp.tar.age" "$BACKUP_REMOTE/tk-$stamp.tar.age"; then
+    echo "$stamp" >"$DEST/.last-offsite"
+  else
+    offsite_ok=0
+  fi
 fi
 
 size=$(du -h "$DEST/tk-$stamp.tar.age" | cut -f1)
-if [ "$files_ok" -eq 1 ]; then
-  echo "ok $stamp" >"$DEST/.last-status"
-  echo "$stamp backup OK: $DEST/tk-$stamp.tar.age ($size)"
-else
+if [ "$files_ok" -eq 0 ]; then
   echo "partial $stamp" >"$DEST/.last-status"
   echo "$stamp backup PARTIAL: the database was saved in $DEST/tk-$stamp.tar.age ($size) but the uploaded files were NOT backed up" >&2
   exit 3
+elif [ "$offsite_ok" -eq 0 ]; then
+  echo "offsite-failed $stamp" >"$DEST/.last-status"
+  echo "$stamp backup saved on this server ($DEST/tk-$stamp.tar.age, $size) but the copy to $BACKUP_REMOTE FAILED" >&2
+  exit 4
+else
+  echo "ok $stamp" >"$DEST/.last-status"
+  echo "$stamp backup OK: $DEST/tk-$stamp.tar.age ($size)${BACKUP_REMOTE:+, copied to $BACKUP_REMOTE}"
 fi

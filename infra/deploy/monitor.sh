@@ -80,6 +80,24 @@ if [ -f "$BACKUP_DIR/.last-status" ] && [ "$(cut -d' ' -f1 "$BACKUP_DIR/.last-st
   problems+=("the last backup did not include the uploaded files (see /var/log/timekeeper-backup.log)")
 fi
 
+# Off-server copy (offsite-setup.sh): the nightly archive and the point-in-time files must both have reached the remote lately.
+if [ -f "$BACKUP_DIR/.last-status" ] && [ "$(cut -d' ' -f1 "$BACKUP_DIR/.last-status")" = offsite-failed ]; then
+  problems+=("the last backup could not be copied off the server (see /var/log/timekeeper-backup.log)")
+fi
+if [ -n "${BACKUP_REMOTE:-}" ]; then
+  last_off=$(cat "$BACKUP_DIR/.last-offsite" 2>/dev/null || true)
+  if [ -z "$last_off" ]; then
+    problems+=("no nightly backup has been copied off the server yet")
+  fi
+fi
+if [ -n "${OFFSITE_PITR_REMOTE:-}" ]; then
+  OFFSITE_STATE=${OFFSITE_STATE:-/var/lib/timekeeper-offsite.state}
+  read -r off_state off_time <"$OFFSITE_STATE" 2>/dev/null || true
+  if [ "${off_state:-none}" != ok ] || [ $(($(date +%s) - ${off_time:-0})) -gt 3600 ]; then
+    problems+=("the point-in-time files were not copied off the server in the last hour (see /var/log/timekeeper-offsite.log)")
+  fi
+fi
+
 now=$(date +%s)
 last_status=ok
 last_sent=0

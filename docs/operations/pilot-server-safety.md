@@ -77,3 +77,14 @@ and the incident plan: [monitoring-and-incidents.md](monitoring-and-incidents.md
 
 Point-in-time recovery, and Cloudflare in front (needs your own domain: see `docs/security/cloudflare-digitalocean-caddy.md`). Do these
 before the production roll-out with many employees.
+
+## Off-server copy (Backblaze B2)
+
+Backups on the same server do not survive losing the server. `sudo bash infra/deploy/offsite-setup.sh` sends every backup to a Backblaze B2 bucket as well. What goes there is encrypted with your public key before it leaves the server (the private key is not on the server), so the bucket only holds unreadable files.
+
+- **Nightly archive** (`tk-<time>.tar.age`: database, uploaded files, `.env`): copied by `backup.sh` into `nightly/`. If the copy fails the local backup is kept, `backup.sh` exits with 4, `.last-status` says `offsite-failed` and the monitor alerts.
+- **Point-in-time archive** (`/var/backups/timekeeper-pitr`): `offsite-sync.sh` copies new files every 10 minutes and everything nightly into `pitr/` (it only adds files, never deletes or overwrites on the remote). The monitor alerts when the last successful copy is over an hour old.
+- The Backblaze key lives only in `/etc/timekeeper-backup/rclone.conf` (root, mode 600).
+- Cost: only what is stored. Old files are not removed from the bucket by the scripts; in Backblaze (bucket Lifecycle Settings) you can delete files after about 60 days, which is longer than the local retention.
+- Restoring from the bucket: `rclone --config /etc/timekeeper-backup/rclone.conf copy b2:BUCKET/nightly/<file> <folder>`, then `restore-test.sh` or `restore.sh` as for a local backup. Offline test of the scripts: `bash infra/deploy/test-offsite.sh`.
+- Known limit: the Backblaze key created in the web page can also delete files. Anyone who gets into the server could delete the off-server copies. Tightening that (a key without the delete right, made with the `b2` command-line tool, or Object Lock) is a later step.
