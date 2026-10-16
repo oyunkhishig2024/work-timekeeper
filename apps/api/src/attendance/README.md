@@ -141,3 +141,10 @@ There is no heartbeat history: a heartbeat only updates `device.last_seen_at`.
 ## Limits on what a phone may send
 
 `DeviceLimits` (`device-limits.service.ts`) counts calls per minute in process (`common/rate-window.ts`): `POST /events` 60 per account, `POST /heartbeat` 12 per account, and 6,000 per organization (config `DEVICE_EVENT_CALLS_PER_MINUTE`, `DEVICE_HEARTBEATS_PER_MINUTE`, `TENANT_DEVICE_CALLS_PER_MINUTE`). Normal use is a few calls an hour; the limits only stop a runaway app version or a stolen login from filling the database. Over the limit: `429 DEVICE_RATE_LIMITED` with `retryAfterSeconds` and the `Retry-After` header; the phone keeps its queue (`apps/mobile/src/services/sync.ts`) and waits. One log line `limit.device_rate` per account and minute (counted in the weekly usage report). With several API instances each counts alone. Tests: `test/e2e/device-limits.test.ts`.
+
+## Append-only history (migration 0038)
+
+The application login cannot delete `device_event`, `attendance_correction` or `attendance_result_log`, and cannot update
+`attendance_result_log`. On events and corrections it may update only the review, revoke, note and coordinate-erasure columns.
+Old rows leave only through `purge_old_attendance()` (retention). `attendance_result` stays writable because recompute rewrites
+it. A new column the app must update on these tables needs its own column `GRANT UPDATE` in the migration that adds it.
