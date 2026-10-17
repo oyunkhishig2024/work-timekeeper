@@ -43,7 +43,9 @@ case "${args[0]}" in
   lsf) ;;
   rcat) cat >"$T_PROBE" ;;
   cat) cat "$T_PROBE" ;;
-  deletefile) [ -n "${T_DELETE_OK:-}" ] || exit 1 ;;
+  deletefile)
+    # like the real service: a plain delete only hides the file (allowed with writeFiles); a permanent delete needs deleteFiles
+    case " ${args[*]} " in *" --b2-hard-delete "*) [ -n "${T_DELETE_OK:-}" ] || exit 1 ;; esac ;;
 esac
 FAKE
 chmod +x "$t/bin/"*
@@ -66,6 +68,7 @@ check "the old key file is gone" "$(find "$t/etc" -name "*.prev" | wc -l | tr -d
 check "a regular copy was run with it" "$(grep -c '^sync' "$T_LOG")" 1
 check "the key that was created is not removed" "$(grep -c b2_delete_key "$T_LOG")" 0
 check "the key cannot delete or manage keys" "$(grep -c 'deleteFiles\|writeKeys\|listKeys' "$T_LOG")" 0
+check "the delete test is a permanent delete, not just a hide" "$(grep -c 'deletefile --b2-hard-delete' "$T_LOG")" 1
 check "it can write, list and read" "$(grep -c 'writeFiles' "$T_LOG")" 1
 check "the key is limited to the bucket" "$(grep -c 'bucketId' "$T_LOG" | head -1)" 1
 check "the master key never reaches a file or the call arguments" "$(grep -rc MASTERSECRET123 "$t/etc" "$T_LOG" "$t/out" | awk -F: '{s+=$2} END {print s}')" 0
