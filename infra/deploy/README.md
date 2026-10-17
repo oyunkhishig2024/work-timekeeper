@@ -24,7 +24,7 @@ sudo bash infra/deploy/setup.sh
 bash infra/deploy/update.sh
 ```
 
-It pulls the new version, rebuilds and restarts (and restarts Caddy for a few seconds when its settings file `Caddyfile` changed, because Caddy only reads it at start), checks that the site answers, writes the deploy log (`/var/log/timekeeper-deploys.log`) and only then removes build cache older than 24 hours and unused images (every build leaves several GB behind; before this script existed the cache grew to 24 GB). If the site does not answer, nothing is logged or cleaned up and the script says how to go back.
+It pulls the new version, rebuilds and restarts (and restarts Caddy for a few seconds when its settings file `Caddyfile` changed, because Caddy only reads it at start; the new file is checked with `caddy validate` first and an invalid one is not applied), checks that the site answers, writes the deploy log (`/var/log/timekeeper-deploys.log`) and only then removes build cache older than 24 hours and unused images (every build leaves several GB behind; before this script existed the cache grew to 24 GB). If the site does not answer, nothing is logged or cleaned up and the script says how to go back.
 
 **Going back to an earlier version:**
 
@@ -61,3 +61,10 @@ Set `EXPO_PUBLIC_API_URL` in `apps/mobile/eas.json` (profile `preview`) to `http
 
 Point-in-time recovery (see `infra/backup/README.md`, needs PostgreSQL on the host, not the container), Cloudflare/WAF in front (see `docs/security/README.md`), monitoring.
 Local files are kept in the Docker volumes `pgdata`, `storage`, `caddy_data`. `ATTESTATION_MODE=disabled` is for the pilot only.
+
+## Cache rules (Caddyfile)
+
+Fingerprinted files under `/_next/static` keep Next.js's one-year `immutable` header, `icon.svg` and the manifest get one day, `sw.js`
+keeps its own no-cache rule, and every web page is sent with `Cache-Control: no-cache` (it is revalidated, a 304 when unchanged). Next.js
+labels its pages `s-maxage=31536000`; a CDN in front would obey that and serve old HTML after a deploy. `/v1` (the API) is never given a
+cache header here. Both Caddyfiles are checked in CI with `caddy validate`.
