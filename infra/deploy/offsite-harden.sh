@@ -4,7 +4,7 @@
 # through the bucket's own Lifecycle rule, which Backblaze runs, not this server.
 #   sudo bash infra/deploy/offsite-harden.sh
 # You type your Backblaze MASTER application key once (hidden). It is used for four API calls and never written anywhere.
-# The new key is tested BEFORE it replaces the old one: it must upload, list and read, and a delete must be refused.
+# The new key is tested BEFORE it replaces the old one: it must upload, list and read, and a permanent delete must be refused.
 set -euo pipefail
 
 die() { echo "$*" >&2; exit 1; }
@@ -120,7 +120,9 @@ if [ "$("${RCLONE[@]}" cat "b2:$bucket/test/$probe")" != "$text" ] || ! "${RCLON
   rm -f "$tmp"
   die "The new key could not read or list. Nothing was changed and the new key was removed."
 fi
-if "${RCLONE[@]}" deletefile "b2:$bucket/test/$probe" 2>/dev/null; then
+# Without --b2-hard-delete rclone only HIDES a file (b2_hide_file, which needs just writeFiles), so that would pass for any key.
+# A permanent delete of a file version needs deleteFiles, which this key must not have.
+if "${RCLONE[@]}" deletefile --b2-hard-delete "b2:$bucket/test/$probe" 2>/dev/null; then
   remove_new_key
   rm -f "$tmp"
   die "The new key CAN delete files, so it is not safe. Nothing was changed and the new key was removed."
