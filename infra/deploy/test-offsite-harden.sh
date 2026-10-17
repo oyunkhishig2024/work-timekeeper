@@ -25,6 +25,9 @@ case "$url" in
     echo '{"accountId":"acc1","authorizationToken":"tok1","apiInfo":{"storageApi":{"apiUrl":"https://api001.test"}}}' ;;
   */b2_list_buckets)
     if [ -n "${T_NO_BUCKET:-}" ]; then echo '{"buckets":[]}'; else echo '{"buckets":[{"bucketId":"bid1","bucketName":"my-bucket"}]}'; fi ;;
+  */v3/b2_create_key)
+    if [ -n "${T_V3_REJECT:-}" ]; then echo '{"status":400,"code":"unsupported","message":"This request is not currently supported on API version number 3."}'; exit 0; fi
+    echo '{"applicationKeyId":"NEWKEYID","applicationKey":"NEWSECRET789"}' ;;
   */b2_create_key) echo '{"applicationKeyId":"NEWKEYID","applicationKey":"NEWSECRET789"}' ;;
   */b2_delete_key) echo '{}' ;;
 esac
@@ -64,9 +67,16 @@ check "a regular copy was run with it" "$(grep -c '^sync' "$T_LOG")" 1
 check "the key that was created is not removed" "$(grep -c b2_delete_key "$T_LOG")" 0
 check "the key cannot delete or manage keys" "$(grep -c 'deleteFiles\|writeKeys\|listKeys' "$T_LOG")" 0
 check "it can write, list and read" "$(grep -c 'writeFiles' "$T_LOG")" 1
-check "the key is limited to the bucket" "$(grep -c 'bucketIds' "$T_LOG")" 1
+check "the key is limited to the bucket" "$(grep -c 'bucketId' "$T_LOG" | head -1)" 1
 check "the master key never reaches a file or the call arguments" "$(grep -rc MASTERSECRET123 "$t/etc" "$T_LOG" "$t/out" | awk -F: '{s+=$2} END {print s}')" 0
 check "it says what to do next" "$(grep -c 'delete the OLD key' "$t/out")" 1
+
+echo "== Backblaze does not accept the create-key call on API v3 (what the real service answered): the next version is tried"
+reset_conf
+T_V3_REJECT=1 run
+check "the key is created through another version" "$(grep -c '/v4/b2_create_key' "$T_LOG")" 1
+check "and it is installed" "$(grep -c NEWSECRET789 "$t/etc/rclone.conf")" 1
+check "the v4 call carries a bucketIds list, the v3 call a bucketId" "$(grep -c 'bucketIds' "$T_LOG")" 1
 
 echo "== the new key could delete: refused, nothing changes"
 reset_conf
