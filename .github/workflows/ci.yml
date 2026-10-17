@@ -57,6 +57,7 @@ jobs:
           bash infra/deploy/test-usage-report.sh
           bash infra/deploy/test-update.sh
           bash infra/deploy/test-offsite.sh
+          bash infra/deploy/test-offsite-harden.sh
       - name: Dependencies (server, worker, web app)
         run: node scripts/audit-deployed.mjs
       - name: Secrets in the code and the history
