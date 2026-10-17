@@ -11,17 +11,13 @@ updates:
     groups:
       minor-and-patch:
         update-types: [minor, patch]
-    # The phone app (Expo SDK 57) needs exactly react 19.2.x and react-native 0.86.x; moving them needs an Expo SDK upgrade,
-    # done on purpose. Patch updates still arrive. Web-only react minors are then bumped by hand.
+    # The phone app (Expo SDK 57) needs exactly react 19.2.3 and react-native 0.86.3: React Native's renderer refuses to start
+    # if react differs even by a patch. They move only with an Expo SDK upgrade, done by hand (web react and react-dom with them).
     ignore:
       - dependency-name: react
-        update-types: ["version-update:semver-minor", "version-update:semver-major"]
       - dependency-name: react-dom
-        update-types: ["version-update:semver-minor", "version-update:semver-major"]
       - dependency-name: "@types/react"
-        update-types: ["version-update:semver-minor", "version-update:semver-major"]
       - dependency-name: react-native
-        update-types: ["version-update:semver-minor", "version-update:semver-major"]
   - package-ecosystem: github-actions
     directory: /
     schedule:
