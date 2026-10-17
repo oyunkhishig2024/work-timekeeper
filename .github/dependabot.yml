@@ -21,6 +21,11 @@ updates:
       # Every expo-* package is tied to the Expo SDK (57); an SDK upgrade moves them together, by hand.
       - dependency-name: "expo*"
         update-types: ["version-update:semver-major"]
+      # Other native libraries of the phone app are pinned to what Expo SDK 57 ships with; a major update needs the SDK upgrade too.
+      - dependency-name: "@react-native-async-storage/*"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "react-native-*"
+        update-types: ["version-update:semver-major"]
   - package-ecosystem: github-actions
     directory: /
     schedule:
