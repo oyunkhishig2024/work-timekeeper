@@ -9,7 +9,7 @@ POST /auth/login         { orgCode, username, password }
    → 200 { status: "OK", tokens }                       staff without TOTP, employees, or Managers
    → 200 { status: "MFA_REQUIRED", challengeToken }     Org Admin / HR with an authenticator
 POST /auth/totp/verify   { challengeToken, code | recoveryCode }  → tokens
-POST /auth/refresh       { refreshToken }               → new tokens (rotation; replay revokes the family)
+POST /auth/refresh       { refreshToken } (phone) or the tk_rt cookie (web)  → new tokens (rotation; replay revokes the family)
 POST /auth/logout        (Bearer)                       → 204
 GET  /auth/me            (Bearer)
 POST /auth/password/change { currentPassword, newPassword }  → fresh tokens; all older sessions end
@@ -57,8 +57,20 @@ node dist/cli/reset-password.js --org <code> --username <name> [--totp]   server
 - Breached-password check against the full Have I Been Pwned list: needs an external call (a new entry in
   the PRD 15.3 foreign-processors register). A built-in denylist of very common passwords is used meanwhile.
 - Progressive (escalating) lockout: the lock is a fixed 15 minutes.
-- Absolute maximum session age for staff (idle expiry only).
 - Password-reset by one-time code to a verified email/phone (admin/HR-assisted reset exists).
+
+## Web: refresh token in an httpOnly cookie, and a maximum session age
+
+The web app sends `X-TK-Client: web`. For such a request login, `totp/verify`, `refresh`, `password/change` and `totp/enable` put the
+refresh token in the `tk_rt` cookie (`HttpOnly; SameSite=Strict; Path=/v1/auth`, `Secure` when the browser used HTTPS, no Max-Age) and
+leave it out of the JSON, so page scripts never see it. `refresh` reads the body token (phone) or else the cookie, and answers
+`403 CLIENT_HEADER_REQUIRED` for a cookie without the client header (a cross-site page cannot add that header without a CORS
+preflight, which this API never allows, so together with SameSite it stops cross-site forgery). A refused cookie is cleared; logout
+clears it. The phone app sends no such header and keeps the token in the body as before (`refresh-cookie.ts`).
+
+A web staff session ends `STAFF_SESSION_MAX_HOURS` (default 12) after sign-in however often it is refreshed: `auth_session.session_started_at`
+(migration 0039) is carried through rotations and caps `expires_at`, so the access token stops working then too. Phone sessions
+(employees, or staff on their registered phone) are not capped; they last `EMPLOYEE_SESSION_DAYS`. Changing the password starts a new sign-in (a new clock).
 
 ## Staff who are also employees (PRD 4, v1.32)
 

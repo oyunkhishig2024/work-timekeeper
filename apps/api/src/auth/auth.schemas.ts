@@ -16,7 +16,8 @@ export const totpVerifySchema = z
     message: "Provide exactly one of code or recoveryCode",
   });
 
-export const refreshSchema = z.object({ refreshToken: z.string().min(1) });
+/** The phone sends its token in the body; the web app sends nothing and the httpOnly cookie carries it (refresh-cookie.ts). */
+export const refreshSchema = z.object({ refreshToken: z.string().min(1).optional() });
 
 export const changePasswordSchema = z.object({
   currentPassword: z.string().min(1).max(256),

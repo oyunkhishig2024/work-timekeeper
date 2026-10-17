@@ -34,7 +34,8 @@ export interface RequestOptions {
 }
 
 async function once(path: string, opts: RequestOptions): Promise<Response> {
-  const headers: Record<string, string> = { Accept: "application/json" };
+  // "web" tells the API to keep the refresh token in its httpOnly cookie (and to require this header on cookie requests).
+  const headers: Record<string, string> = { Accept: "application/json", "X-TK-Client": "web" };
   if (opts.body !== undefined) headers["Content-Type"] = "application/json";
   const token = opts.auth === false ? null : (provider?.accessToken() ?? null);
   if (token) headers.Authorization = `Bearer ${token}`;

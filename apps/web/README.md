@@ -17,10 +17,14 @@ The browser talks only to this app; `/v1/*` is forwarded to the API (rewrite), s
 
 ## Sign-in (`src/lib/session.ts`)
 
-Organization code + username + password, then the TOTP code for accounts that have it. The access token is kept in memory, the
-refresh token in `sessionStorage` (a reload keeps you signed in, closing the tab ends the session). A 401 triggers one shared
-token refresh and a retry (`src/lib/api.ts`). Hardening still to do: move the refresh token to an httpOnly cookie behind a
-backend-for-frontend, so page scripts never see it.
+Organization code + username + password, then the TOTP code for accounts that have it. The access token is kept in memory. The
+refresh token is an **httpOnly cookie** (`tk_rt`, `SameSite=Strict`, path `/v1/auth`, `Secure` over HTTPS) that the browser sends to
+`/v1/auth/refresh` by itself, so no page script can read it; every request carries `X-TK-Client: web`, which tells the API to use the
+cookie and which it requires on cookie requests (`apps/api/src/auth/refresh-cookie.ts`). Only a non-secret marker (`tk.signed-in`)
+is kept in `sessionStorage`, so a page load without a sign-in does not call refresh; a reload keeps you signed in. A 401 triggers
+one shared token refresh and a retry (`src/lib/api.ts`). A web staff session also ends `STAFF_SESSION_MAX_HOURS` (12) after
+sign-in, however active it is. The Super Admin page (`/platform`) is separate: its token stays in `sessionStorage` for a fixed
+60-minute session with no refresh.
 
 ## Dashboard (`/dashboard`, PRD 7, 8)
 
