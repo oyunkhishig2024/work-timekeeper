@@ -1,16 +1,9 @@
 import "reflect-metadata";
 import { NestFactory } from "@nestjs/core";
-import { Module } from "@nestjs/common";
+import { UserCliModule } from "./cli-modules";
 import { ApiError } from "../common/api-error";
-import { AuditModule } from "../audit/audit.module";
-import { AuthModule } from "../auth/auth.module";
-import { DatabaseModule } from "../database/database.module";
 import { DatabaseService } from "../database/database.service";
-import { UsersModule } from "../users/users.module";
 import { UsersService } from "../users/users.service";
-
-@Module({ imports: [DatabaseModule, AuditModule, AuthModule, UsersModule] })
-class CliModule {}
 
 function arg(name: string): string | undefined {
   const index = process.argv.indexOf(`--${name}`);
@@ -34,7 +27,7 @@ async function main(): Promise<void> {
     process.exit(2);
   }
 
-  const app = await NestFactory.createApplicationContext(CliModule, { logger: ["error"] });
+  const app = await NestFactory.createApplicationContext(UserCliModule, { logger: ["error"] });
   try {
     const tenantId = await app.get(DatabaseService).resolveTenant(org);
     if (!tenantId) throw new Error(`Unknown or inactive organization code "${org}"`);
