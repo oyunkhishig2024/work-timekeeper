@@ -11,7 +11,6 @@ export interface SessionUser {
 
 interface Tokens {
   accessToken: string;
-  refreshToken: string;
   user: SessionUser;
   requires?: string[];
 }
@@ -19,12 +18,15 @@ interface Tokens {
 type LoginResponse =
   { status: "MFA_REQUIRED"; challengeToken: string } | { status?: string; tokens: Tokens };
 
-const REFRESH_KEY = "tk.refresh";
+/** Not a secret: only says "this tab was signed in", so a page load without a sign-in does not call refresh for nothing. */
+const SIGNED_IN_KEY = "tk.signed-in";
+/** The refresh token used to live here; it is in an httpOnly cookie now. Removed from tabs that still have the old value. */
+const LEGACY_REFRESH_KEY = "tk.refresh";
 
 /**
- * Browser session. The short-lived access token lives only in memory; the refresh token is kept in sessionStorage, so a
- * reload keeps you signed in but closing the tab ends the session. (An httpOnly-cookie backend-for-frontend would keep the
- * refresh token away from page scripts entirely; that is a later hardening step.)
+ * Browser session. The short-lived access token lives only in memory. The refresh token is an httpOnly cookie the browser sends
+ * to /v1/auth/refresh by itself: no page script can read it, so a script injected into a page cannot steal the long-lived
+ * credential. A reload keeps you signed in (the cookie); the tab marker above is dropped when the tab closes.
  */
 let accessToken: string | null = null;
 let user: SessionUser | null = null;
@@ -52,11 +54,13 @@ function storage(): Storage | null {
   }
 }
 
+storage()?.removeItem(LEGACY_REFRESH_KEY);
+
 function accept(tokens: Tokens): void {
   accessToken = tokens.accessToken;
   user = tokens.user;
   requires = tokens.requires ?? [];
-  storage()?.setItem(REFRESH_KEY, tokens.refreshToken);
+  storage()?.setItem(SIGNED_IN_KEY, "1");
   emit();
 }
 
@@ -64,23 +68,17 @@ function clear(): void {
   accessToken = null;
   user = null;
   requires = [];
-  storage()?.removeItem(REFRESH_KEY);
+  storage()?.removeItem(SIGNED_IN_KEY);
   emit();
 }
 
 async function refresh(): Promise<boolean> {
   // Several requests may fail at once; they share one refresh (refresh tokens rotate, a second use would end the session).
   refreshing ??= (async () => {
-    const token = storage()?.getItem(REFRESH_KEY);
-    if (!token) return false;
+    if (!storage()?.getItem(SIGNED_IN_KEY)) return false;
     try {
-      accept(
-        await api<Tokens>("/v1/auth/refresh", {
-          method: "POST",
-          body: { refreshToken: token },
-          auth: false,
-        }),
-      );
+      // No token in the request: the browser attaches the httpOnly cookie.
+      accept(await api<Tokens>("/v1/auth/refresh", { method: "POST", auth: false }));
       return true;
     } catch (error) {
       // Only a rejected token ends the session; a network error keeps it for the next try.

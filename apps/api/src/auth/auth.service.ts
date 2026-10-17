@@ -182,11 +182,13 @@ export class AuthService {
       revoked_at: Date | null;
       rotated_at: Date | null;
       expires_at: Date;
+      started_at: Date;
     };
     const outcome = await this.db.withTenant<Outcome<AuthTokens>>(tenantId, async (tx) => {
       const found = await tx.query<SessionRow>(
-        `SELECT id, user_id, family_id, device_id, revoked_at, rotated_at, expires_at FROM auth_session
-          WHERE refresh_hash = $1 FOR UPDATE`,
+        `SELECT id, user_id, family_id, device_id, revoked_at, rotated_at, expires_at,
+                COALESCE(session_started_at, created_at) AS started_at
+           FROM auth_session WHERE refresh_hash = $1 FOR UPDATE`,
         [hashRefreshToken(refreshToken)],
       );
       const session = found.rows[0];
@@ -214,7 +216,13 @@ export class AuthService {
             await this.auditEvent(tx, user, "auth.refresh_token_retry", meta);
             return {
               kind: "ok",
-              value: await this.sessions.issue(tx, user, session.family_id, session.device_id),
+              value: await this.sessions.issue(
+                tx,
+                user,
+                session.family_id,
+                session.device_id,
+                session.started_at,
+              ),
             };
           }
         }
@@ -229,7 +237,13 @@ export class AuthService {
       await this.sessions.rotate(tx, session.id);
       return {
         kind: "ok",
-        value: await this.sessions.issue(tx, user, session.family_id, session.device_id),
+        value: await this.sessions.issue(
+          tx,
+          user,
+          session.family_id,
+          session.device_id,
+          session.started_at,
+        ),
       };
     });
 

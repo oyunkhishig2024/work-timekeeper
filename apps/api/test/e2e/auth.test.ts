@@ -240,7 +240,9 @@ describe.skipIf(!hasDb)("authentication (PRD 15.2)", () => {
       expect(
         (await h.http().post("/v1/auth/refresh").send({ refreshToken: "nonsense" })).status,
       ).toBe(401);
-      expect((await h.http().post("/v1/auth/refresh").send({})).status).toBe(400);
+      // no token in the body and no cookie: nothing to refresh with (the body token became optional for the web cookie)
+      expect((await h.http().post("/v1/auth/refresh").send({})).status).toBe(401);
+      expect((await h.http().post("/v1/auth/refresh").send({ refreshToken: "" })).status).toBe(400);
     });
   });
 

@@ -32,28 +32,43 @@ export class SessionService {
     user: UserRow,
     familyId?: string,
     deviceId?: string | null,
+    startedAt?: Date,
   ): Promise<AuthTokens> {
     const now = this.clock.now();
     // A phone session lasts like an employee's: an employee account, or a staff account linked to the person's own
     // employee record once the session is bound to their registered phone (PRD 4, 21.2). A web session stays short.
-    const lifetimeMs =
-      user.role === "EMPLOYEE" || (user.employee_id !== null && Boolean(deviceId))
-        ? this.config.EMPLOYEE_SESSION_DAYS * 24 * 60 * 60 * 1000
-        : this.config.STAFF_SESSION_IDLE_MINUTES * 60 * 1000; // sliding: renewed by every refresh
+    const phoneSession =
+      user.role === "EMPLOYEE" || (user.employee_id !== null && Boolean(deviceId));
+    const lifetimeMs = phoneSession
+      ? this.config.EMPLOYEE_SESSION_DAYS * 24 * 60 * 60 * 1000
+      : this.config.STAFF_SESSION_IDLE_MINUTES * 60 * 1000; // sliding: renewed by every refresh
+    // A rotated session keeps the start of its sign-in (the family); a web staff session never outlives it by more than
+    // STAFF_SESSION_MAX_HOURS, however often it is refreshed.
+    const started = startedAt ?? now;
+    const idleEnd = now.getTime() + lifetimeMs;
+    const expiresAt = new Date(
+      phoneSession
+        ? idleEnd
+        : Math.min(
+            idleEnd,
+            started.getTime() + this.config.STAFF_SESSION_MAX_HOURS * 60 * 60 * 1000,
+          ),
+    );
     const refresh = newRefreshToken(user.tenant_id);
 
     const { rows } = await db.query<{ id: string }>(
-      `INSERT INTO auth_session (tenant_id, user_id, refresh_hash, expires_at, family_id, last_used_at, device_id)
-       VALUES ($1, $2, $3, $4, COALESCE($5::uuid, gen_random_uuid()), $6, $7)
+      `INSERT INTO auth_session (tenant_id, user_id, refresh_hash, expires_at, family_id, last_used_at, device_id, session_started_at)
+       VALUES ($1, $2, $3, $4, COALESCE($5::uuid, gen_random_uuid()), $6, $7, $8)
        RETURNING id`,
       [
         user.tenant_id,
         user.id,
         refresh.hash,
-        new Date(now.getTime() + lifetimeMs),
+        expiresAt,
         familyId ?? null,
         now,
         deviceId ?? null,
+        started,
       ],
     );
     const sessionId = rows[0]!.id;
