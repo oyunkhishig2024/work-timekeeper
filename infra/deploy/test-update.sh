@@ -38,6 +38,8 @@ cat >"$t/bin/docker" <<'FAKE'
 echo "docker $*" >>"$T_LOG"
 # `compose ... exec -T caddy cat ...` prints the settings file Caddy is running with
 case "$*" in *" exec "*) printf '%s\n' "${T_CADDY_RUNNING:-}" ;; esac
+# `docker run ... caddy validate` (the settings check before a restart)
+case "$*" in "run "*"caddy validate"*) exit "${T_CADDY_INVALID:-0}" ;; esac
 FAKE
 # shellcheck disable=SC2016
 printf '#!/usr/bin/env bash\nexit "${T_CURL_RC:-0}"\n' >"$t/bin/curl"
@@ -65,6 +67,13 @@ check "unchanged settings: no restart" "$(grep -c 'restart caddy' "$T_LOG")" 0
 T_CADDY_RUNNING="old settings" update
 check "changed settings: Caddy restarts once" "$(grep -c 'restart caddy' "$T_LOG")" 1
 check "and says so" "$(grep -c 'Caddy settings changed' "$t/out")" 1
+rc=0
+: >"$T_LOG"
+T_CADDY_RUNNING="old settings" T_CADDY_INVALID=1 update || rc=$?
+check "invalid new settings: Caddy is NOT restarted" "$(grep -c 'restart caddy' "$T_LOG")" 0
+check "and the update still finishes" "$rc" 0
+check "and warns, at the end too" "$(grep -c 'NOT valid' "$t/out")" 2
+check "the settings are checked with the same Caddy image" "$(grep -c 'caddy:2 caddy validate' "$T_LOG")" 1
 echo "CADDYFILE=./Caddyfile.cloudflare" >>"$t/repo/infra/deploy/.env"
 echo "cloudflare { headers }" >"$t/repo/infra/deploy/Caddyfile.cloudflare"
 : >"$T_LOG"

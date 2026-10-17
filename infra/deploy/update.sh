@@ -77,9 +77,17 @@ caddy_file=${caddy_file:-./Caddyfile}
 case "$caddy_file" in /*) ;; *) caddy_file=infra/deploy/$caddy_file ;; esac
 wanted=$(cksum <"$caddy_file")
 running=$("${COMPOSE[@]}" exec -T caddy cat /etc/caddy/Caddyfile 2>/dev/null | cksum || true)
+caddy_warning=""
 if [ "$wanted" != "$running" ]; then
-  echo "Caddy settings changed: restarting Caddy"
-  "${COMPOSE[@]}" restart caddy
+  # A mistake in the file would make Caddy fail to start and take the site down, so check it first (this runs the same Caddy
+  # image, offline). If it is invalid the running Caddy keeps its old, working settings.
+  if docker run --rm -e DOMAIN="$DOMAIN" -v "$PWD/$caddy_file:/etc/caddy/Caddyfile:ro" caddy:2 caddy validate --config /etc/caddy/Caddyfile >/dev/null 2>&1; then
+    echo "Caddy settings changed: restarting Caddy"
+    "${COMPOSE[@]}" restart caddy
+  else
+    caddy_warning="The new Caddy settings ($caddy_file) are NOT valid, so Caddy was not restarted and keeps its old settings. Tell the developer."
+    echo "WARNING: $caddy_warning" >&2
+  fi
 else
   echo "Caddy settings unchanged"
 fi
@@ -105,4 +113,5 @@ echo "== freeing old build cache and unused images"
 docker builder prune -f --filter "until=${KEEP}h" | tail -n 1
 docker image prune -f | tail -n 1
 df -h / | tail -n 1
+[ -z "$caddy_warning" ] || echo "WARNING: $caddy_warning" >&2
 echo "Update finished: $(git log -1 --format='%h %s')"
