@@ -4,7 +4,7 @@
 # through the bucket's own Lifecycle rule, which Backblaze runs, not this server.
 #   sudo bash infra/deploy/offsite-harden.sh
 # You type your Backblaze MASTER application key once (hidden). It is used for four API calls and never written anywhere.
-# The new key is tested BEFORE it replaces the old one: it must upload, list and read, and a delete must be refused.
+# The new key is tested BEFORE it replaces the old one: it must upload, list and read, and a permanent delete must be refused.
 set -euo pipefail
 
 die() { echo "$*" >&2; exit 1; }
@@ -38,8 +38,8 @@ echo
 
 # The master key goes to curl through stdin, so it never appears in the process list.
 b2_auth() { printf 'user = "%s:%s"\n' "$master_id" "$master_key" | curl -sS -K - "$API/b2api/v3/b2_authorize_account"; }
-b2_post() { # b2_post <endpoint> <json body>
-  printf 'header = "Authorization: %s"\n' "$token" | curl -sS -K - -X POST -d "$2" "$api_url/b2api/v3/$1"
+b2_post() { # b2_post <endpoint> <json body> [api version, default v3]
+  printf 'header = "Authorization: %s"\n' "$token" | curl -sS -K - -X POST -d "$2" "$api_url/b2api/${3:-v3}/$1"
 }
 failed() { jq -e '.status != null and .status >= 400' >/dev/null 2>&1 <<<"$1"; }
 reason() { jq -r '.message // "unknown error"' <<<"$1" 2>/dev/null || echo "unreadable answer"; }
@@ -60,15 +60,40 @@ bucket_id=$(jq -r '.buckets[0].bucketId // empty' <<<"$resp")
 
 echo "== creating a key that cannot delete"
 key_name="tk-upload-only-$(date +%Y%m%d%H%M%S)"
-body=$(jq -nc --arg a "$account" --arg n "$key_name" --arg b "$bucket_id" --argjson c "$CAPABILITIES" \
-  '{accountId: $a, keyName: $n, capabilities: $c, bucketIds: [$b]}')
-resp=$(b2_post b2_create_key "$body") || die "Could not reach Backblaze."
+# Backblaze serves b2_create_key on different API versions with different bucket fields (one bucketId, or a bucketIds list);
+# try each until one accepts it. Nothing is created by a refused call.
+resp=""
+created_version=v3
+for version in v3 v4 v2; do
+  if [ "$version" = v4 ]; then
+    body=$(jq -nc --arg a "$account" --arg n "$key_name" --arg b "$bucket_id" --argjson c "$CAPABILITIES" \
+      '{accountId: $a, keyName: $n, capabilities: $c, bucketIds: [$b]}')
+  else
+    body=$(jq -nc --arg a "$account" --arg n "$key_name" --arg b "$bucket_id" --argjson c "$CAPABILITIES" \
+      '{accountId: $a, keyName: $n, capabilities: $c, bucketId: $b}')
+  fi
+  resp=$(b2_post b2_create_key "$body" "$version") || die "Could not reach Backblaze."
+  if ! failed "$resp"; then
+    created_version=$version
+    break
+  fi
+  case "$(reason "$resp")" in
+    *"not currently supported"* | *"not supported"* | *"Unsupported"* | *"unsupported"*) continue ;;
+    *) break ;;
+  esac
+done
 failed "$resp" && die "Backblaze did not create the key: $(reason "$resp")"
 new_id=$(jq -r '.applicationKeyId // empty' <<<"$resp")
 new_key=$(jq -r '.applicationKey // empty' <<<"$resp")
 [ -n "$new_id" ] && [ -n "$new_key" ] || die "Unexpected answer from Backblaze (no key). Nothing was changed."
 
-remove_new_key() { b2_post b2_delete_key "$(jq -nc --arg k "$new_id" '{applicationKeyId: $k}')" >/dev/null 2>&1 || true; }
+remove_new_key() {
+  local answer
+  answer=$(b2_post b2_delete_key "$(jq -nc --arg k "$new_id" '{applicationKeyId: $k}')" "$created_version" 2>/dev/null) || answer=""
+  if failed "$answer" || [ -z "$answer" ]; then
+    echo "Note: could not remove the test key \"$key_name\" automatically. Delete it in Backblaze (Application Keys)." >&2
+  fi
+}
 
 tmp=$(mktemp)
 umask 077
@@ -95,7 +120,9 @@ if [ "$("${RCLONE[@]}" cat "b2:$bucket/test/$probe")" != "$text" ] || ! "${RCLON
   rm -f "$tmp"
   die "The new key could not read or list. Nothing was changed and the new key was removed."
 fi
-if "${RCLONE[@]}" deletefile "b2:$bucket/test/$probe" 2>/dev/null; then
+# Without --b2-hard-delete rclone only HIDES a file (b2_hide_file, which needs just writeFiles), so that would pass for any key.
+# A permanent delete of a file version needs deleteFiles, which this key must not have.
+if "${RCLONE[@]}" deletefile --b2-hard-delete "b2:$bucket/test/$probe" 2>/dev/null; then
   remove_new_key
   rm -f "$tmp"
   die "The new key CAN delete files, so it is not safe. Nothing was changed and the new key was removed."

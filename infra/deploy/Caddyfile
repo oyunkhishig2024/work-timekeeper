@@ -7,7 +7,24 @@
 	handle /v1/* {
 		reverse_proxy api:3001
 	}
-	handle {
+	# Web pages. Next.js labels its pages "s-maxage=31536000" (one year), which a CDN would obey, serving old HTML that points at
+	# script files a new deploy has removed. HTML is therefore always re-checked (a cheap 304 when unchanged). The fingerprinted files
+	# under /_next/static keep the year-long "immutable" Next.js gives them; sw.js keeps its own no-cache rule.
+	handle /_next/static/* {
 		reverse_proxy web:3000
+	}
+	handle /sw.js {
+		reverse_proxy web:3000
+	}
+	@small path /icon.svg /manifest.webmanifest
+	handle @small {
+		reverse_proxy web:3000 {
+			header_down Cache-Control "public, max-age=86400"
+		}
+	}
+	handle {
+		reverse_proxy web:3000 {
+			header_down Cache-Control "no-cache"
+		}
 	}
 }
