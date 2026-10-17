@@ -1,15 +1,8 @@
 import "reflect-metadata";
 import { NestFactory } from "@nestjs/core";
-import { Module } from "@nestjs/common";
+import { PlatformCliModule } from "./cli-modules";
 import { ApiError } from "../common/api-error";
-import { AuditModule } from "../audit/audit.module";
-import { AuthModule } from "../auth/auth.module";
-import { DatabaseModule } from "../database/database.module";
 import { PlatformAuthService } from "../platform/platform-auth.service";
-import { PlatformModule } from "../platform/platform.module";
-
-@Module({ imports: [DatabaseModule, AuditModule, AuthModule, PlatformModule] })
-class CliModule {}
 
 function arg(name: string): string | undefined {
   const index = process.argv.indexOf(`--${name}`);
@@ -31,7 +24,7 @@ async function main(): Promise<void> {
     );
     process.exit(2);
   }
-  const app = await NestFactory.createApplicationContext(CliModule, { logger: ["error"] });
+  const app = await NestFactory.createApplicationContext(PlatformCliModule, { logger: ["error"] });
   try {
     const result = await app
       .get(PlatformAuthService)
